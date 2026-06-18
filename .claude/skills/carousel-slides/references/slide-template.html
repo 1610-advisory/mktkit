@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<!--
+  Master carousel template for the ai-cmo:carousel-slides skill.
+
+  Usage:
+  1. Copy this file to clients/[client]/outputs/slides/[YYYY-MM-DD]-[slug]/slides.html
+  2. Edit :root CSS variables to match the client's brand-identity.md
+  3. Replace `__FONT_SERIF__` and `__FONT_SANS__` in the Google Fonts link
+  4. Replace placeholder slide content with real copy + photo paths
+  5. Update the .proof-header text (carousel title + meta line)
+  6. Slide labels (01 · Title, etc.) update per slide
+
+  The default browser view shows all slides as a 2-column proof grid.
+  render.js sets body.rendering before screenshotting each slide individually
+  at full 1080x1350.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>__CAROUSEL_TITLE__ — Carousel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Replace family names below with brand-identity.md serif + sans -->
+<link href="https://fonts.googleapis.com/css2?family=__FONT_SERIF__:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=__FONT_SANS__:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* Brand color palette — replace with values from knowledge/brand-identity.md */
+    --background: #FAF8F3;
+    --surface: #F5F0E8;
+    --surface-warm: #EDE6D9;
+    --primary: #5C2A2A;
+    --primary-dark: #3A1A1A;
+    --accent: #B8965A;
+    --accent-soft: #D4B884;
+    --foreground: #2C2C2C;
+    --on-dark: #FAF8F3;
+
+    /* Typography — replace family names to match Google Fonts link above */
+    --serif: 'Playfair Display', ui-serif, Georgia, serif;
+    --sans: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif;
+
+    /* Photo overlay — tune per carousel */
+    --overlay-top: rgba(20, 15, 12, 0.55);
+    --overlay-bot: rgba(20, 15, 12, 0.78);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #1a1614; }
+
+  /* ===== Proof grid (default browser view) ===== */
+  body { padding: 56px 40px 80px; min-height: 100vh; }
+  .proof-header {
+    text-align: center;
+    color: var(--surface-warm);
+    font-family: var(--sans);
+    margin-bottom: 40px;
+  }
+  .proof-header h1 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 30px;
+    letter-spacing: -0.005em;
+  }
+  .proof-header h1 em { font-style: italic; color: var(--accent-soft); }
+  .proof-header p {
+    margin-top: 8px;
+    font-size: 12px;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    opacity: 0.55;
+  }
+  .proof-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 540px);
+    gap: 36px 32px;
+    justify-content: center;
+  }
+  @media (max-width: 1180px) { .proof-grid { grid-template-columns: 540px; } }
+  .slide-wrap {
+    width: 540px; height: 675px;
+    overflow: hidden;
+    border-radius: 6px;
+    box-shadow: 0 18px 50px rgba(0,0,0,0.55), 0 1px 0 rgba(255,255,255,0.04) inset;
+    position: relative;
+  }
+  .slide-label {
+    position: absolute; top: 10px; left: 10px;
+    z-index: 10;
+    background: rgba(20, 14, 10, 0.78);
+    color: var(--surface-warm);
+    padding: 5px 11px;
+    border-radius: 3px;
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    backdrop-filter: blur(6px);
+  }
+  .slide-wrap > .slide { transform: scale(0.5); transform-origin: top left; }
+
+  /* ===== Render mode (Playwright sets body.rendering) ===== */
+  body.rendering { padding: 0; background: #111; }
+  body.rendering .proof-header,
+  body.rendering .slide-label { display: none; }
+  body.rendering .proof-grid { display: block; gap: 0; }
+  body.rendering .slide-wrap {
+    width: 1080px; height: 1350px;
+    border-radius: 0; box-shadow: none;
+  }
+  body.rendering .slide-wrap > .slide { transform: none; }
+
+  /* ===== Slide canvas ===== */
+  .slide {
+    position: relative;
+    width: 1080px; height: 1350px;
+    overflow: hidden;
+    color: var(--on-dark);
+    font-family: var(--sans);
+  }
+  .bg {
+    position: absolute; inset: 0;
+    background-size: cover;
+    background-position: center;
+    z-index: 0;
+  }
+  .overlay {
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, var(--overlay-top) 0%, var(--overlay-bot) 100%);
+    z-index: 1;
+  }
+  .vignette {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,0.55) 100%);
+    z-index: 2;
+  }
+  .content {
+    position: relative; z-index: 3;
+    width: 100%; height: 100%;
+    padding: 96px 88px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .center { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+
+  /* ===== Shared atoms ===== */
+  .eyebrow {
+    font-family: var(--sans);
+    font-weight: 500;
+    font-size: 22px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--accent-soft);
+    display: flex; align-items: center; gap: 18px;
+  }
+  .eyebrow::after {
+    content: ''; flex: 1; height: 1px;
+    background: linear-gradient(90deg, var(--accent-soft), transparent);
+    opacity: 0.55;
+  }
+
+  .pagetag {
+    font-family: var(--sans);
+    font-size: 18px;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: var(--surface);
+    opacity: 0.78;
+  }
+  .footer-row {
+    display: flex; justify-content: space-between; align-items: flex-end; gap: 24px;
+  }
+  .footer-row .handle {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 26px;
+    color: var(--surface);
+    opacity: 0.8;
+  }
+
+  /* ===== Slide type: title ===== */
+  .title {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 168px;
+    line-height: 0.95;
+    letter-spacing: -0.015em;
+    color: var(--on-dark);
+  }
+  .title em { font-style: italic; color: var(--accent-soft); }
+  .subtitle {
+    margin-top: 38px;
+    font-family: var(--serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 38px;
+    line-height: 1.32;
+    color: var(--surface);
+    max-width: 720px;
+  }
+
+  /* ===== Slide type: pull-quote ===== */
+  .quote-mark {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 200px;
+    line-height: 0.6;
+    color: var(--accent);
+    opacity: 0.85;
+    margin-bottom: 24px;
+    display: block;
+    height: 80px;
+  }
+  .quote {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 76px;
+    line-height: 1.12;
+    letter-spacing: -0.005em;
+    color: var(--on-dark);
+  }
+  .quote.tighter { font-size: 64px; line-height: 1.18; }
+  .quote .accent { color: var(--accent-soft); font-style: italic; }
+
+  /* ===== Slide type: numbered-list ===== */
+  .vent-headline {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 64px;
+    line-height: 1.08;
+    color: var(--on-dark);
+    margin-bottom: 56px;
+    max-width: 760px;
+  }
+  .vent-headline em { font-style: italic; color: var(--accent-soft); }
+  .vent-list { display: flex; flex-direction: column; gap: 30px; }
+  .vent-item {
+    display: flex;
+    align-items: baseline;
+    gap: 28px;
+    padding-bottom: 26px;
+    border-bottom: 1px solid color-mix(in oklab, var(--accent-soft) 32%, transparent);
+  }
+  .vent-item:last-child { border-bottom: none; }
+  .vent-num {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 36px;
+    color: var(--accent-soft);
+    width: 48px;
+    flex: none;
+  }
+  .vent-name {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 50px;
+    color: var(--on-dark);
+  }
+  .vent-note {
+    font-family: var(--sans);
+    font-style: italic;
+    font-weight: 300;
+    font-size: 24px;
+    color: var(--surface);
+    opacity: 0.78;
+    margin-left: auto;
+    text-align: right;
+  }
+
+  /* ===== Slide type: stat ===== */
+  .stat-number {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 280px;
+    line-height: 0.92;
+    letter-spacing: -0.025em;
+    color: var(--on-dark);
+  }
+  .stat-number em { font-style: italic; color: var(--accent-soft); }
+  .stat-caption {
+    margin-top: 32px;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 36px;
+    line-height: 1.3;
+    color: var(--surface);
+    max-width: 760px;
+  }
+
+  /* ===== Slide type: cta ===== */
+  .cta-headline {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 124px;
+    line-height: 0.98;
+    letter-spacing: -0.01em;
+    color: var(--on-dark);
+  }
+  .cta-headline em { font-style: italic; color: var(--accent-soft); }
+  .cta-divider {
+    width: 92px; height: 2px;
+    background: var(--accent-soft);
+    margin: 36px 0;
+    opacity: 0.85;
+  }
+  .cta-link {
+    font-family: var(--sans);
+    font-weight: 400;
+    font-size: 30px;
+    letter-spacing: 0.08em;
+    color: var(--surface);
+  }
+  .cta-link .domain { color: var(--accent-soft); }
+
+  /* ===== Slide type: text-only (no photo) ===== */
+  .slide.text-only { background: var(--background); color: var(--foreground); }
+  .slide.text-only .overlay,
+  .slide.text-only .vignette { display: none; }
+  .slide.text-only .eyebrow { color: var(--primary); }
+  .slide.text-only .quote,
+  .slide.text-only .title,
+  .slide.text-only .cta-headline { color: var(--primary-dark); }
+  .slide.text-only .quote .accent,
+  .slide.text-only .title em,
+  .slide.text-only .cta-headline em { color: var(--accent); }
+  .slide.text-only .pagetag { color: var(--primary); opacity: 0.6; }
+  .slide.text-only .handle { color: var(--primary); opacity: 0.65; }
+</style>
+</head>
+<body>
+
+<div class="proof-header">
+  <h1><em>__CAROUSEL_TITLE__</em> — Carousel Proof</h1>
+  <p>__SLIDE_COUNT__ slides · 1080 × 1350 · __DATE__</p>
+</div>
+
+<div class="proof-grid">
+
+<!--
+  Replace the slides below with real content. See references/slide-types.md
+  for the HTML block of each available type. Each slide must:
+    - Be wrapped in <div class="slide-wrap"><span class="slide-label">NN · Name</span> ... </div>
+    - Have <section class="slide" id="sN"> with id matching its position
+-->
+
+<!-- ============ SLIDE 1 ============ -->
+<div class="slide-wrap">
+  <span class="slide-label">01 · Title</span>
+  <section class="slide" id="s1">
+    <div class="bg" style="background-image: url('file:///path/to/photo-1.jpg');"></div>
+    <div class="overlay"></div>
+    <div class="vignette"></div>
+    <div class="content">
+      <div><div class="eyebrow">__EYEBROW__</div></div>
+      <div class="center">
+        <h1 class="title">__TITLE_LINE_1__<br/><em>__TITLE_ACCENT__</em> __TITLE_LINE_2__</h1>
+        <p class="subtitle">__SUBTITLE__</p>
+      </div>
+      <div>
+        <div class="footer-row">
+          <span class="pagetag">__DOMAIN__</span>
+          <span class="handle">@__HANDLE__</span>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- Repeat the slide-wrap pattern for slides 2..N. Use slide-types.md blocks. -->
+
+</div><!-- /.proof-grid -->
+
+</body>
+</html>

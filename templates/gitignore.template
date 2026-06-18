@@ -1,0 +1,74 @@
+# AI CMO Client Folder — Git Ignore
+#
+# Excludes OS cruft, credentials, and large binaries to keep git history lean.
+# Markdown, CSVs, and reference images (typically <1MB) are all tracked.
+# If you need to track a file matching an ignored pattern, use `git add -f <path>`.
+
+# macOS
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# Linux
+*~
+
+# Editor cruft
+*.swp
+*.swo
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Claude Code local overrides (per-device settings, never commit)
+.claude/settings.local.json
+
+# Credentials and secrets
+.env
+.env.*
+*.credentials.json
+*.token.json
+secrets/
+
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Node artifacts
+node_modules/
+npm-debug.log*
+
+# Large binary formats — excluded by default to keep repo lean
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.wmv
+*.webm
+*.wav
+*.m4a
+*.mp3
+*.flac
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+*.dmg
+*.iso
+
+# Temp files
+*.tmp
+*.temp
+tmp/
+temp/

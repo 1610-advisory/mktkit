@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+# pre-commit — refuse commits that contain client data, secrets, or operator infra values.
+#
+# Install (once per clone):
+#   git config core.hooksPath .githooks
+#
+# Override (rare, manual review required):
+#   SKIP_AI_CMO_SANITIZE=1 git commit ...
+#
+# See CLAUDE.md "Public-Repo Safety" and SECURITY.md.
+
+set -euo pipefail
+
+if [[ "${SKIP_AI_CMO_SANITIZE:-0}" == "1" ]]; then
+  printf '[ai-cmo pre-commit] SKIP_AI_CMO_SANITIZE=1 — sanitization bypassed. Use sparingly.\n' >&2
+  exit 0
+fi
+
+# Only scan the lines being added by this commit (plus file headers, which we filter out).
+ADDED=$(git diff --cached --diff-filter=ACM -U0 -- 2>/dev/null \
+  | grep -E '^\+' \
+  | grep -vE '^\+\+\+ ' || true)
+
+if [[ -z "$ADDED" ]]; then
+  exit 0
+fi
+
+# ============================================================================
+# Generic high-signal leak patterns — safe to commit because these are pattern
+# SHAPES, not specific values. They catch real keys/IDs of common shapes.
+# Operator-specific values (client names, server IPs, zone IDs) belong in the
+# LOCAL blocklist below — NEVER in this file (which is in the public repo).
+# ============================================================================
+declare -a PATTERNS=(
+  # AWS
+  'AKIA[0-9A-Z]{16}'
+  'ASIA[0-9A-Z]{16}'
+
+  # GitHub
+  'ghp_[A-Za-z0-9]{36,}'
+  'gho_[A-Za-z0-9]{36,}'
+  'ghs_[A-Za-z0-9]{36,}'
+  'github_pat_[A-Za-z0-9_]{40,}'
+
+  # Slack
+  'xoxb-[0-9]{10,}-[0-9]{10,}-[A-Za-z0-9]+'
+  'xoxp-[0-9]+-[0-9]+-[0-9]+-[A-Fa-f0-9]+'
+  'xoxa-[0-9]+-[A-Za-z0-9]+'
+
+  # OpenAI / Anthropic / generic sk- keys (32+ trailing chars to avoid false positives)
+  'sk-ant-[A-Za-z0-9_-]{40,}'
+  'sk-[A-Za-z0-9]{32,}'
+
+  # Google API key
+  'AIza[0-9A-Za-z_-]{35}'
+
+  # PEM private keys
+  '-----BEGIN [A-Z ]*PRIVATE KEY-----'
+
+  # Stripe
+  'sk_live_[A-Za-z0-9]{24,}'
+  'rk_live_[A-Za-z0-9]{24,}'
+
+  # Tracking / property IDs (always tenant-specific in production)
+  'G-[A-Z0-9]{10}'
+  'GTM-[A-Z0-9]{6,8}'
+  'UA-[0-9]+-[0-9]+'
+)
+
+# ============================================================================
+# Optional local extension for operator-specific values (your client names,
+# server IPs, Cloudflare zone IDs, etc.). NEVER committed — putting those in
+# the public repo to detect leaks of them would itself be the leak.
+#
+# Format: one ERE pattern per line; '#' starts a comment.
+# Default location: ~/.config/ai-cmo-sanitize/blocklist.txt
+# Override with:    AI_CMO_SANITIZE_BLOCKLIST=/path/to/file
+# ============================================================================
+LOCAL_BLOCKLIST="${AI_CMO_SANITIZE_BLOCKLIST:-$HOME/.config/ai-cmo-sanitize/blocklist.txt}"
+LOCAL_COUNT=0
+if [[ -f "$LOCAL_BLOCKLIST" ]]; then
+  while IFS= read -r raw || [[ -n "$raw" ]]; do
+    line="${raw%%#*}"
+    line="$(printf '%s' "$line" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')"
+    if [[ -n "$line" ]]; then
+      PATTERNS+=("$line")
+      LOCAL_COUNT=$((LOCAL_COUNT + 1))
+    fi
+  done < "$LOCAL_BLOCKLIST"
+fi
+
+# Match patterns against added lines.
+HITS=()
+for pat in "${PATTERNS[@]}"; do
+  if printf '%s\n' "$ADDED" | grep -E -q -- "$pat"; then
+    HITS+=("$pat")
+  fi
+done
+
+if (( ${#HITS[@]} > 0 )); then
+  {
+    echo
+    echo "[ai-cmo pre-commit] BLOCKED: staged changes match ${#HITS[@]} leak pattern(s)."
+    echo
+    echo "Matched patterns:"
+    for h in "${HITS[@]}"; do
+      echo "  - $h"
+    done
+    echo
+    echo "What to do:"
+    echo "  1. Inspect what's being committed:   git diff --cached"
+    echo "  2. Genericize the offending value (use placeholders), or move it"
+    echo "     to env / a private repo."
+    echo "  3. Re-stage and re-commit."
+    echo
+    echo "If you have MANUALLY verified this is a false positive:"
+    echo "  SKIP_AI_CMO_SANITIZE=1 git commit ..."
+    echo
+    echo "See CLAUDE.md 'Public-Repo Safety' and SECURITY.md for context."
+  } >&2
+  exit 1
+fi
+
+if (( LOCAL_COUNT > 0 )); then
+  printf '[ai-cmo pre-commit] clean (%d local + %d generic patterns checked).\n' \
+    "$LOCAL_COUNT" "$(( ${#PATTERNS[@]} - LOCAL_COUNT ))" >&2
+else
+  printf '[ai-cmo pre-commit] clean (%d generic patterns checked; no local blocklist at %s).\n' \
+    "${#PATTERNS[@]}" "$LOCAL_BLOCKLIST" >&2
+fi
+
+exit 0

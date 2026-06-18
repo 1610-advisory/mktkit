@@ -1,0 +1,28 @@
+# Client data — private, never tracked
+clients/*
+!clients/.gitkeep
+
+# Obsidian vault config
+.obsidian/
+
+# Claude Code local settings
+.claude/settings.local.json
+**/settings.local.json
+
+# Memory and session data
+**/memory/
+
+# MCP artifacts
+.playwright-mcp/
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+
+# Credentials
+.env
+*.credentials.json
+*.token.json
