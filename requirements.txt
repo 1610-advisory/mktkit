@@ -1,0 +1,14 @@
+# Python deps for the optional analytics scripts in scripts/.
+# The core toolkit (Claude Code + markdown/CSV) needs NONE of these —
+# install only if you use the integration scripts below.
+#
+#   pip install -r requirements.txt
+#
+# ga4_pull.py (GA4 Data API)
+google-analytics-data>=0.18
+# gsc_pull.py / gads_pull.py (Search Console, OAuth flows)
+google-api-python-client>=2.100
+google-auth>=2.0
+google-auth-oauthlib>=1.0
+#
+# meta_pull.py / meta_setup.py are stdlib-only (urllib) — nothing to install.

@@ -370,6 +370,7 @@ The `references/` folder contains on-demand knowledge that you read when the tas
 | `marketing-dashboard.md` | Live analytics dashboard architecture |
 | `hybrid-workflow.md` | AI + freelance + in-house content production system |
 | `ahrefs-integration.md` | Ahrefs API setup, endpoints, credit budget, workflow integration |
+| `meta-graph.md` | Meta Graph API — pull Instagram/Facebook insights schedulers don't expose (reach, saves, shares, watch time) via `scripts/meta_pull.py` |
 
 ### Supporting References
 | File | When to Read |

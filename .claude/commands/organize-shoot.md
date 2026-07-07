@@ -51,15 +51,16 @@ Report:
 
 ### Step 3: Sort Files by Media Type
 
-Create `Video/`, `Photos/` subfolders in each location and move files by extension. This makes it easy to upload just the video folder to share with the editor.
+Create `Video/`, `Photos/`, and `Edits/` subfolders in each location and move files by extension. (`Audio/` is created in Step 4.) All four — **Video, Audio, Photos, Edits** — are created on every shoot so the structure matches prior shoots exactly: the editor pulls from a clean `Video/` folder and returns cuts into `Edits/`.
 
 ```bash
 # For each location folder (or the shoot root if no location subfolders):
 mkdir -p "[location]/Video"
 mkdir -p "[location]/Photos"
+mkdir -p "[location]/Edits"   # left empty — editor's returned deliverables land here
 
 # Move video files
-mv [location]/*.MP4 [location]/*.mp4 "[location]/Video/" 2>/dev/null
+mv [location]/*.MP4 [location]/*.mp4 [location]/*.MOV [location]/*.mov "[location]/Video/" 2>/dev/null
 
 # Move photo files
 mv [location]/*.CR3 [location]/*.cr3 [location]/*.JPG [location]/*.jpg [location]/*.RAF [location]/*.raf "[location]/Photos/" 2>/dev/null
@@ -77,9 +78,10 @@ Result:
 │   ├── 064A7325.m4a
 │   ├── 064A7325.txt
 │   └── ...
-└── Photos/             ← CR3, JPG, RAF files
-    ├── IMG_1234.CR3
-    └── ...
+├── Photos/             ← CR3, JPG, RAF files
+│   ├── IMG_1234.CR3
+│   └── ...
+└── Edits/              ← empty; editor's returned cuts land here
 ```
 
 ### Step 4: Extract Audio from All Videos
