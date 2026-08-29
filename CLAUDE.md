@@ -105,6 +105,7 @@ All knowledge files carry YAML frontmatter (schema in `AGENTS-REFERENCE.md`). Ea
 
 ## Working Principles
 
+0. **Pack first.** Load toolkit skill `mkt-kit` at session start: DESIGN.md (or brand-identity.md), voice, personas, overview, goals. Missing file: ask and append the client's `knowledge/_intake-log.md`.
 1. **Data first.** Every recommendation references performance data or documented insights from `whats-working.md`. If you don't have data, say so and frame it as a hypothesis to test.
 2. **Check what's working before recommending.** Before generating any plan, read `whats-working.md` to understand current patterns.
 3. **Respect the brand voice.** All content direction aligns with `voice-guidelines.md` — messaging pillars, tone variations, language preferences.
