@@ -1,6 +1,16 @@
 ---
 name: content-note-status-sweep
-description: Walk every content note in a client's `outputs/content/` folder, read frontmatter, check on-disk evidence (transcripts, source footage, tracking CSV rows, post dates), and advance the `status:` field where evidence makes it obvious. Surface stuck pieces, missing inputs, and CSV/note discrepancies in a structured report. Use whenever the user says "sweep statuses", "advance content statuses", "what's stuck", "audit content pipeline", "update kanban", "where are we on content", "status sweep for [client]", or any time the Kanban board has likely drifted from on-disk reality (after a shoot, after a publish day, before a planning session, when the user can't tell what's actually in flight). Always run this BEFORE generating a new biweekly or weekly brief, so the planning input reflects what's actually shipped versus stuck. The skill is conservative: it auto-advances only through the production statuses (concept → pre-production → captured → editing) and never into approved/scheduled/published, which require human signoff.
+description: >
+  Walk every content note in a client's `outputs/content/` folder, read
+  frontmatter, check on-disk evidence (transcripts, source footage, tracking CSV
+  rows, post dates), and advance the status field where evidence makes it obvious.
+  Surface stuck pieces, missing inputs, and CSV/note discrepancies. Use when the
+  user says "sweep statuses", "advance content statuses", "what's stuck", "audit
+  content pipeline", "update kanban", "where are we on content", "status sweep
+  for [client]", or the Kanban has drifted from disk (after a shoot, publish day,
+  or before planning). Always run BEFORE generating a new biweekly or weekly
+  brief. Auto-advances only production statuses (concept → pre-production →
+  captured → editing), never approved/scheduled/published.
 metadata:
   version: 1.0.0
 ---

@@ -1,6 +1,16 @@
 ---
 name: frontmatter-audit
-description: Audit a client's knowledge files, content notes, and briefs for YAML frontmatter integrity and structural issues. Validates required fields, allowed enum values, broken `[[wiki-links]]` between briefs and content notes, broken `brief:` references, duplicate `content_id`s, orphan files at the `outputs/` root, and stale `needs-update` knowledge files older than 60 days. Use this skill whenever the user says "audit frontmatter", "validate the YAML", "check for orphan files", "are there schema issues", "frontmatter audit for [client]", "audit content notes structure", "check the kanban for broken pieces", "what's wrong with the content folder", or whenever something downstream is misbehaving (Kanban filters not working, proofread-blog can't find voice context, briefs missing pieces) and a schema drift is the likely cause. Trigger even if the user does not say "frontmatter" explicitly — anything about validating, auditing, or finding broken references in a client's `knowledge/` or `outputs/` folders should pull this skill.
+description: >
+  Audit a client's knowledge files, content notes, and briefs for YAML frontmatter
+  integrity and structural issues. Validates required fields, allowed enum values,
+  broken `[[wiki-links]]` between briefs and content notes, broken `brief:`
+  references, duplicate `content_id`s, orphan files at `outputs/` root, and stale
+  `needs-update` knowledge files older than 60 days. Use when the user says "audit
+  frontmatter", "validate the YAML", "check for orphan files", "are there schema
+  issues", "frontmatter audit for [client]", "audit content notes structure",
+  "check the kanban for broken pieces", "what's wrong with the content folder",
+  or downstream is misbehaving (Kanban filters, proofread-blog missing voice,
+  briefs missing pieces) and schema drift is likely.
 metadata:
   version: 1.0.0
 ---
@@ -8,6 +18,8 @@ metadata:
 # Frontmatter Audit
 
 You are auditing a client's `knowledge/`, `outputs/content/`, and `outputs/*-briefs/` folders for YAML frontmatter integrity and the structural rules that keep the Kanban, briefs, and proofreading workflows working. **Read-only by default.** You only mutate files after the user explicitly approves a list of fixes.
+
+Treat `DESIGN.md`, `voice-guidelines.md`, `personas-storybrand.md`, and `00-client-overview.md` as expected pack files (`mkt-kit`). Missing is a finding, not a crash; point at `_intake-log.md` if answers were already collected.
 
 The heavy lifting is done by `scripts/audit.py`, which walks the folders, parses frontmatter, validates fields against the canonical schemas in `references/schemas.md`, and emits a JSON report. Your job is to invoke the script, summarize the findings clearly, classify what can be auto-fixed, and orchestrate the (optional) batch-fix step.
 

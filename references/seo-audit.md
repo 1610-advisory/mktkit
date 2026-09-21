@@ -50,6 +50,47 @@ Many CMS plugins (AIOSEO, Yoast, RankMath) inject JSON-LD via client-side JavaSc
 
 **Never report "no schema found" based solely on `web_fetch` or `curl`.** This has led to false audit findings in production.
 
+### ⚠️ Important: The Collapsed-Content Trap
+
+**Content inside accordions, tabs, "read more" toggles and modals is frequently absent from the served HTML entirely — not hidden, absent.**
+
+Most headless UI libraries (Radix, Headless UI, Reach and the components built on them) do not render the content of a *closed* panel at all. It never enters the server-rendered HTML. The page looks complete to a human, who clicks and sees the text appear, while a crawler is served only the headings.
+
+This is invisible to standard site auditors, which report the page as healthy: the status code is 200, the title and meta are fine, there are no broken links. Nothing in a crawl report says "most of this page's body copy does not exist."
+
+**FAQ sections are the usual casualty**, which is expensive twice over — that content is both the most likely to earn a featured snippet and the most likely to be quoted by an assistant.
+
+**The compounding failure:** the page often *also* ships `FAQPage` structured data declaring every question and answer. That puts it in breach of Google's requirement that FAQ content be visible on the page, because the schema asserts answers the HTML never contained.
+
+**How to check:**
+
+```bash
+curl -s https://example.com/faq | python3 -c "
+import sys, re
+h = sys.stdin.read()
+s = re.sub(r'<script.*?</script>', '', h, flags=re.S)   # drop hydration payload + JSON-LD
+s = re.sub(r'<[^>]+>', ' ', s)
+print('visible words:', len(s.split()))
+print('answer present:', 'a distinctive phrase from an answer' in s)
+"
+```
+
+If a known answer string appears in the file **only** inside `<script>` tags, it does not count — that is the hydration payload, not rendered content.
+
+**Check once per template**, not just the FAQ page: the same component usually appears on service pages and homepage sections too.
+
+**The fix** is to force the content to mount and hide the closed state with CSS instead of unmounting it (in Radix, `forceMount` plus a `data-[state=closed]:hidden` class). It is typically a few lines in one shared component and can recover thousands of words across a site. Leave a comment explaining why, or the next person will "clean it up."
+
+### ⚠️ Verify before you conclude — fetch the URL, don't infer it
+
+Audit data tells you what *was* true when it was collected. It does not tell you what the site does right now.
+
+Search Console in particular reports on a lag and keeps showing old URLs through a migration, so a report full of legacy paths reads like a site full of dead links when those paths may redirect perfectly. **Deciding a URL is broken because it appears in an export, without requesting it, produces confident wrong findings** — and a remediation plan aimed at a problem that does not exist.
+
+Rule: **every claim about what a URL returns must be backed by a request you actually made.** One `curl` per claim. Where a finding rests on inference rather than a check, label it as inference in the report.
+
+The same applies to agent- or subagent-produced findings: treat them as claims to verify, not results. A subagent auditing a site mid-deploy will report a page as missing that is live a minute later.
+
 ### Priority Order
 1. **Crawlability & Indexation** (can Google find and index it?)
 2. **Technical Foundations** (is the site fast and functional?)
@@ -86,6 +127,44 @@ Many CMS plugins (AIOSEO, Yoast, RankMath) inject JSON-LD via client-side JavaSc
 - Faceted navigation handled properly
 - Infinite scroll with pagination fallback
 - Session IDs not in URLs
+
+**Post-Migration Redirect Audit**
+
+After any replatform or redesign, audit the *old* URL inventory against the live site directly.
+Redirect maps written during a migration are frequently built against **guessed** old URLs rather
+than the real ones, and the gap does not surface until link equity has already been dropping into
+404s for weeks.
+
+Get the real inventory from the old sitemap, an archive crawl, the analytics platform's historical
+page report, and Search Console — then request every one of them:
+
+```bash
+while read -r u; do
+  code=$(curl -s -o /dev/null -w "%{http_code}" -L --max-redirs 5 "https://example.com$u")
+  echo "$code $u"
+done < old-urls.txt | sort | uniq -c
+```
+
+Things this catches that a redirect map review does not:
+
+- **Nested vs flat paths.** A silo like `/category/service-name` guessed as `/service-name` produces
+  redirects that match nothing. Both forms sometimes existed; check rather than assume.
+- **Duplicate addresses for one article.** Legacy CMSs often exposed the same post at a dated path,
+  a bare slug, and a category path. Each is a separate URL that needs its own rule.
+- **Trailing-slash handling.** Many frameworks normalise `/x/` to `/x` *before* redirects run, in
+  which case listing both forms is redundant. Verify which way the framework behaves instead of
+  doubling every rule.
+- **Redirect ordering.** Where rules are evaluated first-match-wins, specific rules (pagination,
+  individual pages) must precede wildcard or catch-all rules. Test a URL from each group.
+
+**Set a target and re-measure.** State the expected dead count after the fix, including the URLs
+that should *stay* 404 by design — internal tooling, ops pages, legacy CMS attack surface — and
+re-run the loop to confirm. "Dead count went from N to the expected M" is a verifiable claim;
+"redirects added" is not.
+
+**Redirecting many URLs to one empty page is a soft-404 pattern.** Pointing a legacy blog archive
+at an index page with no posts on it means the equity is discarded rather than passed. Either
+populate the destination or redirect to the closest genuinely relevant page.
 
 ### Indexation
 
@@ -381,6 +460,58 @@ Flag:
 
 ---
 
+## Reading Search Console Before Prescribing
+
+Three misreadings produce confident, wrong recommendations often enough to be worth naming. Each
+has cost real audit credibility.
+
+### Low CTR at a low average position is not a titles problem
+
+The instinct on seeing a poor click-through rate is to rewrite titles and meta descriptions. Check
+the average position first.
+
+Expected CTR falls off a cliff with position. At an average position in the mid-20s, roughly page
+three, an expected CTR is a fraction of a percent — so a site sitting at, say, 1.8% is *out*-performing
+its position, not underperforming. Rewriting those titles wins nothing, because almost nobody is
+seeing them.
+
+**Titles are a lever around positions 5–10, where a better snippet wins the click from a neighbour.
+They are not a lever at position 25.** At position 25 the problem is position. Fix ranking first,
+then revisit titles once the impressions are actually being seen.
+
+### Page-1 rankings with zero clicks usually means SERP features, not a bad page
+
+When a query shows a strong average position — top ten, sometimes top three — and produces no
+clicks at meaningful impression volume, the likely cause is that organic results are pushed below
+the fold by a map pack, ads, an AI overview, or a "people also ask" block.
+
+This is especially pronounced on "near me" and bare-category queries in local search, where the map
+pack plus ads can occupy the entire first screen.
+
+**Consequence for the audit: this is not a website finding.** No amount of on-page work converts
+these impressions. The fix lives in the business profile, review volume and category selection.
+Say so explicitly, because otherwise the reader assumes the page is at fault and spends effort in
+the wrong place.
+
+**Diagnostic:** a cluster of queries at position ≤10 with a near-zero click rate, while brand
+queries at similar positions convert normally, is close to conclusive.
+
+### Distinguish brand from non-brand before quoting any headline metric
+
+Split the query export into branded and non-branded and compute the metrics separately. The
+combined numbers are almost always flattering and almost always useless: brand queries convert at a
+high rate and drag the average CTR up, hiding a non-brand click rate that may be near zero.
+
+The split is usually the single most clarifying table in the report — it reframes "we get some
+search traffic" as "we are found by people who already know the name, and by nobody else."
+
+Also strip geographically irrelevant impressions (same-name places elsewhere, similar business
+names) before drawing conclusions — but **check whether removing them actually changes the
+picture** rather than assuming it does. Frequently it does not, and reporting the check is more
+credible than reporting the assumption.
+
+---
+
 ## Common Issues by Site Type
 
 ### SaaS/Product Sites
@@ -410,6 +541,37 @@ Flag:
 - No Google Business Profile optimization
 - Missing location pages
 - No local content
+- **Duplicate business profiles** — splits reviews and ranking signals between two listings so
+  neither performs as well as one would. Also a common way a private address ends up public. Only
+  the profile owner can merge them, so this is an ask, not a task.
+- **Absent from the aggregator layer** — for trades and local services, assistants (and many
+  searchers) answer "best X in [city]" from directories and listicles, not from the business's own
+  site. Check whether the client appears at all. See `ai-visibility-audit.md`.
+
+**The page-count problem, specifically.** Small local service sites plateau because they have too
+few pages, not because the pages are too short. A site with a handful of service pages will see the
+homepage absorb the large majority of impressions, because nothing else targets the category.
+
+Before recommending "longer content," check the actual distribution:
+
+- **Word count against page-1 competitors.** Frequently the client's pages are already inside the
+  competitive band, and length is not the constraint.
+- **Page count against page-1 competitors.** This is usually where the gap is, and it is often
+  large — a competitor ranking on a weak domain with no reviews but several times the page count is
+  a common and instructive finding.
+- **Multi-service pages.** One page covering several distinct services tends to rank worse than a
+  single-topic page, while attracting the most impressions — it is simultaneously the biggest
+  opportunity and the worst performer. Splitting it into dedicated pages is usually a
+  split-and-expand of copy that already exists, not new writing.
+- **Demand with no matching page.** Cross-reference the query export against the sitemap. Query
+  clusters with real impressions and no page targeting them are the highest-confidence page ideas
+  available, because the demand is already measured.
+
+**On location pages: build few, and build them real.** Competitor location pages are often spun
+boilerplate — verify by comparing two of them and counting genuinely unique words. Prioritise towns
+with measured demand *and* no competitor page; skip the saturated ones and any that belong to a
+different metro. Four honest pages outperform twenty templated ones and carry none of the
+thin-content risk.
 
 ---
 
@@ -483,6 +645,9 @@ Same format as above
 ## Related Skills
 
 - **ai-cmo**: For overall content strategy and performance tracking
+- **ai-visibility-audit**: Answer-engine / GEO visibility — whether assistants can find, parse and
+  recommend the business. Run alongside this audit; they overlap less than expected, and for local
+  service businesses the binding constraint is often there rather than here.
 - **content-strategy**: For content planning informed by SEO insights
 - **analytics-tracking**: For measuring SEO performance and conversion tracking
 - **marketing-psychology**: For on-page persuasion and conversion optimization

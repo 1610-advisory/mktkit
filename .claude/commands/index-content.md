@@ -8,6 +8,8 @@ allowed-tools: [Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion]
 
 Scan a content storage folder and create or update the client's `tracking/content-index.md` — a master inventory of all shot content across all storage locations.
 
+**If the client has `scripts/ingest-footage.py` (or a generated `tracking/footage-catalog.jsonl`), do not run this hand scan.** Run ingest instead. That script is the compiled catalog and it regenerates `content-index.md`. This command remains only for clients that have not adopted footage-index yet.
+
 ## Arguments
 
 User provided: $ARGUMENTS

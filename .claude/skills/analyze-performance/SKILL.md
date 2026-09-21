@@ -1,6 +1,19 @@
 ---
 name: analyze-performance
-description: Analyze a client's content performance, identify top performers and patterns, generate revenue attribution reports, and propose updates to the client's `whats-working.md`. Use this skill whenever the user says "analyze performance for [client]", "what's working for [client]", "performance analysis", "update whats-working for [client]", "refresh insights", "revenue report for [client]", "ROI report", "what content is converting", "which posts drove leads", or any time the user wants to look at tracking CSVs (or the Google Sheets equivalent) and turn raw metrics into strategic insight. Trigger even when the user does not say "analyze" explicitly — phrasings like "show me top performers", "what should we do more of", "what's driving revenue", "where are leads coming from", or "review last month's numbers" all belong here. Three sub-modes: (1) performance analysis = patterns + recommendations, (2) update whats-working = refresh the canonical insights file, (3) revenue report = ROI/attribution focus.
+description: >
+  Analyze a client's content performance, identify top performers and patterns,
+  generate revenue attribution reports, and propose updates to the client's
+  `whats-working.md`. Use this skill whenever the user says "analyze performance
+  for [client]", "what's working for [client]", "performance analysis", "update
+  whats-working for [client]", "refresh insights", "revenue report for [client]",
+  "ROI report", "what content is converting", "which posts drove leads", or any
+  time the user wants to look at tracking CSVs (or the Google Sheets equivalent)
+  and turn raw metrics into strategic insight. Trigger even when the user does not
+  say "analyze" explicitly — phrasings like "show me top performers", "what should
+  we do more of", "what's driving revenue", "where are leads coming from", or
+  "review last month's numbers" all belong here. Three sub-modes — (1) performance
+  analysis = patterns + recommendations, (2) update whats-working = refresh the
+  canonical insights file, (3) revenue report = ROI/attribution focus.
 metadata:
   version: 1.0.0
 ---
@@ -10,6 +23,8 @@ metadata:
 You are turning a client's tracking data into strategic insight. The user pointed you at a specific client — confirm which one before loading data, then route to one of three sub-modes based on what they asked for.
 
 **Read-only on data files.** You analyze CSVs but never mutate them. The only files you write are the analysis output (`outputs/`) and — with the user's approval — proposed updates to `knowledge/whats-working.md`.
+
+Run `mkt-kit` for voice and goals before writing recommendations. Missing pack file: ask and append `knowledge/_intake-log.md`.
 
 ---
 

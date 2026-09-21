@@ -2,6 +2,8 @@
 
 Post Bridge ([post-bridge.com](https://post-bridge.com)) schedules posts to multiple social platforms (Instagram, Facebook, X, LinkedIn, YouTube, TikTok, etc.) through one API. This is the generic procedure. **Client-specific values — API key env var, connected social-account IDs — live in the client's `knowledge/` folder, never here** (this repo is public; see CLAUDE.md § Public-Repo Safety).
 
+> **Reviving a dormant platform / back-posting a catalog?** Full procedure: [`platform-backfill.md`](platform-backfill.md) — inventory via Meta Graph API, exclusion passes, human-looking schedule, resume-safe runner.
+
 ## Auth & base
 
 - **Base URL:** `https://api.post-bridge.com/v1`

@@ -21,6 +21,8 @@ This runs a guided ~20 minute interview that builds your complete marketing prof
 
 **Requirements:** Claude Code with a Claude Pro or Max plan.
 
+**Requirements for the media pipeline:** `ffmpeg` and `ffprobe` on PATH, Python 3.11+. Optional: Playwright for `carousel-slides` PNG export; whisper (`mlx-whisper`) for shoot transcription.
+
 ## How It Works
 
 The toolkit is conversational, not transactional. You don't need to memorize commands or invoke workflows in a specific order. Just talk to it like a colleague:
@@ -60,6 +62,14 @@ These are available as slash commands and as natural language triggers:
 | "new client [name]" | Guided onboarding interview |
 | "update strategy" | Change goals, voice, content mix, or other strategy elements |
 | "log content / performance / lead" | Quick data entry |
+| "you're the AI CMO" / session start | Load the knowledge pack (`mkt-kit`) |
+| "cut this reel" / "cut the next N" | Talking-head reel from brief + transcript (`cut-video`) |
+| "QA this reel" | Machine gate on a vertical short (`reel-qa`) |
+| "find B-roll for this line" | Index/search library stills and clips (`reel-broll`) |
+| "ingest footage" / after a shoot | Compiled footage catalog (`footage-index`) |
+| "film board" | 9:16 talk-over HTML board (`film-board`) |
+| "draft a blog from this video" | Search-cluster blog from transcript (`draft-cluster-blog`) |
+| "render this as HTML" | Brand-themed HTML report (`branded-report`) |
 
 ## Reference Library
 
@@ -72,6 +82,11 @@ In addition to the core workflows, the toolkit includes specialized marketing kn
 | **Email Sequences** | Drip campaigns, lifecycle automation, copy guidelines |
 | **SEO Audit** | 7-dimension technical SEO audit framework |
 | **Analytics Tracking** | GA4, GTM, event tracking, UTM frameworks |
+| **Copywriting Frameworks** | Shared copy structure before client voice is applied |
+| **Search Cluster Blog Ranking** | Ranking factors for transcript-grounded cluster posts |
+| **AI Visibility Audit** | How assistants cite (or ignore) the site |
+| **Branded HTML Reports** | Self-contained HTML deliverable + optional BYO host |
+| **Platform Backfill** | Revive a dormant social catalog without looking automated |
 
 ## Client Folder Structure
 

@@ -228,6 +228,87 @@ dataLayer.push({
 | Wrong values | Variable path, data layer structure |
 | Duplicate events | Multiple containers, trigger firing twice |
 
+### Traps that waste an afternoon
+
+**A failed status code on the collection request does not mean the tag is broken.** Privacy and
+ad-blocking browser extensions commonly intercept analytics collection endpoints and synthesise an
+error response — a 5xx in the network panel — while the request still reaches the vendor and the hit
+still appears in real-time reporting.
+
+Before touching any code: check the real-time report, and reproduce the same request with `curl`
+from outside the browser. If `curl` gets a normal success response and the browser does not, the
+problem is that browser, not the site. Never debug a tag on the strength of a status code seen in
+one browser's devtools.
+
+**The corollary:** never validate an implementation *only* in a browser that has content blockers
+installed. It will under-report and occasionally report nothing at all.
+
+**On statically generated sites, tag environment variables must exist at BUILD time, not run time.**
+If pages are prerendered, a variable read during rendering is baked into the HTML when the build
+runs. Setting it in the service/process environment does nothing, because the build usually runs in
+a separate step — a deploy hook, a CI job — that never sees it.
+
+Symptom: the variable is correctly set, the service restarts cleanly, and the tag still does not
+appear anywhere in the HTML.
+
+Put it where the build will read it — the framework's environment-file convention, or explicitly
+exported in the deploy step. Prefer a filename the repo's ignore rules already cover so it cannot be
+committed by accident, and confirm the build log reports loading it.
+
+**Fail-open analytics needs testing in both directions.** A tag gated on "render only if the ID is
+set" should be built twice during review: once with the variable, confirming the tag appears; once
+without, confirming *nothing* is emitted. Only testing the happy path leaves the failure mode
+unverified — and the failure mode is the one that ships to production when a variable goes missing.
+
+### Data retention is a silent, one-way loss
+
+Check the retention setting at the start of any engagement, not when someone finally asks for a
+historical report.
+
+GA4's free tier defaults to a short event-data retention window. The subtlety that catches people
+out: **standard aggregate reports are not subject to it and keep their history, while explorations
+and any user-level or custom-dimension query are.** So the property looks like it has years of data
+— because the standard reports do — right up until someone needs a segment or a funnel and
+discovers everything past the window is gone.
+
+Raising the setting only affects data collected afterwards. It does not restore what has aged out,
+at any price. Raise it to the maximum available on day one of every engagement.
+
+### Geolocation needs a database, and not every database is equivalent
+
+Self-hosted analytics platforms do not resolve visitor location out of the box — they need an
+IP-to-location database mounted and configured. Until then, location panels are simply empty, which
+is easy to misread as "we have no traffic worth locating."
+
+**City-level data specifically requires a database carrying GeoNames IDs.** Some free databases
+resolve country correctly but contain none of these identifiers, so cities and regions stay blank no
+matter how the platform is configured. Diagnose it in the data rather than in the config — if a
+lookup for a well-known IP returns a country and a null city, the file is the limitation.
+
+Two things to state clearly whenever this is being set up:
+
+- **Geolocation resolves at ingest.** Swapping in a better database does not backfill location onto
+  events already collected — only new traffic gets it. Same one-way property as retention.
+- **For a business serving one metro, the local share of traffic is the metric that matters.** A
+  raw visitor count means little without it. Treat the geo database as a prerequisite for reporting
+  on local traffic at all, not as a nice-to-have.
+
+### Instrument changes break comparability — say so in the report
+
+If the measurement tool changed at any point in the reporting window, before/after numbers are not
+comparable and the delta is not a result. Cookie-based and cookieless platforms report materially
+different counts for identical traffic, in opposite directions: one loses traffic to blockers and
+tracking prevention, the other counts more of it, while filtering bots differently.
+
+Where two tools have overlapped on the same site, that overlap is a genuine measurement opportunity
+— it quantifies the gap directly. Where they have not, state the instrument change wherever a
+before/after number appears rather than presenting the difference as a change in performance.
+
+**Search Console is the exception worth knowing:** it measures on the search engine's side rather
+than from a script on the page, so it spans a tool migration with one consistent methodology — but
+only for the window in which a verified property already existed. It does not backfill, so a
+property created after the fact answers nothing about the period before it.
+
 ---
 
 ## Privacy and Compliance
@@ -293,5 +374,7 @@ dataLayer.push({
 
 - **ai-cmo**: For overall content strategy, performance tracking, and revenue attribution
 - **seo-audit**: For organic traffic analysis and technical SEO
+- **ai-visibility-audit**: Answer-engine visibility — assistants are an increasingly large slice of
+  "direct" traffic and are not measurable through conventional attribution
 - **content-strategy**: For content planning informed by analytics data
 - **email-sequence**: For email performance measurement and optimization

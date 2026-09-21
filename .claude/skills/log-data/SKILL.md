@@ -1,6 +1,18 @@
 ---
 name: log-data
-description: Append content publishes, performance metrics, or lead/revenue records to a client's tracking CSVs (or the Google Sheets equivalent if the client uses that). Use this skill whenever the user says "log content for [client]", "log this post", "log performance for [client]", "log metrics for [post]", "log lead for [client]", "log a new lead", "log revenue", "log this conversion", "track this post", "add to content log", "update tracking", or any phrase that means "write a row to one of the tracking files." Trigger even without the word "log" — phrasings like "we just published X, record it", "got a new inquiry from LinkedIn", "this post hit 50k views", "Acme Corp closed for $5k" all belong here. Three sub-modes routed by what data the user has: (1) content = new publish, (2) performance = metrics on an existing piece, (3) lead = inquiry or revenue attribution. Supports bulk entries.
+description: >
+  Append content publishes, performance metrics, or lead/revenue records to a
+  client's tracking CSVs (or the Google Sheets equivalent if the client uses
+  that). Use this skill whenever the user says "log content for [client]", "log
+  this post", "log performance for [client]", "log metrics for [post]", "log lead
+  for [client]", "log a new lead", "log revenue", "log this conversion", "track
+  this post", "add to content log", "update tracking", or any phrase that means
+  "write a row to one of the tracking files." Trigger even without the word
+  "log" — phrasings like "we just published X, record it", "got a new inquiry from
+  LinkedIn", "this post hit 50k views", "Acme Corp closed for $5k" all belong
+  here. Three sub-modes routed by what data the user has — (1) content = new
+  publish, (2) performance = metrics on an existing piece, (3) lead = inquiry or
+  revenue attribution. Supports bulk entries.
 metadata:
   version: 1.0.0
 ---

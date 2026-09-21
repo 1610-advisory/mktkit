@@ -95,16 +95,17 @@ For each A-Roll and CB piece from the file-mapping:
      ```
      YYYY-MM-DD: Status → captured (shoot-review). Source: [filename] ([duration]s)
      ```
-   - **Generate/update the `## Editor Brief` section** (insert after frontmatter, before `## Concept`). This is the editor handoff — everything an outside editor needs to start work without asking questions:
-     - **Deliverable:** `{format}` from frontmatter + `{platforms}` as comma-separated list
-     - **Footage:** Full path from footage root using the client's convention (e.g., `[Client Name] / [project folder] / [YYYY-MM-DD]`)
-     - **Key Files:** Primary A-roll filename + duration from file-mapping.csv. Note supplementary takes and B-roll count.
+   - **Generate/update the `## Editor Brief` section** (insert after frontmatter, before `## Concept`). **This section is the entire editor handoff.** Editors see the content note on the board. They do **not** see editor-queue docs, file-mappings, or this playbook. Never write "see the queue" / "follow the doc." If the cut is chaptered, the chapters live here.
+     - **Deliverable:** `{format}` from frontmatter + `{platforms}` as comma-separated list + `Deliver as:` filename
+     - **Footage:** Full path from footage root using the client's convention (e.g., `[Client Name] / [project folder] / [YYYY-MM-DD] / Video`)
+     - **Key Files:** Every file the editor should open — primary A-roll + duration + what beat, B-cam, named B-roll, **and any prior-session callback** (full path + filename + duration, not "use the 3/23 ceiling clip"). If the client has a known good Editor Brief, copy that density — named files, not vibes.
      - **Duration:** From frontmatter `duration` field
      - **What to Make:** Summarize the `## Concept` section in 2-3 plain sentences for an editor. Strip strategy language, data references, and performance citations. Keep only: what the piece IS, what story it tells, any series context.
-     - **Edit Direction:** Convert the `## Edit Notes` section into a bullet list of action items. Include text overlay exact text, transitions, music direction, trim targets.
+     - **Edit Direction:** Convert the `## Edit Notes` section into a bullet list of action items. Include text overlay exact text, transitions, music direction, trim targets, cold-open hook + timecode.
      - **Script:** If a `## Script` section exists, add "See full timing breakdown below." If it's a carousel, reference the Carousel Structure section instead.
      - End the Editor Brief with a `---` horizontal rule to separate from internal sections.
      - If a placeholder Editor Brief already exists (from brief generation), replace it entirely with the populated version.
+     - **After matching, diff the file-mapping A-roll list against `outputs/content/`.** Any named A-roll with no note is an uncut piece — create the note (don't leave it only in a queue table).
 
 4. **Track what was matched** for the summary in Step 6.
 

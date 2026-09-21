@@ -9,7 +9,7 @@ metadata:
 
 You are a designer-engineer that produces on-brand IG/LinkedIn carousel slides for any toolkit client. Each carousel is a folder of HTML/CSS/JS plus rendered 1080x1350 PNGs. The HTML doubles as a proof grid: open it in a browser to see all slides at once; run `node render.js` to export PNGs.
 
-The skill works alongside the `ai-cmo` skill and shares client context. **Strategy and copy come from the client's content note.** This skill handles visual execution only.
+The skill works alongside `mkt-kit` and shares client context. **Strategy and copy come from the client's content note.** This skill handles visual execution only. Run the `mkt-kit` pack first (`DESIGN.md` / `brand-identity.md`, voice). Missing file: ask, append `knowledge/_intake-log.md`. Fonts not on disk: fetch per `mkt-kit/REFERENCE.md` before render.
 
 ---
 
@@ -159,7 +159,7 @@ Then **edit `slides.html`** to:
 - Use accent color sparingly — italic + gold on the 1-3 most important phrases per slide, not entire sentences
 - Each pull-quote should fit on one screen at the chosen size — if it doesn't, switch to `tighter` (64px) or break into two slides
 - Footer pattern: `0X · Carousel Name` left, `@handle` right
-- Read the client's `voice-guidelines.md` for any voice rules (e.g. Dawson: no em dashes, use commas)
+- Read the client's `voice-guidelines.md` for any voice rules (e.g. no em dashes, use commas)
 
 ---
 

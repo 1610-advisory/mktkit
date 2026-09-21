@@ -306,35 +306,23 @@ Append a new entry to the client's **shoot log** at `tracking/shoot-log.md`. Thi
 
 Also update the `last_updated` date in the shoot log's YAML frontmatter.
 
-### Step 13: Update Content Index
+### Step 13: Compile the footage catalog (required — organize-shoot is not done until this exits 0)
 
-Update the client's `tracking/content-index.md` with the organized shoot data. This keeps the master asset inventory current.
+Do not skip this. Do not "offer it next." Do not wait for someone to remember a skill. The file-mapping you just wrote is per-shoot; this step is the compiled record (catalog JSONL, talking `.txt` copies in the client repo, generated `tracking/content-index.md`, optional broll-index refresh).
 
-1. **Read `tracking/content-index.md`** (if it exists)
+From the **client marketing repo root**:
 
-2. **Determine the storage location:**
-   - Check the Storage Locations table for a path that matches the input folder's volume/root
-   - If a match is found, use that label
-   - If no match, ask the user: "What should I call this storage location? (e.g., T7-D01, Editor Copy)"
+1. If `scripts/ingest-footage.py` exists, run it:
+   ```bash
+   python3 scripts/ingest-footage.py
+   ```
+   Extra flags the wrapper already documents (`--dry-run`, `--skip-broll`, `--broll-clip`) may be passed through. Default is a real ingest including broll `--update`. Use `--skip-broll` only if the user said to skip the visual index.
+2. Else run the toolkit script (`footage-index` skill → `scripts/ingest-footage.py`) with that client's `--root`, `--catalog`, `--transcripts-out`, `--content-index-out`, and optional `--social-map` / `--notes-dir` / `--broll-index`.
+3. **Exit 0** → report catalog row count and that `content-index.md` was regenerated. Then you may offer shoot-review.
+4. **Exit 2** (no footage root mounted) → organize-shoot **failed**. You just wrote files on a volume that ingest cannot see; say so. Do not hand-edit `content-index.md` as a substitute.
+5. Any other non-zero exit → failed. Fix or stop. Do not mark the shoot organized in the index by hand.
 
-3. **Find or create the project section:**
-   - Look for the project by folder name (e.g., `2026_Henderson_Kitchen/`)
-   - If not found, create a new section in alphabetical order among existing projects
-
-4. **Upsert the shoot row:**
-   - Find the row matching this location + shoot date
-   - Update or insert with:
-     - Video and photo counts
-     - `Organized: Yes`
-     - Key Content summary: A-roll descriptions with durations, CB piece count, named B-roll count
-   - Example Key Content: `ARoll: 113s walkthrough (demo to framing). 2 CB pieces. 9 named B-roll.`
-
-5. **Update frontmatter** `last_updated` to today's date
-
-If `tracking/content-index.md` doesn't exist, create a minimal one with:
-- A Storage Locations table with just this location
-- A single project section with this shoot's data
-- Prompt the user: "Run `/index-content` to do a full scan of this drive when you have time."
+Do **not** hand-merge rows into `tracking/content-index.md` when ingest exists. That file is generated (`generated: true` in frontmatter). The old `/index-content` hand scan is the fallback only for clients that have no ingest script yet.
 
 ---
 

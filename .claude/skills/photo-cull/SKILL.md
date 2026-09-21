@@ -1,6 +1,16 @@
 ---
 name: photo-cull
-description: Review any photo shoot and cull a large pool of stills down to a tight, curated set staged for the edit pass. Works for any shoot type — project/remodel reveals, weddings, brand/corporate events, real-estate and interiors, portraits, or anything else via a custom path. Use whenever the user wants to go through shoot photos, pick the keepers, narrow a big folder down to the best N, decide which shots to edit, choose carousel/reveal stills, select a wedding gallery, pick listing photos, or build a reusable background library from a shoot. Trigger on phrases like "review the photos from the shoot", "which of these should we edit", "pick the best shots", "cull the shoot", "narrow this down to the top 20", "go through the [project/wedding/event] gallery", "choose the listing photos", "select the gallery", or any time there's a folder of many images (often raws/CR3 you can't see directly) and the goal is a smaller curated subset. Reach for it right after organize-shoot when stills need selecting, or before carousel-slides when a carousel needs its photos chosen. Works for any toolkit client.
+description: >
+  Review any photo shoot and cull a large pool of stills down to a tight curated
+  set staged for the edit pass. Works for project/remodel reveals, weddings,
+  brand/corporate events, real-estate and interiors, portraits, or a custom path.
+  Use when the user wants to pick keepers, narrow a big folder to the best N,
+  decide which shots to edit, choose carousel/reveal stills, select a wedding
+  gallery, pick listing photos, or build a background library. Triggers: "review
+  the photos from the shoot", "which of these should we edit", "pick the best
+  shots", "cull the shoot", "narrow this down to the top 20", "go through the
+  gallery", "choose the listing photos", "select the gallery". Reach for it after
+  organize-shoot or before carousel-slides.
 metadata:
   version: 2.0.0
 ---
