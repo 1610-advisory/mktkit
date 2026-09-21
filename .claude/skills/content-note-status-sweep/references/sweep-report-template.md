@@ -46,7 +46,7 @@ Pieces that haven't moved in too long given their status. Most need a nudge to a
 |------|--------|-----------|----------------|
 | `[[2026-03-22-DS-06-builder-essay]]` | `pre-approval` | 12 | Approval is bottleneck |
 | `[[2026-04-01-DS-07-faithful-with-little]]` | `editing` | 18 | Editor stalled or piece abandoned |
-| `[[2026-04-05-DS-08-mitchell-walkthrough]]` | `scheduled` | 4 | post_date 2026-04-04 passed — published or rescheduled? |
+| `[[2026-04-05-AB-08-oak-walkthrough]]` | `scheduled` | 4 | post_date 2026-04-04 passed — published or rescheduled? |
 
 ---
 
