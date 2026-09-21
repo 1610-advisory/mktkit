@@ -1,0 +1,35 @@
+{
+  "schema": "reel-bench/1",
+  "cwd": "/path/to/client-repo",
+  "task": {
+    "note": "/path/to/client-repo/outputs/content/NOTE.md",
+    "style": "/path/to/client-repo/resources/reel-style.json",
+    "output_root": "/path/to/client-repo/outputs/edit-lab/bench/2026-01-01",
+    "skill_dir": "/path/to/toolkit/.claude/skills/cut-video",
+    "mode": "proxy",
+    "extra_instructions": "optional free text appended to the task",
+    "broll_index": "/path/to/client-repo/resources/broll-index.json",
+    "deliver_to": "/path/to/review-folder"
+  },
+  "concurrency": 2,
+  "timeout_min": 45,
+  "verifier": {
+    "kind": "pi",
+    "provider": "openai-codex",
+    "model": "gpt-6-astra",
+    "thinking": "high",
+    "alternate": {
+      "kind": "pi",
+      "provider": "anthropic",
+      "model": "claude-opus-5"
+    }
+  },
+  "harnesses": [
+    {"id": "pi-grok46-high", "kind": "pi", "provider": "xai", "model": "grok-4.6", "thinking": "high"},
+    {"id": "pi-gemini38flash-high", "kind": "pi", "provider": "openrouter", "model": "google/gemini-3.8-flash", "thinking": "high"},
+    {"id": "pi-musespark12-high", "kind": "pi", "provider": "openrouter", "model": "meta/muse-spark-1.2", "thinking": "high"},
+    {"id": "pi-gpt6-high", "kind": "pi", "provider": "openai-codex", "model": "gpt-6-astra", "thinking": "high"},
+    {"id": "claude-fable51-high", "kind": "claude", "model": "claude-fable-5-1", "effort": "high"},
+    {"id": "claude-opus5-high", "kind": "claude", "model": "claude-opus-5", "effort": "high"}
+  ]
+}

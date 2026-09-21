@@ -1,0 +1,193 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "broll-index/1.3",
+  "title": "B-roll index",
+  "description": "Catalog of stills and clips that can cover a spoken line. Built by broll-index.py. descriptions and rejects are written back by broll-search.py --confirm / --reject and must survive --update. Schema 1.3 adds sampled video frames, color_hint, and the sampling settings used for this build.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "built", "roots", "entries"],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "enum": ["broll-index/1", "broll-index/1.1", "broll-index/1.2", "broll-index/1.3"],
+      "description": "Writers emit broll-index/1.3. Readers accept 1.0, 1.1, 1.2 and 1.3."
+    },
+    "built": { "type": "string", "description": "UTC ISO timestamp of this build or update." },
+    "roots": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Absolute directories that were walked."
+    },
+    "clip_model": {
+      "type": ["string", "null"],
+      "description": "open_clip architecture/weights used for entry.clip, e.g. ViT-B-32/laion2b_s34b_b79k. null when no embeddings were stored."
+    },
+    "thumbs_dir": {
+      "type": ["string", "null"],
+      "description": "Directory of <=400px JPEG thumbs. Set when --thumbs is given, or when --thumbs is omitted and --clip defaults to ~/.cache/reel-factory/thumbs/<index basename>/. null when no thumbs were written. Search can find thumbs here."
+    },
+    "video_step_s": {
+      "type": ["number", "null"],
+      "description": "Seconds between sampled video frames (--video-step, default 3.0). Clips longer than step times max-frames spread frames evenly. null on indexes written before 1.3."
+    },
+    "video_max_frames": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "description": "Max frames sampled per clip (--video-max-frames, default 8). Clips under 1.0 s get one frame. null on indexes written before 1.3."
+    },
+    "entries": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/entry" }
+    }
+  },
+  "definitions": {
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "rel", "root", "kind", "project", "name_tokens", "size", "mtime"],
+      "properties": {
+        "path": { "type": "string", "description": "Absolute filesystem path." },
+        "rel": { "type": "string", "description": "Path relative to its root, posix separators." },
+        "root": { "type": "string", "description": "Absolute root this file was found under." },
+        "kind": { "type": "string", "enum": ["image", "video"] },
+        "project": {
+          "type": "string",
+          "description": "Default: first path component under the root, or prefix:auto when every root is flat (more than 50 files, no subfolders). Overridden by --project-from parent|grandparent|prefix:N|prefix:auto|regex:PATTERN. prefix:N takes the first N hyphen tokens of the basename after stripping a trailing responsive size token (320, 640, 1024, 1600, 2048) and then a 1-3 digit image number. prefix:auto keeps every remaining token after that strip. A leading 4-digit year counts as a token. regex:PATTERN is tried against the basename first, then the relative path; the first capture group wins."
+        },
+        "name_tokens": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Filename stem split on -, _, ., spaces, camelCase. Digit runs kept as tokens. Lowercased."
+        },
+        "size": { "type": "integer", "minimum": 0, "description": "Bytes." },
+        "mtime": { "type": "number", "description": "Unix mtime (float). Combined with size for --update change detection." },
+        "width": { "type": ["integer", "null"] },
+        "height": { "type": ["integer", "null"] },
+        "orientation": { "type": ["string", "null"], "enum": ["portrait", "landscape", "square", null] },
+        "taken": {
+          "type": ["string", "null"],
+          "description": "EXIF DateTimeOriginal for images (when Pillow can read it); ffprobe creation_time for videos; else null."
+        },
+        "duration_s": { "type": ["number", "null"], "description": "Video duration in seconds. null for images." },
+        "fps": {
+          "type": ["number", "null"],
+          "description": "Video frame rate from r_frame_rate or avg_frame_rate. null for images or when unreadable."
+        },
+        "color_hint": {
+          "type": ["string", "null"],
+          "enum": ["log", "rec709", null],
+          "description": "From signalstats YMIN on the middle frame of a video. YMIN >= 20 is log, else rec709. null for images or when unreadable."
+        },
+        "caption": {
+          "type": ["string", "null"],
+          "description": "From --captions (basename, case-insensitive) or --captions-from-alt (img/markdown/frontmatter alt, else page title). An explicit --captions file wins when both sources caption the same file."
+        },
+        "page_title": {
+          "type": ["string", "null"],
+          "description": "Title of a page that referenced this image, from --captions-from-alt (frontmatter title: or first # heading)."
+        },
+        "variant_of": {
+          "type": ["string", "null"],
+          "description": "Basename of the unsuffixed image when this file is a responsive size variant kept with --keep-variants. Omitted or null otherwise."
+        },
+        "descriptions": {
+          "type": "array",
+          "description": "Verified subjects. Appended by broll-search.py --confirm. Preserved across --update.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["subject", "by", "date"],
+            "properties": {
+              "subject": { "type": "string" },
+              "by": { "type": "string", "enum": ["vision-check", "human"] },
+              "date": { "type": "string", "description": "UTC ISO timestamp." }
+            }
+          }
+        },
+        "rejects": {
+          "type": "array",
+          "description": "Subjects this file was judged not to show. Appended by broll-search.py --reject. Preserved across --update. A matching query drops the candidate.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["subject", "date"],
+            "properties": {
+              "subject": { "type": "string" },
+              "date": { "type": "string", "description": "UTC ISO timestamp." }
+            }
+          }
+        },
+        "sha1_16": {
+          "type": "string",
+          "description": "First 16 hex chars of SHA-1 of the first 1 MB. Change detection helper."
+        },
+        "thumb": {
+          "type": ["string", "null"],
+          "description": "Absolute path to a <=400px JPEG thumbnail. For videos this is the most representative sampled frame (closest to the mean embedding when --clip, else the middle frame). Images are a 400px JPEG of the still."
+        },
+        "frames": {
+          "type": "array",
+          "description": "Sampled frames for a video entry. Empty or omitted for images and for videos indexed without a thumbs dir. --update keeps this array when size+mtime are unchanged.",
+          "items": { "$ref": "#/definitions/frame" }
+        },
+        "clip_dtype": {
+          "type": ["string", "null"],
+          "enum": ["f16", "list", null],
+          "description": "How entry.clip is stored. f16 = base64 little-endian float16. list = JSON array of floats. Omitted on indexes written before 1.2; readers treat a numeric array as list."
+        },
+        "clip_dim": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "description": "Length of the CLIP vector. 512 for ViT-B-32. Omitted when clip is omitted."
+        },
+        "clip": {
+          "description": "open_clip image embedding. For videos with --clip this is the L2-normalized mean of the sampled frame embeddings. Writers default to a base64 string of little-endian float16 (clip_dtype f16). Readers also accept the legacy JSON array of 512 floats. Omitted when embeddings were skipped.",
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "description": "base64 little-endian float16 blob."
+            },
+            {
+              "type": "array",
+              "items": { "type": "number" },
+              "minItems": 1,
+              "description": "Legacy float list (clip_dtype list or a 1.0/1.1 index)."
+            }
+          ]
+        }
+      }
+    },
+    "frame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["t"],
+      "properties": {
+        "t": {
+          "type": "number",
+          "description": "Seconds from the start of the clip for this sampled frame."
+        },
+        "thumb": {
+          "type": ["string", "null"],
+          "description": "Absolute path to the JPEG for this frame."
+        },
+        "clip": {
+          "description": "Embedding of this frame, same encoding as entry.clip. null when --clip was off or the embed failed.",
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "string",
+              "minLength": 1,
+              "description": "base64 little-endian float16 blob."
+            },
+            {
+              "type": "array",
+              "items": { "type": "number" },
+              "minItems": 1
+            }
+          ]
+        }
+      }
+    }
+  }
+}

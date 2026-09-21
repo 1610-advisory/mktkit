@@ -1,0 +1,61 @@
+{
+  "schema": "reel-manifest/1",
+  "id": "XX-20260101-01",
+  "slug": "example-talking-reel",
+  "version": "auto",
+  "output_dir": "/path/to/shoot/Edits",
+  "deliver": { "copy_to": ["/path/to/review-folder/Pilot Cuts 2026-01-01"] },
+  "platforms": ["instagram_reels", "youtube_shorts"],
+  "duration_window": [40, 60],
+  "source": {
+    "video": "/path/to/shoot/Video/ARoll-Topic-PRIMARY.MP4",
+    "transcript_json": "/path/to/shoot/Audio/ARoll-Topic-PRIMARY.json",
+    "color": "auto",
+    "lut": "/path/to/client/resources/video-pipeline/luts/client-grade.cube"
+  },
+  "spine": {
+    "ranges": [
+      { "start": 12.40, "end": 31.02, "quote": "the first thing ... before you start" },
+      { "start": 44.10, "end": 58.66, "quote": "then we ... and that is the whole point" }
+    ],
+    "hard_out": 58.66,
+    "max_pause": 0.85,
+    "keep_tail": 0.20,
+    "keep_lead": 0.08,
+    "join_fade": 0.06
+  },
+  "hook": {
+    "mode": "prepend",
+    "source": null,
+    "range": [52.30, 56.10],
+    "quote": "and that is the whole point",
+    "lift_from_spine": true
+  },
+  "cover": {
+    "text": "BUILT IN. NOT BUTTED ON.",
+    "seconds": 2.0,
+    "anchor": "center",
+    "font": "/path/to/client/resources/fonts/Display-Regular.ttf",
+    "color": "#F2EDE0",
+    "size": 72,
+    "case": "upper"
+  },
+  "captions": {
+    "enabled": true,
+    "font": "/path/to/client/resources/fonts/Body-Medium.ttf",
+    "size": 42,
+    "style": "phrase",
+    "placement": "safe-lower"
+  },
+  "broll": [
+    { "kind": "clip", "path": "/path/to/shoot/Video/BRoll-Detail-Wide.MP4", "at": 6.2, "dur": 2.5, "line": "the first thing we do" },
+    { "kind": "still", "path": "/path/to/library/2023-project_finished-hallway.jpg", "at": 21.8, "dur": 3.5, "line": "then we open the hallway", "focus": [0.5, 0.45], "verified": true },
+    { "kind": "still", "path": "/path/to/library/2026-project_demo-day-wall.jpg", "at": 30.1, "dur": 4.0, "line": "where the wall was", "super": { "text": "AUGUST 3 · WHERE THE WALL WAS" }, "verified": true }
+  ],
+  "joins": "auto",
+  "inserts": [],
+  "audio": { "loudnorm": "two-pass", "target_i": -16, "true_peak": -1.5, "lra": 11 },
+  "render": { "mode": "final", "crf": 18, "preset": "fast", "encoder": "auto" },
+  "qa": { "frames": true, "contact_sheet": true, "max_frame_px": 540, "banned_words_file": "/path/to/client/resources/public-safe-banned-words.txt" },
+  "notes": "v1 from the editor brief. Hook is the closer line pulled forward; lifted from the spine so it plays once."
+}

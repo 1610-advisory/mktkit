@@ -1,0 +1,18 @@
+{
+  "schema": "reel-fixture/1",
+  "name": "A",
+  "manifest": "A.reel.json",
+  "gold": "/path/to/gold.mp4",
+  "expect": {
+    "duration_window": [45, 60],
+    "punch_count": 5,
+    "hook_present": true,
+    "cover_text": "SAME FOOTPRINT",
+    "qa_verdict": "pass"
+  },
+  "gold_tolerance": {
+    "duration_s": 8.0,
+    "ssim_min": 0.45
+  },
+  "notes": "Example fixture descriptor. Paths are placeholders, not real footage. gold may be null to skip the gold compare. Keep this file PII-free."
+}

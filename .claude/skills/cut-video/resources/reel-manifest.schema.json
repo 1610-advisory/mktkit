@@ -1,0 +1,178 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "reel-manifest/1",
+  "title": "Reel manifest",
+  "description": "Declarative description of one short-form talking reel. The orchestrating model fills this from the editor brief; render-reel.py executes it; qa-reel.py checks the output against it. Times are seconds as numbers. Paths are absolute or relative to the manifest's directory. Never put a client surname or address in any text field that is rendered on screen (cover.text, broll[].super.text, supers).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "id", "slug", "output_dir", "duration_window", "source", "spine"],
+  "properties": {
+    "schema": { "const": "reel-manifest/1" },
+    "id": { "type": "string", "description": "Content id, e.g. CP-20260917-05. Used as the filename prefix." },
+    "slug": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "description": "Kebab-case public-safe slug. Filename = <id>_<slug>_v<N>.mp4" },
+    "version": { "oneOf": [{ "type": "integer", "minimum": 1 }, { "const": "auto" }], "default": "auto", "description": "Output version. 'auto' picks the next free _vN in output_dir. The renderer never overwrites an existing version." },
+    "output_dir": { "type": "string", "description": "Where the finished mp4, its RUNNOTES, captions .ass, qa report and frames land." },
+    "deliver": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "copy_to": { "type": "array", "items": { "type": "string" }, "description": "Extra directories that receive a copy of the mp4 and RUNNOTES (a review folder, a cloud drive)." }
+      }
+    },
+    "platforms": { "type": "array", "items": { "type": "string", "enum": ["instagram_reels", "youtube_shorts", "tiktok", "facebook_reels"] }, "default": ["instagram_reels", "youtube_shorts"], "description": "Targets. The strictest safe zone and loudness target among them wins." },
+    "duration_window": { "type": "array", "items": { "type": "number", "minimum": 1 }, "minItems": 2, "maxItems": 2, "description": "[min_s, max_s] for the finished file including the hook." },
+    "source": {
+      "type": "object", "additionalProperties": false, "required": ["video", "transcript_json"],
+      "properties": {
+        "video": { "type": "string", "description": "Camera file for the talking spine." },
+        "transcript_json": { "type": "string", "description": "Whisper JSON with segments[].words[] (start/end)." },
+        "color": { "type": "string", "enum": ["auto", "log", "rec709"], "default": "auto", "description": "auto = measure with signalstats YMIN on sampled frames; log = apply lut; rec709 = skip lut." },
+        "lut": { "type": ["string", "null"], "default": null, "description": "3D .cube applied to log sources before eq and text. Comes from the client's video pipeline README." },
+        "eq": { "type": ["string", "null"], "default": null, "description": "ffmpeg eq= params after the LUT for A-roll match. null = engine default. The literal string \"none\" disables the eq (grainy or already-matched footage)." },
+        "orient": { "type": "string", "enum": ["auto", "none", "r5-portrait", "landscape-punch", "tall-spine"], "default": "auto" },
+        "rotate": { "type": ["integer", "null"], "enum": [null, 90, 180, 270], "default": null, "description": "Only when the brief says a sideways clip must be rotated." }
+      }
+    },
+    "spine": {
+      "type": "object", "additionalProperties": false, "required": ["ranges"],
+      "properties": {
+        "ranges": {
+          "type": "array", "minItems": 1,
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["start", "end"],
+            "properties": {
+              "start": { "type": "number", "minimum": 0 },
+              "end": { "type": "number", "exclusiveMinimum": 0 },
+              "quote": { "type": "string", "description": "First and last words of the range, for a human reader and for the hook-once lint." }
+            }
+          }
+        },
+        "hard_out": { "type": ["number", "null"], "default": null, "description": "End time of the last kept WORD (from the word JSON). Never an SRT cue end. The last range's end is clamped to this." },
+        "max_pause": { "type": "number", "default": 0.85 },
+        "keep_tail": { "type": "number", "default": 0.20 },
+        "keep_lead": { "type": "number", "default": 0.08 },
+        "join_fade": { "type": "number", "default": 0.06 },
+        "filler_removal": { "type": "boolean", "default": true },
+        "pause_compression": { "type": "boolean", "default": true }
+      }
+    },
+    "hook": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "mode": { "type": "string", "enum": ["none", "prepend"], "default": "none", "description": "none = the take opens on its own hook (play once). prepend = a later grab plays first as its own clip." },
+        "source": { "type": ["string", "null"], "default": null, "description": "Camera file for the hook. null = source.video." },
+        "transcript_json": { "type": ["string", "null"], "default": null, "description": "Word JSON for the hook source when it is a different file (captions)." },
+        "range": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+        "quote": { "type": "string" },
+        "lift_from_spine": { "type": "boolean", "default": true, "description": "When the hook comes from source.video, remove its range from the spine so the line plays once." }
+      }
+    },
+    "cover": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "text": { "type": "string", "description": "Public-safe line, 7 words or fewer. Rendered in the brand display face." },
+        "seconds": { "type": "number", "default": 2.0 },
+        "anchor": { "type": "string", "enum": ["center", "top"], "default": "center" },
+        "font": { "type": ["string", "null"], "default": null, "description": "Absolute font file path. From the client's design pack." },
+        "color": { "type": "string", "default": "#F2EDE0" },
+        "size": { "type": "integer", "default": 72 },
+        "case": { "type": "string", "enum": ["as-is", "upper", "sentence"], "default": "as-is" },
+        "darken": { "type": "boolean", "default": false, "description": "Dim one frame under the title when the still is too bright." }
+      }
+    },
+    "captions": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "font": { "type": ["string", "null"], "default": null, "description": "Absolute font file path for the body/sans face." },
+        "size": { "type": "integer", "default": 42 },
+        "style": { "type": "string", "enum": ["phrase", "word"], "default": "phrase", "description": "phrase = 1-2 line cues; word = one highlighted word at a time (karaoke)." },
+        "max_chars_per_line": { "type": "integer", "default": 32 },
+        "min_cue_s": { "type": "number", "default": 0.8 },
+        "max_cue_s": { "type": "number", "default": 2.8 },
+        "placement": { "type": "string", "enum": ["safe-lower", "safe-center", "custom"], "default": "safe-lower", "description": "safe-lower = just above the strictest platform bottom safe zone; safe-center = vertical center." },
+        "margin_v": { "type": ["integer", "null"], "default": null, "description": "Override in px from the bottom when placement = custom." }
+      }
+    },
+    "broll": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["path", "at"],
+        "properties": {
+          "kind": { "type": "string", "enum": ["auto", "clip", "still"], "default": "auto", "description": "auto = decide by file type. still = run stills-to-broll first." },
+          "path": { "type": "string", "description": "Clip or still to punch in. An empty string means 'not sourced yet': broll-search.py --lines-from-manifest proposes candidates for it, and render-reel.py refuses to render (exit 2) until it is filled." },
+          "at": { "type": "number", "minimum": 0, "description": "Time on the CUT SPINE (before hook prepend) where the punch starts." },
+          "dur": { "type": "number", "default": 2.5, "description": "Seconds on screen. Clips stay under 3.0; stills read at 3.5; a punch carrying a super holds 3.5 to 4.0." },
+          "src": { "type": ["number", "null"], "default": null, "description": "In-point inside a clip. null = mid-clip." },
+          "line": { "type": "string", "description": "The spoken words this punch illustrates. Required for the relevance review; the renderer copies it into RUNNOTES." },
+          "shows": { "type": "string", "description": "What the picture literally shows, written after looking at it (object, setting, material). Required whenever path is non-empty; render-reel preflight warns when it is missing." },
+          "focus": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2, "description": "Stills only: crop centre as fractions of width/height." },
+          "zoom": { "type": "number", "default": 1.10, "description": "Stills only: end zoom of the slow push." },
+          "direction": { "type": "string", "enum": ["in", "out"], "default": "in" },
+          "color": { "type": "string", "enum": ["auto", "log", "rec709"], "default": "auto" },
+          "eq": { "type": ["string", "null"], "default": null, "description": "null = same eq as the A-roll (or the stills default). 'none' = no eq." },
+          "super": {
+            "type": "object", "additionalProperties": false, "required": ["text"],
+            "properties": {
+              "text": { "type": "string", "description": "Short public-safe annotation (a date, a place). Upper third." },
+              "dur": { "type": ["number", "null"], "default": null, "description": "null = the punch duration." }
+            }
+          },
+          "verified": { "type": "boolean", "default": false, "description": "Kept for compatibility; shows plus the verifier grade are the evidence." },
+          "grade": { "type": "string", "enum": ["exact", "category", "wrong", "ungraded"], "default": "ungraded", "description": "Filled by the verifier stage, never by the author." },
+          "graded_by": { "type": "string", "description": "Who filled grade (verifier or owner). Optional." }
+        }
+      }
+    },
+    "joins": { "oneOf": [{ "const": "auto" }, { "type": "array", "items": { "type": "number" } }], "default": "auto", "description": "auto = every concat boundary between spine ranges, computed from the cut timeline. The engine covers each join with the nearest punch." },
+    "inserts": {
+      "type": "array",
+      "description": "Audio-carrying callbacks from an earlier take. The spine is split at after_word_end; the insert plays between the parts with its own audio and an optional super.",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["source", "transcript_json", "range", "after_word_end"],
+        "properties": {
+          "source": { "type": "string" },
+          "transcript_json": { "type": "string" },
+          "range": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+          "after_word_end": { "type": "number", "description": "Source time (on source.video) of the end of the word the insert follows." },
+          "super": { "type": ["string", "null"], "default": null },
+          "color": { "type": "string", "enum": ["auto", "log", "rec709"], "default": "auto" },
+          "rotate": { "type": ["integer", "null"], "enum": [null, 90, 180, 270], "default": null }
+        }
+      }
+    },
+    "audio": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "loudnorm": { "type": "string", "enum": ["two-pass", "single", "off"], "default": "two-pass" },
+        "target_i": { "type": "number", "default": -16 },
+        "true_peak": { "type": "number", "default": -1.5 },
+        "lra": { "type": "number", "default": 11 },
+        "denoise": { "type": "string", "enum": ["off", "light"], "default": "off", "description": "light = afftdn with a conservative noise floor; only for phone or distant mics." },
+        "sample_rate": { "type": "integer", "default": 48000 }
+      }
+    },
+    "render": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "mode": { "type": "string", "enum": ["final", "proxy"], "default": "final", "description": "proxy = 540x960, hardware encoder if available, fast preset, for iteration; final = 1080x1920 libx264." },
+        "crf": { "type": "integer", "default": 18 },
+        "preset": { "type": "string", "default": "fast" },
+        "encoder": { "type": "string", "enum": ["auto", "libx264", "h264_videotoolbox"], "default": "auto" },
+        "threads": { "type": "integer", "default": 0, "description": "0 = ffmpeg default. The render lock already serializes encodes." }
+      }
+    },
+    "qa": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "frames": { "type": "boolean", "default": true },
+        "contact_sheet": { "type": "boolean", "default": true },
+        "max_frame_px": { "type": "integer", "default": 540, "description": "Longest side of any QA frame written for a model to read." },
+        "banned_words_file": { "type": ["string", "null"], "default": null, "description": "One term per line (client surnames, street names). Checked against every on-screen text field and the transcript words inside kept ranges." },
+        "max_stills": { "type": "integer", "minimum": 0, "default": 2, "description": "Override of platform-specs broll.max_stills_per_reel." },
+        "max_consecutive_stills": { "type": "integer", "minimum": 0, "default": 1, "description": "Override of platform-specs broll.max_consecutive_stills." },
+        "still_on_noun_s": { "type": "number", "minimum": 0, "default": 0.3, "description": "Override of platform-specs broll.still_on_noun_s. A still punch start must fall within this many seconds of a spoken line word." }
+      }
+    },
+    "notes": { "type": "string", "description": "Free text copied into RUNNOTES: why this version exists, what changed." }
+  }
+}

@@ -1,0 +1,99 @@
+{
+  "_about": "Delivery targets and on-screen safe zones per platform at a 1080x1920 canvas. qa-reel.py, finish-reel.py and render-reel.py read this file. Safe-zone numbers are pixels from that edge that platform UI may cover; captions, cover text and supers stay OUT of those bands. Sources, dates checked, and the reasoning behind every number live in platform-specs.md beside this file. When two platforms are targeted, the strictest value wins (largest band, shortest max duration).",
+  "canvas": { "width": 1080, "height": 1920 },
+  "platforms": {
+    "instagram_reels": {
+      "max_duration_s": 90,
+      "fps_allowed": [23.976, 24, 25, 29.97, 30, 50, 59.94, 60],
+      "video_codec": "h264",
+      "audio_codec": "aac",
+      "audio_sample_rate": 48000,
+      "loudness_target_i": -14,
+      "loudness_tolerance_lu": 2,
+      "true_peak_max_dbtp": -1.0,
+      "safe_zone_px": { "top": 270, "bottom": 672, "left": 65, "right": 65 },
+      "safe_zone_note": "Meta 2026 unified 9:16 guidance: 14% top, 35% bottom, 6% each side.",
+      "status": "sourced"
+    },
+    "youtube_shorts": {
+      "max_duration_s": 180,
+      "fps_allowed": [23.976, 24, 25, 29.97, 30, 50, 59.94, 60],
+      "video_codec": "h264",
+      "audio_codec": "aac",
+      "audio_sample_rate": 48000,
+      "loudness_target_i": -14,
+      "loudness_tolerance_lu": 2,
+      "true_peak_max_dbtp": -1.0,
+      "safe_zone_px": { "top": 180, "bottom": 350, "left": 60, "right": 120 },
+      "safe_zone_note": "Title and channel row at the bottom, action rail on the right. Practitioner consensus, no official pixel spec.",
+      "status": "practitioner"
+    },
+    "tiktok": {
+      "max_duration_s": 600,
+      "fps_allowed": [23.976, 24, 25, 29.97, 30, 50, 59.94, 60],
+      "video_codec": "h264",
+      "audio_codec": "aac",
+      "audio_sample_rate": 48000,
+      "loudness_target_i": -14,
+      "loudness_tolerance_lu": 2,
+      "true_peak_max_dbtp": -1.0,
+      "safe_zone_px": { "top": 130, "bottom": 484, "left": 60, "right": 140 },
+      "safe_zone_note": "TikTok creative best practices: keep key elements clear of the top status area, the bottom caption and audio strip, and the right action rail.",
+      "status": "sourced"
+    },
+    "facebook_reels": {
+      "max_duration_s": 90,
+      "fps_allowed": [23.976, 24, 25, 29.97, 30, 50, 59.94, 60],
+      "video_codec": "h264",
+      "audio_codec": "aac",
+      "audio_sample_rate": 48000,
+      "loudness_target_i": -14,
+      "loudness_tolerance_lu": 2,
+      "true_peak_max_dbtp": -1.0,
+      "safe_zone_px": { "top": 270, "bottom": 672, "left": 65, "right": 65 },
+      "safe_zone_note": "Same unified Meta 9:16 guidance as Instagram Reels.",
+      "status": "sourced"
+    }
+  },
+  "delivery": {
+    "pix_fmt": ["yuv420p", "yuvj420p"],
+    "width": 1080,
+    "height": 1920,
+    "faststart": true,
+    "min_video_bitrate_kbps": 6000
+  },
+  "loudness_pipeline": {
+    "target_i": -16,
+    "true_peak": -1.5,
+    "lra": 11,
+    "mode": "two-pass",
+    "note": "The pipeline masters to -16 LUFS integrated, -1.5 dBTP, and keeps LRA=11 in the loudnorm target because linear (two-pass) mode silently reverts to dynamic when the measured LRA exceeds the target LRA. Platforms then normalize toward about -14 LUFS themselves. QA compares the delivered file to the manifest target when one is given. Loudness Range is informational only: EBU R128 s1 states LRA limits do not apply to short-form programmes."
+  },
+  "captions": {
+    "min_cue_s": 0.83,
+    "min_gap_s": 0.067,
+    "max_cue_s": 2.8,
+    "max_chars_per_line": 32,
+    "max_lines": 2,
+    "reading_speed_cps_max": 20,
+    "min_font_px_at_1080": 40,
+    "note": "Netflix timing guidelines: 20-frame minimum event, 2-frame minimum gap, 20 characters per second for adults, 42 characters per line on a 16:9 frame. A 1080-wide vertical frame at caption size 42 to 48 fits about 32 characters per line inside the side safe zones."
+  },
+  "cover": {
+    "max_words": 7,
+    "max_chars_per_line": 18,
+    "seconds": 2.0
+  },
+  "broll": {
+    "clip_max_s": 3.0,
+    "still_default_s": 3.5,
+    "with_text_min_s": 3.5,
+    "with_text_max_s": 4.0,
+    "max_consecutive_stills": 1,
+    "min_aroll_between_s": 2.5,
+    "max_punches_per_minute": 10,
+    "max_stills_per_reel": 2,
+    "still_on_noun_s": 0.3,
+    "clip_on_noun_s": 0.8
+  }
+}

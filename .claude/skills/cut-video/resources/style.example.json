@@ -1,0 +1,46 @@
+{
+  "platforms": ["instagram_reels", "youtube_shorts"],
+  "source": {
+    "lut": "/path/to/grade.cube",
+    "eq": "contrast=1.14:saturation=1.35:brightness=-0.015"
+  },
+  "cover": {
+    "font": "/path/to/fonts/Display-Regular.ttf",
+    "color": "#F2EDE0",
+    "size": 72,
+    "case": "as-is",
+    "anchor": "center",
+    "seconds": 2.0
+  },
+  "captions": {
+    "font": "/path/to/fonts/Body-Medium.ttf",
+    "size": 42,
+    "style": "phrase",
+    "placement": "safe-lower",
+    "max_chars_per_line": 32,
+    "min_cue_s": 0.8,
+    "max_cue_s": 2.8
+  },
+  "audio": {
+    "loudnorm": "two-pass",
+    "target_i": -16,
+    "true_peak": -1.5,
+    "lra": 11
+  },
+  "render": {
+    "encoder": "auto",
+    "preset": "fast",
+    "crf": 18
+  },
+  "qa": {
+    "frames": true,
+    "contact_sheet": true,
+    "max_frame_px": 540
+  },
+  "broll_defaults": {
+    "dur_still": 3.5,
+    "dur_clip": 2.5,
+    "zoom": 1.10,
+    "direction": "in"
+  }
+}
