@@ -38,7 +38,7 @@ read "META_APP_ID?App ID: "
 read -s "META_APP_SECRET?App Secret: "; echo
 read -s "SHORT_TOKEN?Short-lived token: "; echo
 export META_APP_ID META_APP_SECRET
-python3 ~/1610/tools/1610-mkt/scripts/meta_setup.py --client <CLIENT> --short-token "$SHORT_TOKEN" --page-name "<Page name substring>" --write
+python3 scripts/meta_setup.py --client <CLIENT> --short-token "$SHORT_TOKEN" --page-name "<Page name substring>" --write
 ```
 
 `--write` appends the three `META_*_<CLIENT>` lines to `~/.zshrc.local` (idempotent).
