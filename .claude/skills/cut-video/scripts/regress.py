@@ -25,7 +25,7 @@ Descriptor shape::
         "duration_window": [45, 60],
         "punch_count": 5,
         "hook_present": true,
-        "cover_text": "SAME FOOTPRINT",
+        "cover_text": "EXAMPLE COVER",
         "qa_verdict": "pass"
       },
       "gold_tolerance": {"duration_s": 8.0, "ssim_min": 0.45},

@@ -9,6 +9,9 @@ Exit codes:
   0  success, including --dry-run
   1  usage or processing error
   2  no named footage root is mounted
+
+--aroll-prefix PREFIX  extra A-roll filename prefix (repeatable). Extends
+                       the default tuple (aroll-, cb-, post-).
 """
 from __future__ import annotations
 
@@ -27,7 +30,7 @@ from pathlib import Path
 VIDEO_EXT = {".mp4", ".mov", ".m4v"}
 IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".heic"}
 SKIP_DIR_NAMES = {".work", "edits", "posted", ".git", "__pycache__"}
-AROLL_PREFIXES = ("aroll-", "cb-", "post-", "sos-")
+AROLL_PREFIXES = ("aroll-", "cb-", "post-")
 SKIP_VIDEO_PREFIXES = ("scrap-",)
 DATE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})")
 SHA_BYTES = 1024 * 1024
@@ -466,7 +469,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument(
         "--root", action="append", required=True, metavar="NAME=PATH",
         help="Named footage root. Repeatable. First existing root is used for "
-             "catalog rel paths; all existing roots are eligible. Example: t7:/Volumes/T7/Jobs",
+             "catalog rel paths; all existing roots are eligible. Example: ssd:/Volumes/SSD-01/Jobs",
     )
     p.add_argument("--catalog", type=Path, required=True)
     p.add_argument("--transcripts-out", type=Path, required=True)
@@ -484,11 +487,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Pass --clip to broll-index.py. Default is --update only.",
     )
     p.add_argument("--dry-run", action="store_true")
+    p.add_argument(
+        "--aroll-prefix", action="append", default=None, metavar="PREFIX",
+        help="Extra A-roll filename prefix (case-insensitive). Repeatable. "
+             "Extends the default prefixes: aroll-, cb-, post-.",
+    )
     return p.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    global AROLL_PREFIXES
+    extra = tuple(p.lower() for p in (args.aroll_prefix or []) if p)
+    AROLL_PREFIXES = ("aroll-", "cb-", "post-") + extra
     named: list[tuple[str, Path]] = []
     for spec in args.root:
         named.append(parse_root(spec))

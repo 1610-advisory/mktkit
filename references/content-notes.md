@@ -68,8 +68,8 @@ platform:                          # Target platforms (list)
   - Instagram
   - Facebook
 format: "Carousel 6-8"            # Content format
-project: "Mitchell"                # Internal project name (if applicable)
-project_social_name: "Vintage Kitchen" # Public-facing project name
+project: "Oak"                # Internal project name (if applicable)
+project_social_name: "Sample Kitchen" # Public-facing project name
 duration: ""                       # Target duration for video (e.g., "60-90s")
 source_footage: ""                 # Full path from client's footage root (see client CLAUDE.md → Footage & Drive Convention)
 shoot_date: 2026-04-06            # When footage was/will be shot
@@ -190,7 +190,7 @@ Text overlays, transitions, music direction, duration targets, any editor-facing
 ### `## Revision History`
 Append-only log. Every status change or significant update gets a line:
 - `YYYY-MM-DD: Created from [[brief-filename]]`
-- `YYYY-MM-DD: Status → captured (organize-shoot). Source: ARoll-Mitchell-Reveal.MP4`
+- `YYYY-MM-DD: Status → captured (organize-shoot). Source: ARoll-Oak-Reveal.MP4`
 - `YYYY-MM-DD: Status → editing. Assigned to [editor]`
 - `YYYY-MM-DD: Status → pre-approval. Edit v1 ready`
 - `YYYY-MM-DD: Status → editing (revision). Feedback: shorten intro, add text overlay at 0:15`
@@ -209,8 +209,8 @@ When a biweekly or weekly brief is generated, inline content piece details are r
 
 | # | Title | Format | Status | Link |
 |---|-------|--------|--------|------|
-| 1 | Vintage Kitchen Final Reveal | Carousel 6-8 | concept | [[2026-04-15-CP-01-example-kitchen-final-reveal]] |
-| 2 | Kitchen Final Walkthrough | Reel 60-90s | concept | [[2026-04-17-CP-02-example-kitchen-final-walkthrough]] |
+| 1 | Sample Kitchen Final Reveal | Carousel 6-8 | concept | [[2026-04-15-AB-01-example-kitchen-final-reveal]] |
+| 2 | Kitchen Final Walkthrough | Reel 60-90s | concept | [[2026-04-17-AB-02-example-kitchen-final-walkthrough]] |
 ```
 
 The brief retains:

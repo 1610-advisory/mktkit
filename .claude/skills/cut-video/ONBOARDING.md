@@ -15,7 +15,7 @@ What a business must provide, where it lives, and the first-hour checklist. Ever
 | Fixtures | `outputs/edit-lab/fixtures/*.reel.json` + `*.fixture.json` + a `gold/` folder with reviewer-approved renders | `regress.py` |
 | Defects ledger | `efforts/<pipeline>/defects.csv` | the incident-to-fixture rule |
 | Content notes | wherever the business keeps editor briefs; each needs: deliverable name, duration window, public-safe cover line, hook quote + timecode, keep ranges with quoted words, hard-out, B-roll wishes | the model filling the manifest |
-| Review folder | a cloud-synced folder the reviewer opens on a phone (`Pilot Cuts <date>/`) | manifest `deliver.copy_to` |
+| Review folder | a cloud-synced folder the reviewer opens on a phone (`Review Cuts <date>/`) | manifest `deliver.copy_to` |
 
 ## Machine prerequisites
 

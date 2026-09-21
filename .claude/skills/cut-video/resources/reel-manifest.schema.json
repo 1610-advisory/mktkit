@@ -8,7 +8,7 @@
   "required": ["schema", "id", "slug", "output_dir", "duration_window", "source", "spine"],
   "properties": {
     "schema": { "const": "reel-manifest/1" },
-    "id": { "type": "string", "description": "Content id, e.g. CP-20260917-05. Used as the filename prefix." },
+    "id": { "type": "string", "description": "Content id, e.g. AB-20260917-05. Used as the filename prefix." },
     "slug": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "description": "Kebab-case public-safe slug. Filename = <id>_<slug>_v<N>.mp4" },
     "version": { "oneOf": [{ "type": "integer", "minimum": 1 }, { "const": "auto" }], "default": "auto", "description": "Output version. 'auto' picks the next free _vN in output_dir. The renderer never overwrites an existing version." },
     "output_dir": { "type": "string", "description": "Where the finished mp4, its RUNNOTES, captions .ass, qa report and frames land." },

@@ -58,8 +58,8 @@ This skill auto-advances through the **production statuses only**: `concept` →
 
 **Evidence string for Revision History:**
 - `"transcript file at transcripts/DS-20260415-01.txt"`
-- `"source_footage file exists: T7-D01/5-types-of-wealth/Edits/ARoll-Intro.mp4"`
-- `"shoot folder T7-D01/2026-04-15/ contains 7 files matching project"`
+- `"source_footage file exists: SSD-01/5-types-of-wealth/Edits/ARoll-Intro.mp4"`
+- `"shoot folder SSD-01/2026-04-15/ contains 7 files matching project"`
 
 **Edge cases:**
 - If `source_footage:` is filled but the file does NOT exist at the resolved path, this is a missing-input flag, not an advance. The note thinks it's been captured but the disk disagrees.

@@ -23,7 +23,7 @@ From the client marketing repo, after a footage root is mounted:
 
 ```
 python3 <skill>/scripts/ingest-footage.py \
-  --root t7:/path/to/footage-root \
+  --root ssd:/path/to/footage-root \
   --catalog tracking/footage-catalog.jsonl \
   --transcripts-out footage/audio \
   --content-index-out tracking/content-index.md \

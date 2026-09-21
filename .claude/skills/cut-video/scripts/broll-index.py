@@ -805,6 +805,7 @@ def rel_in_raw_skip_dir(rel: str) -> bool:
 
 def video_skip_reason(
     rel: str, name: str, size: int, include_aroll: bool,
+    skip_prefixes: tuple[str, ...] = (),
 ) -> str | None:
     """First matching raw-clip skip rule, or None to keep the file."""
     if rel_in_raw_skip_dir(rel):
@@ -815,7 +816,8 @@ def video_skip_reason(
         return "runnotes"
     if name.startswith("Scrap-"):
         return "scrap"
-    if name.startswith("CP-"):
+    # Skip finished-deliverable files whose names start with a given prefix.
+    if skip_prefixes and name.startswith(skip_prefixes):
         return "cp"
     if name.startswith("ARoll-") and not include_aroll:
         return "aroll"
@@ -825,6 +827,7 @@ def video_skip_reason(
 def filter_raw_clips(
     files: list[tuple[Path, Path, str]],
     include_aroll: bool,
+    skip_prefixes: tuple[str, ...] = (),
 ) -> tuple[list[tuple[Path, Path, str]], Counter]:
     """Drop finished reels, talking A-roll, scraps, and tiny video files."""
     counts: Counter = Counter()
@@ -839,7 +842,9 @@ def filter_raw_clips(
         except OSError:
             eprint(f"broll-index: cannot stat {path}")
             continue
-        reason = video_skip_reason(rel, path.name, size, include_aroll)
+        reason = video_skip_reason(
+            rel, path.name, size, include_aroll, skip_prefixes,
+        )
         if reason:
             counts[reason] += 1
             continue
@@ -1381,6 +1386,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Keep video files whose basename starts with ARoll- (skipped by default).",
     )
     p.add_argument(
+        "--skip-prefix", action="append", default=None, metavar="PREFIX",
+        help="Skip video files whose basename starts with PREFIX "
+             "(finished deliverables). Repeatable. Default: none.",
+    )
+    p.add_argument(
         "--video-step", type=float, default=DEFAULT_VIDEO_STEP, metavar="SEC",
         help="Seconds between sampled video frames (default 3.0). Clips longer "
              "than step times max-frames spread frames evenly. Clips under 1.0 s "
@@ -1456,7 +1466,11 @@ def main(argv: list[str] | None = None) -> int:
     print(f"[broll-index] skipped {n_variant_skip} responsive variants")
     if n_exclude:
         print(f"[broll-index] excluded {n_exclude} files by --exclude")
-    files, skip_counts = filter_raw_clips(files, include_aroll=bool(args.include_aroll))
+    files, skip_counts = filter_raw_clips(
+        files,
+        include_aroll=bool(args.include_aroll),
+        skip_prefixes=tuple(args.skip_prefix or ()),
+    )
     print_skip_counts(skip_counts)
     if args.max_files is not None:
         files = files[: max(0, args.max_files)]

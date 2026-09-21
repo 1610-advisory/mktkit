@@ -177,25 +177,25 @@ BRoll-[Location]-[Description].MP4
 ```
 
 Examples:
-- `ARoll-Henderson-Kitchen-Walkthrough.MP4`
-- `CB-Waverly-PocketDoors-CavitySliders.MP4`
-- `BRoll-Waverly-Insulation-WideShot.MP4`
-- `BRoll-Henderson-Cabinet-Detail.MP4`
+- `ARoll-Maple-Kitchen-Walkthrough.MP4`
+- `CB-Cedar-PocketDoors-CavitySliders.MP4`
+- `BRoll-Cedar-Insulation-WideShot.MP4`
+- `BRoll-Maple-Cabinet-Detail.MP4`
 
 **Also rename the corresponding Audio + Transcript files** to match. Rename every sidecar Whisper produced (`.m4a`, `.txt`, `.json`, `.srt`, `.vtt`, `.tsv`) — they must stay in lockstep so editing workflows can find the JSON by the video's basename:
 ```
-Audio/064A7325.m4a  → Audio/ARoll-Henderson-Kitchen-Walkthrough.m4a
-Audio/064A7325.txt  → Audio/ARoll-Henderson-Kitchen-Walkthrough.txt
-Audio/064A7325.json → Audio/ARoll-Henderson-Kitchen-Walkthrough.json
-Audio/064A7325.srt  → Audio/ARoll-Henderson-Kitchen-Walkthrough.srt
-Audio/064A7325.vtt  → Audio/ARoll-Henderson-Kitchen-Walkthrough.vtt
-Audio/064A7325.tsv  → Audio/ARoll-Henderson-Kitchen-Walkthrough.tsv
+Audio/064A7325.m4a  → Audio/ARoll-Maple-Kitchen-Walkthrough.m4a
+Audio/064A7325.txt  → Audio/ARoll-Maple-Kitchen-Walkthrough.txt
+Audio/064A7325.json → Audio/ARoll-Maple-Kitchen-Walkthrough.json
+Audio/064A7325.srt  → Audio/ARoll-Maple-Kitchen-Walkthrough.srt
+Audio/064A7325.vtt  → Audio/ARoll-Maple-Kitchen-Walkthrough.vtt
+Audio/064A7325.tsv  → Audio/ARoll-Maple-Kitchen-Walkthrough.tsv
 ```
 
 **Create a `file-mapping.txt`** in each location folder mapping original → new names:
 ```
-Video/064A7325.MP4 → Video/ARoll-Henderson-Kitchen-Walkthrough.MP4
-Video/064A7326.MP4 → Video/BRoll-Henderson-Window-Detail.MP4
+Video/064A7325.MP4 → Video/ARoll-Maple-Kitchen-Walkthrough.MP4
+Video/064A7326.MP4 → Video/BRoll-Maple-Window-Detail.MP4
 Video/064A7327.MP4  (silent — not renamed)
 ```
 
@@ -208,7 +208,7 @@ Show a clear summary:
 ```
 ## Shoot Organization Summary
 
-### Henderson (1981 Kitchen)
+### Maple (1970s Kitchen)
 - 12 videos, 16 photos
 - A-Roll: 2 files (Kitchen Walkthrough)
 - B-Roll: 10 files (detail shots, pans)
@@ -218,9 +218,9 @@ Show a clear summary:
 ...
 
 ### Shot List Status
-✅ Henderson kitchen walkthrough — captured (2 takes)
-✅ Waverly addition progress — captured
-❌ Morrison bathroom — NOT SHOT
+✅ Maple kitchen walkthrough — captured (2 takes)
+✅ Cedar addition progress — captured
+❌ Birch bathroom — NOT SHOT
 ❌ Owner talking heads — NOT RECORDED
 
 ### Unmatched Files
@@ -239,7 +239,7 @@ Update the bi-weekly brief to reflect actual shoot results:
 
 For every content piece confirmed as shot in Step 8, find the matching content note in `outputs/content/` and update its `status:` frontmatter to `captured` — but only if the current status is `concept` or `pre-production`. Don't downgrade notes already at `captured` or later.
 
-1. Match by content ID, title, or brief slot number (e.g., "CP-08 5/14" → `2026-05-14-CP-08-*.md`)
+1. Match by content ID, title, or brief slot number (e.g., "AB-08 5/14" → `2026-05-14-AB-08-*.md`)
 2. Read the note, check current status
 3. If `concept` or `pre-production` → flip to `captured`
 4. If already `captured` or later → skip
@@ -247,9 +247,9 @@ For every content piece confirmed as shot in Step 8, find the matching content n
 Report what changed:
 ```
 ## Kanban Updates
-✅ 2026-05-14-CP-08 SOS P4 — concept → captured
+✅ 2026-05-14-AB-08 Series P4 — concept → captured
 ✅ 2026-05-18-AC-01 Acme Weekly — concept → captured
-⏭️ 2026-05-07-CP-03 SOS P5 — already pre-approval, skipped
+⏭️ 2026-05-07-AB-03 Series P5 — already pre-approval, skipped
 ```
 
 Also flip any matching BANKED notes (in `outputs/content/BANKED-*.md`) if they map to footage captured on this shoot.
@@ -259,10 +259,10 @@ Also flip any matching BANKED notes (in `outputs/content/BANKED-*.md`) if they m
 Create a master `file-mapping.csv` in the shoot day root folder:
 ```csv
 original_name,new_name,location,subfolder,content_piece,type,duration_s,transcript_summary
-064A7325.MP4,ARoll-Henderson-Kitchen-Walkthrough.MP4,Henderson,Video/,a-roll,78,"Kitchen intro walkthrough — box window, range move, ceiling details"
-064A7326.MP4,BRoll-Henderson-Window-Detail.MP4,Henderson,Video/,b-roll,7,"B-roll of the window situation"
-064A7327.MP4,,Henderson,Video/,b-roll-silent,6,""
-IMG_1234.CR3,,Henderson,Photos/,photo,,"
+064A7325.MP4,ARoll-Maple-Kitchen-Walkthrough.MP4,Maple,Video/,a-roll,78,"intro walkthrough — layout and framing"
+064A7326.MP4,BRoll-Maple-Window-Detail.MP4,Maple,Video/,b-roll,7,"B-roll of the window situation"
+064A7327.MP4,,Maple,Video/,b-roll-silent,6,""
+IMG_1234.CR3,,Maple,Photos/,photo,,"
 ```
 
 ### Step 12: Update Shoot Log

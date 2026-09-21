@@ -4,7 +4,7 @@
   "slug": "example-talking-reel",
   "version": "auto",
   "output_dir": "/path/to/shoot/Edits",
-  "deliver": { "copy_to": ["/path/to/review-folder/Pilot Cuts 2026-01-01"] },
+  "deliver": { "copy_to": ["/path/to/review-folder/Review Cuts 2026-01-01"] },
   "platforms": ["instagram_reels", "youtube_shorts"],
   "duration_window": [40, 60],
   "source": {
@@ -32,7 +32,7 @@
     "lift_from_spine": true
   },
   "cover": {
-    "text": "BUILT IN. NOT BUTTED ON.",
+    "text": "BUILT TO LAST.",
     "seconds": 2.0,
     "anchor": "center",
     "font": "/path/to/client/resources/fonts/Display-Regular.ttf",
@@ -50,7 +50,7 @@
   "broll": [
     { "kind": "clip", "path": "/path/to/shoot/Video/BRoll-Detail-Wide.MP4", "at": 6.2, "dur": 2.5, "line": "the first thing we do" },
     { "kind": "still", "path": "/path/to/library/2023-project_finished-hallway.jpg", "at": 21.8, "dur": 3.5, "line": "then we open the hallway", "focus": [0.5, 0.45], "verified": true },
-    { "kind": "still", "path": "/path/to/library/2026-project_demo-day-wall.jpg", "at": 30.1, "dur": 4.0, "line": "where the wall was", "super": { "text": "AUGUST 3 · WHERE THE WALL WAS" }, "verified": true }
+    { "kind": "still", "path": "/path/to/library/2026-project_demo-day-wall.jpg", "at": 30.1, "dur": 4.0, "line": "where the wall was", "super": { "text": "DEMO DAY · WHERE THE WALL WAS" }, "verified": true }
   ],
   "joins": "auto",
   "inserts": [],

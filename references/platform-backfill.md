@@ -1,6 +1,6 @@
 # Platform Backfill (Reviving a Dormant Social Account)
 
-Generic procedure for back-posting a client's existing Instagram catalog to a platform that went dormant (TikTok, YouTube Shorts, a neglected Facebook page), using the Meta Graph API as the source of truth and Post Bridge as the scheduler. First executed July 2026 (162 reels, ~3-month rollout, zero failures). **Client-specific values — account IDs, tokens, restricted-content rules — live in the client's repo, never here** (see CLAUDE.md § Public-Repo Safety).
+Generic procedure for back-posting a client's existing Instagram catalog to a platform that went dormant (TikTok, YouTube Shorts, a neglected Facebook page), using the Meta Graph API as the source of truth and Post Bridge as the scheduler. First executed July 2026 (a large back-catalog over several months). **Client-specific values — account IDs, tokens, restricted-content rules — live in the client's repo, never here** (see CLAUDE.md § Public-Repo Safety).
 
 The shape: **inventory → exclude → schedule → execute → verify**, with a paper trail in the client repo at every step.
 

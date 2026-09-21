@@ -217,8 +217,8 @@ Optimize for mobile reading and narrow screens.
 ## Content Pieces
 | # | Title | Format | Status | Link |
 |---|-------|--------|--------|------|
-| 1 | Title | Carousel 6-8 | concept | [[2026-04-15-CP-01-slug]] |
-| 2 | Title | Reel 60-90s | concept | [[2026-04-17-CP-02-slug]] |
+| 1 | Title | Carousel 6-8 | concept | [[2026-04-15-AB-01-slug]] |
+| 2 | Title | Reel 60-90s | concept | [[2026-04-17-AB-02-slug]] |
 ```
 
 **Captions:** Live in content notes, not in the brief. The brief can include a summary table linking to each note's Caption section if helpful for team review.

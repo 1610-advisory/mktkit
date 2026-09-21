@@ -21,8 +21,8 @@ mktkit/
         ├── CLAUDE.md                     # Client config (has footage path convention)
         └── outputs/
             ├── content/                  # Content notes live here (flat, no subfolders)
-            │   ├── 2026-04-01-CP-01-1981-kitchen-part-2.md
-            │   ├── 2026-04-03-CP-02-shower-knob-placement.md
+            │   ├── 2026-04-01-AB-01-1970s-kitchen-part-2.md
+            │   ├── 2026-04-03-AB-02-shower-knob-placement.md
             │   └── ...
             ├── biweekly-briefs/          # Brief files (linked from content notes)
             │   ├── 2026-03-30-to-04-11-biweekly-brief.md
@@ -43,7 +43,7 @@ Every content note is a markdown file with two parts: YAML frontmatter (structur
 
 ```yaml
 ---
-content_id: "CP-20260404-03"                    # Unique ID (PREFIX-YYYYMMDD-NN)
+content_id: "AB-20260404-03"                    # Unique ID (PREFIX-YYYYMMDD-NN)
 title: "Pocket Doors vs Cavity Sliders"         # Human-readable title — displayed on the card
 client: "example-client"                   # Client folder name
 brief: "[[2026-03-30-to-04-11-biweekly-brief]]" # Wiki-link to source brief (empty string "" for ad-hoc pieces)
@@ -55,10 +55,10 @@ platform:                                        # Target platforms (list of str
   - YouTube Shorts
   - TikTok
 format: "Reel 45-60s"                           # Content format (see format types below)
-project: "Smith"                         # Internal project name (may be empty for non-project content)
-project_social_name: "Vintage Addition"             # Public-facing project name (may be empty)
+project: "Pine"                         # Internal project name (may be empty for non-project content)
+project_social_name: "Sample Addition"             # Public-facing project name (may be empty)
 duration: "45-60s"                               # Target duration for video (empty for photo/carousel)
-source_footage: "Acme Builders / 2026_Smith_Addition / 2026-03-09 / CB-Smith-PocketDoors-CavitySliders.MP4"
+source_footage: "Acme Builders / 2026_Pine_Addition / 2026-03-09 / CB-Pine-PocketDoors-CavitySliders.MP4"
                                                  # Full navigable path to footage from the shared drive root
                                                  # Empty when status is concept or pre-production
 shoot_date: 2026-03-09                           # When footage was/will be shot
@@ -167,17 +167,17 @@ This is the most important section for the Kanban board. When an editor clicks i
 ## Editor Brief
 
 **Deliverable:** Reel 60-90s — Instagram, Facebook, YouTube Shorts, TikTok
-**Footage:** `Acme Builders / 2026_Jones_Kitchen / 2026-03-23`
-**Key Files:** ARoll-Jones-Kitchen-DemoToFraming.MP4 (113s) + 2 supplementary takes
+**Footage:** `Acme Builders / 2026_Oak_Kitchen / 2026-03-23`
+**Key Files:** ARoll-Oak-Kitchen-DemoToFraming.MP4 (113s) + 2 supplementary takes
 **Duration:** 60-90s
 
 **What to Make:**
-Alex walks the gutted kitchen showing demo results and framing changes. Part 2 of a series.
+The owner walks the gutted kitchen showing demo results and framing changes. Part 2 of a series.
 
 **Edit Direction:**
-- Text overlay at start: "1981 KITCHEN | PART 2"
+- Text overlay at start: "1970s KITCHEN | PART 2"
 - No slow intro or logo bumper — straight into gutted kitchen
-- Follow Alex's movement, insert B-roll for detail shots
+- Follow the owner's movement, insert B-roll for detail shots
 
 **Script:** See full timing breakdown below.
 
@@ -191,7 +191,7 @@ Alex walks the gutted kitchen showing demo results and framing changes. Part 2 o
 ## Editor Brief
 
 **Deliverable:** Carousel 6-8 slides — Instagram, Facebook, Pinterest
-**Photos:** `Acme Builders / 2026_Brown_Kitchen / 2026-04-13`
+**Photos:** `Acme Builders / 2026_Maple_Kitchen / 2026-04-13`
 **Slides:** 6-8
 
 **What to Make:**
@@ -199,7 +199,7 @@ Before/after final reveal. Slide 1 is before, Slide 2 is after from same angle. 
 
 **Edit Direction:**
 - Match before/after angles exactly
-- Text slide: "Vintage Kitchen Remodel | Acme Builders | [City, State]"
+- Text slide: "Sample Kitchen Remodel | Acme Builders | [City, State]"
 
 **Slide Breakdown:** See carousel structure below.
 
@@ -378,7 +378,7 @@ Wiki-links look like `"[[filename-without-extension]]"` in YAML (quoted string w
 
 ```markdown
 ---
-content_id: CP-20260404-03
+content_id: AB-20260404-03
 title: "Pocket Doors vs Cavity Sliders"
 client: example-client
 brief: "[[2026-03-30-to-04-11-biweekly-brief]]"
@@ -390,10 +390,10 @@ platform:
   - YouTube Shorts
   - TikTok
 format: "Reel 45-60s"
-project: "Smith"
-project_social_name: "Vintage Addition"
+project: "Pine"
+project_social_name: "Sample Addition"
 duration: "45-60s"
-source_footage: "Acme Builders / 2026_Smith_Addition / 2026-03-09 / CB-Smith-PocketDoors-CavitySliders.MP4"
+source_footage: "Acme Builders / 2026_Pine_Addition / 2026-03-09 / CB-Pine-PocketDoors-CavitySliders.MP4"
 shoot_date: 2026-03-09
 tags: [educational, reel, content-bank, comparison]
 ---
@@ -401,11 +401,11 @@ tags: [educational, reel, content-bank, comparison]
 ## Editor Brief
 
 **Deliverable:** Reel 45-60s — Instagram, Facebook, YouTube Shorts, TikTok
-**Footage:** `Acme Builders / 2026_Smith_Addition / 2026-03-09 / CB-Smith-PocketDoors-CavitySliders.MP4`
+**Footage:** `Acme Builders / 2026_Pine_Addition / 2026-03-09 / CB-Pine-PocketDoors-CavitySliders.MP4`
 **Duration:** 45-60s (raw is 52s)
 
 **What to Make:**
-Alex explains why standard pocket doors fail and shows the aluminum cavity slider alternative. Comparison/educational piece.
+The owner explains why standard pocket doors fail and shows the aluminum cavity slider alternative. Comparison/educational piece.
 
 **Edit Direction:**
 - Trim to 45-60s
@@ -420,7 +420,7 @@ Alex explains why standard pocket doors fail and shows the aluminum cavity slide
 
 ## Concept
 
-Content bank piece. Alex explains why standard pocket doors fail and shows the aluminum cavity slider alternative. Strong educational content with a "better way" message.
+Content bank piece. The owner explains why standard pocket doors fail and shows the aluminum cavity slider alternative. Strong educational content with a "better way" message.
 
 ## Script
 
@@ -428,7 +428,7 @@ Already shot (52s, shot 3/9). Trim to 45-60s.
 
 ## Caption
 
-Pocket doors are one of those ideas that sounds great until you live with one.
+Sample caption: one idea per reel.
 
 They rattle. They jump the track. The hardware is hidden inside the wall, so when something breaks -- and something always breaks -- you're opening up drywall to fix it.
 
@@ -449,7 +449,7 @@ Trim to 45-60s. Add text overlay for comparison: "Pocket Door vs Cavity Slider."
 ## Revision History
 
 - 2026-03-23: Created from [[2026-03-30-to-04-11-biweekly-brief]]
-- 2026-03-09: Footage captured at Smith. Source: CB-Smith-PocketDoors-CavitySliders.MP4
+- 2026-03-09: Footage captured at Pine. Source: CB-Pine-PocketDoors-CavitySliders.MP4
 ```
 
 ---

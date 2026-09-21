@@ -106,7 +106,7 @@ Append to `tracking/revenue-attribution.csv`:
 lead_id,lead_date,lead_name,lead_source,platform,content_id,first_touch,last_touch,lead_status,close_date,project_type,revenue,notes
 ```
 
-**Lead ID format:** `[CLIENT-PREFIX]-L-[YYYYMMDD]-[SEQ]` (e.g., `CP-L-20260215-01`)
+**Lead ID format:** `[CLIENT-PREFIX]-L-[YYYYMMDD]-[SEQ]` (e.g., `AB-L-20260215-01`)
 
 ### Attribution Models
 

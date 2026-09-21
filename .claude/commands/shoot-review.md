@@ -87,7 +87,7 @@ For each A-Roll and CB piece from the file-mapping:
 2. **Read the full transcript** for every matched piece (`.txt` file in `Audio/` subfolder). This is mandatory — not optional, not "if ambiguous." The transcript is the ground truth for what was actually said on camera. Filenames and file-mapping summaries are shorthand for identification only. Before writing or updating ANY content direction (Editor Brief, Concept, Caption, Script), verify that the existing content note accurately describes what the speaker said. If the transcript reveals the piece is about something different than the note assumed, rewrite the Concept, Caption, Script, and Editor Brief to match reality.
 
 3. **Update the content note:**
-   - Set `source_footage` to the full navigable path from the client's footage root (read the client's `CLAUDE.md` → **Footage & Drive Convention** section for the path pattern and project folder mapping). Example: `Acme Builders / 2026_Jones_Kitchen / 2026-03-23`. For single-file CB pieces, append the filename.
+   - Set `source_footage` to the full navigable path from the client's footage root (read the client's `CLAUDE.md` → **Footage & Drive Convention** section for the path pattern and project folder mapping). Example: `Acme Builders / 2026_Oak_Kitchen / 2026-03-23`. For single-file CB pieces, append the filename.
    - Set `status: captured` (only if currently `concept` or `pre-production`)
    - Set `shoot_date` to the actual shoot date (if different from planned)
    - Check off matching items in the `## Shot List` section
@@ -155,14 +155,14 @@ Show a structured summary to the user:
 ### Bonus Footage (Not in Current Pipeline)
 | # | Type | Project | File | Duration | What's In It |
 |---|------|---------|------|----------|-------------|
-| 1 | A-Roll | Waverly | ARoll-Waverly-Addition-Progress.MP4 | 65s | Owner walks the addition — framing complete, windows in, siding started |
-| 2 | CB | Morrison | CB-Morrison-Crown-Molding-Detail.MP4 | 38s | "Crown molding is one of those things..." |
-| 3 | B-Roll | Henderson | BRoll-Henderson-Ceiling-Beam.MP4 | 8s | Ceiling beam detail shot |
+| 1 | A-Roll | Cedar | ARoll-Cedar-Addition-Progress.MP4 | 65s | Owner walks the addition — framing complete, windows in, siding started |
+| 2 | CB | Birch | CB-Birch-Crown-Molding-Detail.MP4 | 38s | "Here's how we handle trim details..." |
+| 3 | B-Roll | Maple | BRoll-Maple-Ceiling-Beam.MP4 | 8s | Ceiling beam detail shot |
 
 ### Unmatched Clips with Speech
 | File | Duration | Transcript Excerpt |
 |------|----------|--------------------|
-| 064A7350.MP4 | 22s | "So this is the issue with the flashing..." |
+| 064A7350.MP4 | 22s | "So this is the flashing detail..." |
 ```
 
 ### Step 8: Suggest Content Ideas
@@ -180,7 +180,7 @@ For each bonus footage item (especially A-Roll and CB pieces), generate a conten
 Read `knowledge/whats-working.md` before generating suggestions to ground them in actual performance data.
 
 **Present ideas conversationally:**
-> "You also captured a 38-second CB piece where the owner talks about crown molding shortcuts. Educational content bank pieces have been your strongest format. Want me to create a content note for this?"
+> "You also captured a 38-second CB piece where the owner talks about trim details. Educational content bank pieces have been your strongest format. Want me to create a content note for this?"
 
 ### Step 9: Interactive Conversation
 
@@ -190,7 +190,7 @@ After presenting the review and suggestions, **ask the user what they want to do
 
 Wait for the user's response. They may:
 - **Approve specific pieces** — "Yes, do 1 and 3"
-- **Modify an idea** — "The crown molding one, but frame it as a mistakes-to-avoid piece"
+- **Modify an idea** — "The trim details one, but frame it as a mistakes-to-avoid piece"
 - **Skip all** — "None of these, we're good"
 - **Ask questions** — "What's the transcript on #2?" — read and share the full transcript
 
@@ -209,7 +209,7 @@ For each approved idea, create a content note in `outputs/content/`:
 **Frontmatter:**
 ```yaml
 ---
-content_id: "CP-YYYYMMDD-NN"
+content_id: "AB-YYYYMMDD-NN"
 title: "[Title from approved idea]"
 client: "[client-folder-name]"
 brief: ""

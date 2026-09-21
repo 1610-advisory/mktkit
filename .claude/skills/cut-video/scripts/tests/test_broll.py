@@ -802,10 +802,10 @@ def test_raw_clip_exclusions(tmp: Path) -> None:
     shutil.copy(keep, lib / "posted" / "posted-clip.mp4")
     shutil.copy(keep, lib / "ARoll-x.mp4")
     shutil.copy(keep, lib / "Scrap-x.mp4")
-    shutil.copy(keep, lib / "CP-take.mp4")
+    shutil.copy(keep, lib / "AB-take.mp4")
     shutil.copy(keep, lib / "clip-RUNNOTES.mp4")
     out = tmp / "excl-index.json"
-    r = run(INDEX_PY, ["--root", str(lib), "--out", str(out)])
+    r = run(INDEX_PY, ["--root", str(lib), "--out", str(out), "--skip-prefix", "AB-"])
     assert "skipped-by-rule:" in r.stdout, r.stdout
     idx = load_json(out)
     names = sorted(Path(e["path"]).name for e in idx["entries"])
@@ -816,7 +816,7 @@ def test_raw_clip_exclusions(tmp: Path) -> None:
     kept = tmp / "excl-aroll.json"
     r = run(
         INDEX_PY,
-        ["--root", str(lib), "--out", str(kept), "--include-aroll"],
+        ["--root", str(lib), "--out", str(kept), "--include-aroll", "--skip-prefix", "AB-"],
     )
     assert "aroll=0" in r.stdout, r.stdout
     idx2 = load_json(kept)
@@ -824,7 +824,7 @@ def test_raw_clip_exclusions(tmp: Path) -> None:
     assert "keep-clip.mp4" in names2
     assert "ARoll-x.mp4" in names2
     assert "Scrap-x.mp4" not in names2
-    assert "CP-take.mp4" not in names2
+    assert "AB-take.mp4" not in names2
     assert "clip-RUNNOTES.mp4" not in names2
 
 

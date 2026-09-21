@@ -15,12 +15,12 @@ Scan a content storage folder and create or update the client's `tracking/conten
 User provided: $ARGUMENTS
 
 Parse for:
-- **Path** to the content folder (e.g., `/Volumes/T7 - D01/02. Client Projects`, `~/Google Drive/Client Content`)
-- **Location label** — short name for this storage location (e.g., `T7-D01`, `Editor Copy`, `Google Drive`)
+- **Path** to the content folder (e.g., `/Volumes/SSD-01/Client Projects`, `~/Google Drive/Client Content`)
+- **Location label** — short name for this storage location (e.g., `SSD-01`, `Editor Copy`, `Google Drive`)
 
 If no path provided, ask:
 1. "Where is the content folder? (full path)"
-2. "What should I call this storage location? (e.g., T7-D01, Editor Copy, Google Drive)"
+2. "What should I call this storage location? (e.g., SSD-01, Editor Copy, Google Drive)"
 
 If path provided but no label, ask for the label.
 
@@ -61,7 +61,7 @@ ls -1 "[path]"
 ```
 
 Classify each item:
-- **Project folders** — match pattern `YYYY_Name_*` (e.g., `2026_Mitchell_Kitchen`). These contain shoot date subfolders.
+- **Project folders** — match pattern `YYYY_Name_*` (e.g., `2026_Oak_Kitchen`). These contain shoot date subfolders.
 - **Special folders** — `Assets`, `Reels`, template folders, or anything not matching the project pattern. Track these in the "Other Folders" section.
 - **Ignore** — hidden files (`._*`, `.DS_Store`), system files
 
@@ -150,7 +150,7 @@ priority: high
 | [label] | [name] | [description] | [notes] |
 ```
 
-**Project display name:** Derive from folder name. `2026_Mitchell_Kitchen` → `Mitchell Kitchen`. `2026_Hargrove_1930 Spacelift` → `Hargrove 1930 Spacelift`. Drop the year prefix — it's in the folder reference.
+**Project display name:** Derive from folder name. `2026_Oak_Kitchen` → `Oak Kitchen`. `2026_Pine_1930s Addition` → `Pine 1930s Addition`. Drop the year prefix — it's in the folder reference.
 
 **Project ordering:** Alphabetical by display name.
 
