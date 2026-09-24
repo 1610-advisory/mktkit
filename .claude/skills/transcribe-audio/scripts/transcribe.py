@@ -20,9 +20,11 @@ Defaults:
     language = (auto-detect)
     out      = stdout
 
-Run with the project's Python interpreter (mlx-whisper is installed there):
-    /Library/Frameworks/Python.framework/Versions/3.12/bin/python3 \
-        scripts/transcribe.py /path/to/audio.m4a --model large-v3-turbo --json
+Run with any Python. If that Python lacks mlx-whisper, the script re-runs
+itself under one that has it, found in this order: $MLX_WHISPER_PYTHON, the
+interpreter behind an `mlx_whisper` command on PATH, then common install
+locations (python.org framework builds, Homebrew, ~/.local/bin):
+    python3 scripts/transcribe.py /path/to/audio.m4a --model large-v3-turbo --json
 
 Models cache to ~/.cache/huggingface/hub/ on first download.
 """
@@ -31,6 +33,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -49,6 +53,41 @@ MODEL_ALIASES = {
 
 def _eprint(msg: str) -> None:
     print(msg, file=sys.stderr, flush=True)
+
+
+_REEXEC_FLAG = "_TRANSCRIBE_MLX_REEXEC"
+
+
+def _find_mlx_python() -> str | None:
+    """Return a Python interpreter that has mlx-whisper installed, or None."""
+    env = os.environ.get("MLX_WHISPER_PYTHON")
+    if env and Path(env).is_file():
+        return env
+    clis: list[Path] = []
+    on_path = shutil.which("mlx_whisper")
+    if on_path:
+        clis.append(Path(on_path))
+    clis += sorted(
+        Path("/Library/Frameworks/Python.framework/Versions").glob("*/bin/mlx_whisper"),
+        reverse=True,
+    )
+    clis += [
+        Path("/opt/homebrew/bin/mlx_whisper"),
+        Path("/usr/local/bin/mlx_whisper"),
+        Path.home() / ".local/bin/mlx_whisper",
+    ]
+    for cli in clis:
+        try:
+            first = cli.open("rb").readline().decode(errors="ignore").strip()
+        except OSError:
+            continue
+        # pip console scripts carry an absolute interpreter shebang.
+        if not first.startswith("#!"):
+            continue
+        interp = first[2:].strip().split()[0]
+        if Path(interp).name != "env" and Path(interp).is_file():
+            return interp
+    return None
 
 
 def _resolve_model(name: str) -> str:
@@ -167,10 +206,19 @@ def main() -> int:
     try:
         import mlx_whisper  # type: ignore
     except ImportError:
+        other = _find_mlx_python()
+        if (
+            other
+            and not os.environ.get(_REEXEC_FLAG)
+            and os.path.realpath(other) != os.path.realpath(sys.executable)
+        ):
+            _eprint(f"[transcribe] re-running under {other} (has mlx-whisper)")
+            os.environ[_REEXEC_FLAG] = "1"
+            os.execv(other, [other, os.path.abspath(__file__), *sys.argv[1:]])
         _eprint(
             "ERROR: mlx-whisper is not installed for this Python.\n"
             "Install with: pip install -U mlx-whisper\n"
-            "Or run with: /Library/Frameworks/Python.framework/Versions/3.12/bin/python3"
+            "Or point MLX_WHISPER_PYTHON at a Python that has it."
         )
         return 3
 

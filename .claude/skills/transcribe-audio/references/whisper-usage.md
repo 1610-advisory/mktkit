@@ -2,7 +2,7 @@
 
 Concrete commands, model selection, and gotchas for running Whisper from this skill.
 
-This skill uses **`mlx-whisper`** — Whisper running on the Apple Silicon GPU via the MLX framework. It is roughly 5-10x faster than the CPU-bound `openai-whisper` Python package, supports word-level timestamps for transcript-driven editing, and is the system default. The legacy CPU `openai-whisper` is still installed for fallback (`/Library/Frameworks/Python.framework/Versions/3.12/bin/whisper`) but new code should target mlx-whisper.
+This skill uses **`mlx-whisper`** — Whisper running on the Apple Silicon GPU via the MLX framework. It is roughly 5-10x faster than the CPU-bound `openai-whisper` Python package, supports word-level timestamps for transcript-driven editing, and is the system default. The CPU-bound `openai-whisper` package (`whisper` command) works as a fallback if you have it, but new code should target mlx-whisper.
 
 Set `AI_CMO_ROOT` to the absolute path of your toolkit repo root before running these commands.
 
@@ -12,10 +12,10 @@ Set `AI_CMO_ROOT` to the absolute path of your toolkit repo root before running 
 
 | Item | Path |
 |------|------|
-| mlx-whisper CLI | `/Library/Frameworks/Python.framework/Versions/3.12/bin/mlx_whisper` |
-| Python (with mlx-whisper installed) | `/Library/Frameworks/Python.framework/Versions/3.12/bin/python3` |
+| mlx-whisper CLI | `mlx_whisper` on PATH after `pip install -U mlx-whisper` |
+| Python (with mlx-whisper installed) | Any; `transcribe.py` finds one itself. Override with `MLX_WHISPER_PYTHON=/path/to/python3` |
 | Model cache | `~/.cache/huggingface/hub/` (HuggingFace cache) |
-| Legacy fallback CLI | `/Library/Frameworks/Python.framework/Versions/3.12/bin/whisper` (CPU, `~/.cache/whisper/`) |
+| Legacy fallback CLI | `whisper` from `pip install -U openai-whisper` (CPU, `~/.cache/whisper/`) |
 
 mlx-whisper downloads models on first use from HuggingFace (the `mlx-community/` org). Turbo is ~800 MB. Subsequent runs are instant to start.
 
@@ -60,14 +60,14 @@ The skill ships `scripts/transcribe.py`. It wraps `mlx_whisper.transcribe()` and
 
 **One audio file, transcript to stdout:**
 ```bash
-/Library/Frameworks/Python.framework/Versions/3.12/bin/python3 \
+python3 \
   $AI_CMO_ROOT/.claude/skills/transcribe-audio/scripts/transcribe.py \
   "/path/to/audio.m4a"
 ```
 
 **Write transcript + sidecar JSON next to the audio file (shoot-flow / editing pattern):**
 ```bash
-PY=/Library/Frameworks/Python.framework/Versions/3.12/bin/python3
+PY=python3   # transcribe.py re-runs itself under a Python that has mlx-whisper
 SCRIPT=$AI_CMO_ROOT/.claude/skills/transcribe-audio/scripts/transcribe.py
 AUDIO="/path/to/Audio/clip.m4a"
 OUT="${AUDIO%.*}.txt"
@@ -83,7 +83,7 @@ OUT="${AUDIO%.*}.txt"
 
 **Use the CLI directly** (no Python wrapper) when you want all output formats in one shot:
 ```bash
-/Library/Frameworks/Python.framework/Versions/3.12/bin/mlx_whisper \
+mlx_whisper \
   "$AUDIO" \
   --model mlx-community/whisper-large-v3-turbo \
   --language en \
@@ -175,10 +175,10 @@ To re-transcribe a single file (e.g. user said "do that one again with turbo"):
 
 ## Legacy `openai-whisper` fallback
 
-If for some reason mlx-whisper is broken (rare), the CPU `openai-whisper` package is still installed:
+If for some reason mlx-whisper is broken (rare), the CPU `openai-whisper` package works if installed:
 
 ```bash
-/Library/Frameworks/Python.framework/Versions/3.12/bin/whisper \
+whisper \
   "<audio>" \
   --model medium \
   --language en \

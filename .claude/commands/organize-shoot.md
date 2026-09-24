@@ -110,7 +110,7 @@ Transcribe **all** extracted audio files using `mlx-whisper` (Apple Silicon GPU 
 **Always emit word-level timestamps.** Downstream video editing (transcript-driven cuts via ffmpeg) relies on per-word timing, not just the text. The CLI invocation:
 
 ```bash
-/Library/Frameworks/Python.framework/Versions/3.12/bin/mlx_whisper \
+mlx_whisper \
   "[audio-file].m4a" \
   --model mlx-community/whisper-large-v3-turbo \
   --language en \
@@ -121,7 +121,7 @@ Transcribe **all** extracted audio files using `mlx-whisper` (Apple Silicon GPU 
 
 `--output-format all` writes `.txt`, `.json`, `.srt`, `.vtt`, and `.tsv` alongside the audio. The `.json` carries word-level start/end times and is what enables transcript-driven cutting. Keep all of them — they're small.
 
-(Legacy CPU `openai-whisper` is still installed at `/Library/Frameworks/Python.framework/Versions/3.12/bin/whisper` as a fallback if mlx-whisper ever breaks, but new runs should use mlx_whisper.)
+(`mlx_whisper` comes from `pip install -U mlx-whisper`. The CPU `openai-whisper` package's `whisper` command works as a fallback if mlx-whisper ever breaks, but new runs should use mlx_whisper.)
 
 Resulting layout:
 ```
@@ -340,7 +340,7 @@ ffprobe -v quiet -show_entries format=duration -of csv=p=0 input.MP4
 
 ### Whisper Transcription (mlx-whisper, GPU, word-level timestamps, all formats)
 ```bash
-/Library/Frameworks/Python.framework/Versions/3.12/bin/mlx_whisper \
+mlx_whisper \
   input.m4a \
   --model mlx-community/whisper-large-v3-turbo \
   --language en \
