@@ -1142,6 +1142,9 @@ def load_style(path: Path) -> tuple[dict, dict | None]:
     # and never reach the manifest merge, so a business can annotate its style.
     for key in [k for k in data if str(k).startswith("_")]:
         data.pop(key, None)
+    # "resolve" holds settings only the resolve-reel skill reads (grade, cover shadow);
+    # the manifest schema does not allow them, so they never reach the merge.
+    data.pop("resolve", None)
     defaults = data.pop("broll_defaults", None)
     if defaults is not None and not isinstance(defaults, dict):
         raise RenderError("style broll_defaults must be an object", 2)

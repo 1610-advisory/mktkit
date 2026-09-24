@@ -1,0 +1,7 @@
+{
+  "_about": "A business's look profile. Lives in the CLIENT repo (suggested: resources/video-pipeline/look.json) and is referenced from its reel style profile as grade.look_profile. base = a preset in looks.presets.json; params override any preset value; lut = where the generated .cube is kept in the client repo.",
+  "name": "house-look",
+  "base": "clean",
+  "params": {},
+  "lut": "resources/video-pipeline/luts/house-look.cube"
+}

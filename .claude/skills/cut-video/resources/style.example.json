@@ -1,5 +1,9 @@
 {
-  "platforms": ["instagram_reels", "youtube_shorts"],
+  "platforms": [
+    "instagram_reels",
+    "youtube_shorts",
+    "tiktok"
+  ],
   "source": {
     "lut": "/path/to/grade.cube",
     "eq": "contrast=1.14:saturation=1.35:brightness=-0.015"
@@ -14,7 +18,7 @@
   },
   "captions": {
     "font": "/path/to/fonts/Body-Medium.ttf",
-    "size": 42,
+    "size": 56,
     "style": "phrase",
     "placement": "safe-lower",
     "max_chars_per_line": 32,
@@ -40,7 +44,30 @@
   "broll_defaults": {
     "dur_still": 3.5,
     "dur_clip": 2.5,
-    "zoom": 1.10,
+    "zoom": 1.1,
     "direction": "in"
+  },
+  "resolve": {
+    "_about": "Read only by the resolve-reel skill (render-reel.py drops this block). Keys left out use resolve-reel's defaults.",
+    "grade": {
+      "camera_input": "Canon Cinema Gamut/Canon Log 3",
+      "look_profile": "resources/video-pipeline/look.json",
+      "lut_resolve": "MCP/house-look.cube",
+      "face_ire": 55,
+      "black_code": 14,
+      "sat": 0.68,
+      "wb_target_709": [
+        1.02,
+        1.0,
+        0.97
+      ],
+      "vignette": 0.035,
+      "voice_gain_db": 5.0
+    },
+    "cover_shadow": {
+      "y": 2,
+      "blur": 24,
+      "alpha": 0.45
+    }
   }
 }

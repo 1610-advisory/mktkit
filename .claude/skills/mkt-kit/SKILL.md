@@ -55,7 +55,7 @@ When the task is planning this week's content / "weekly brief" / "generate week"
 
 Two-week execution plan (10–14 pieces, shoot list): follow the playbook skip; do not write a biweekly playbook here.
 
-`cut-video`, `film-board`, and other mkt verbs are unchanged. Pack first, then that skill.
+`cut-video`, `resolve-reel`, `film-board`, and other mkt verbs are unchanged. Pack first, then that skill. `resolve-reel` also reads the client's `resources/reel-style.json` (`resolve.grade` block) and look profile.
 
 ## Other skills
 

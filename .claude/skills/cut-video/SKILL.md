@@ -36,6 +36,8 @@ This skill is model-agnostic and harness-agnostic: plain files, Python 3.10+, ff
 | `scripts/bench-reel.py` | Run the same note through several harnesses and models (pi with any provider, Claude Code, codex, grok, cursor) and compare manifests, QA, punches, cost and time in one report. Sibling skill `reel-bench`. |
 | `scripts/cut-video.py`, `finish-reel.py`, `stills-to-broll.py` | Engines. render-reel.py calls them; you normally do not. |
 
+Building the reel inside DaVinci Resolve instead (color-managed grade, look LUTs, look-review pages)? Sibling skill `resolve-reel`; it reuses this skill's caption, safe-zone and QA code.
+
 Client-specific inputs live in the **client's** repo, never here: LUT and crop recipe (`resources/video-pipeline/README.md`), fonts and colors (`knowledge/DESIGN.md`), a style profile, a banned-words list, fixtures.
 
 ## Mode

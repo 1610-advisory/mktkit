@@ -1,11 +1,17 @@
 {
   "name": "ai-cmo",
-  "version": "4.0.0",
-  "description": "AI Chief Marketing Officer: content strategy, planning, performance tracking, photo culling, reel cutting, carousel rendering, and newsletter/blog pipelines for small-business marketing. Free and open source (MIT).",
-  "author": { "name": "1610 Advisory" },
+  "version": "4.1.0",
+  "description": "AI Chief Marketing Officer: content strategy, planning, performance tracking, photo culling, reel cutting, Resolve grading with look LUTs, carousel rendering, and newsletter/blog pipelines for small-business marketing. Free and open source (MIT).",
+  "author": {
+    "name": "1610 Advisory"
+  },
   "homepage": "https://github.com/1610-advisory/mktkit",
   "repository": "https://github.com/1610-advisory/mktkit",
   "license": "MIT",
-  "commands": ["./.claude/commands/"],
-  "skills": ["./.claude/skills/"]
+  "commands": [
+    "./.claude/commands/"
+  ],
+  "skills": [
+    "./.claude/skills/"
+  ]
 }

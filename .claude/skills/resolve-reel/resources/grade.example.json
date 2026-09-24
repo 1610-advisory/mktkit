@@ -1,0 +1,8 @@
+{
+  "_about": "Per-edit grade config for grade_solve.py. Keys left out come from the business's style profile grade block, then the skill defaults. Boxes are 1080x1920 timeline pixels; stills are DWG/DI TIFFs from export_di_stills.",
+  "shots": {
+    "S1": {"stills": ["di_S1a.tif", "di_S1b.tif"], "faces": [[0, [430, 560, 550, 700]], [1, [500, 650, 640, 800]]]},
+    "S2": {"stills": ["di_S2.tif"], "faces": [[0, [560, 520, 710, 690]]]},
+    "BR": {"stills": ["di_BR.tif"], "match_wall": {"box": [0, 300, 150, 1300], "ref_shot": "S1", "ref_still": 0, "ref_box": [870, 900, 1080, 1200]}}
+  }
+}

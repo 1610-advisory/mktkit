@@ -1,0 +1,12 @@
+{
+  "_about": "Parametric look presets for dwg_look.py. All are DaVinci Wide Gamut / DaVinci Intermediate in -> out. A client look profile (look.example.json) names one of these as its base and overrides any parameter. Parameter meanings: contrast = log-logistic slope of the per-channel filmic curve; grey = display-linear value for scene 18% grey; sat = chroma gain on colorful pixels; sub = subtractive strength (lightness lost per unit chroma gained); cool / warm = split-tone strength in OkLab b units (shadows cool, highlights warm); skin = extra warmth on orange hues; neutral = chroma below which pixels stay untinted (keeps white walls clean).",
+  "default": "clean",
+  "presets": {
+    "clean":      {"contrast": 1.45, "grey": 0.16, "sat": 1.10, "sub": 0.35, "cool": 0.006, "warm": 0.010, "skin": 0.004, "neutral": 0.020},
+    "rich":       {"contrast": 1.60, "grey": 0.15, "sat": 1.18, "sub": 0.45, "cool": 0.008, "warm": 0.012, "skin": 0.006, "neutral": 0.020},
+    "bold":       {"contrast": 1.75, "grey": 0.14, "sat": 1.22, "sub": 0.50, "cool": 0.012, "warm": 0.014, "skin": 0.006, "neutral": 0.018},
+    "warm-print": {"contrast": 1.60, "grey": 0.15, "sat": 1.12, "sub": 0.55, "cool": 0.004, "warm": 0.020, "skin": 0.008, "neutral": 0.015},
+    "bright-air": {"contrast": 1.50, "grey": 0.19, "sat": 1.12, "sub": 0.35, "cool": 0.006, "warm": 0.010, "skin": 0.005, "neutral": 0.020},
+    "moody":      {"contrast": 1.85, "grey": 0.12, "sat": 1.15, "sub": 0.60, "cool": 0.014, "warm": 0.012, "skin": 0.006, "neutral": 0.018}
+  }
+}

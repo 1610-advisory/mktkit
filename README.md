@@ -78,6 +78,7 @@ These are available as slash commands and as natural language triggers:
 | "you're the AI CMO" / session start | Load the knowledge pack (`mkt-kit`) |
 | "cut this reel" / "cut the next N" | Talking-head reel from brief + transcript (`cut-video`) |
 | "QA this reel" | Machine gate on a vertical short (`reel-qa`) |
+| "edit it in Resolve" / "grade it" / "show me LUT options" | Resolve-built reel: DWG/DI grade, look LUTs, look-review page (`resolve-reel`) |
 | "find B-roll for this line" | Index/search library stills and clips (`reel-broll`) |
 | "ingest footage" / after a shoot | Compiled footage catalog (`footage-index`) |
 | "film board" | 9:16 talk-over HTML board (`film-board`) |

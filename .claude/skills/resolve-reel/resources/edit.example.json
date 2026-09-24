@@ -1,0 +1,11 @@
+{
+  "transcript": "/path/to/shoot/Audio/ARoll-Example-PRIMARY.json",
+  "cover_text": "PUBLIC-SAFE TITLE",
+  "fps": 29.97002997002997,
+  "audio_ranges": [[1956, 2063], [2080, 2478], [2600, 2700]],
+  "duration_frames": 605,
+  "platforms": ["instagram_reels", "youtube_shorts", "tiktok"],
+  "lead_frames": 4,
+  "tail_frames": 3,
+  "_edges": "Why each edge tolerance differs from 4 / 3 (the word you heard, the whisper time, the cut)."
+}
