@@ -12,6 +12,7 @@ Exit codes:
 
 --aroll-prefix PREFIX  extra A-roll filename prefix (repeatable). Extends
                        the default tuple (aroll-, cb-, post-).
+--broll-skip-prefix P  forwarded to broll-index.py as --skip-prefix (repeatable).
 """
 from __future__ import annotations
 
@@ -365,6 +366,7 @@ def run_broll_update(
     roots: list[Path],
     clip: bool,
     dry_run: bool,
+    skip_prefixes: list[str] | None = None,
 ) -> None:
     if not index_py.exists():
         eprint(f"ingest-footage: broll-index.py not found at {index_py}; skipping")
@@ -375,6 +377,8 @@ def run_broll_update(
     cmd = [sys.executable, str(index_py), "--update", "--out", str(index_path)]
     for r in roots:
         cmd += ["--root", str(r)]
+    for pre in skip_prefixes or []:
+        cmd += ["--skip-prefix", pre]
     if clip:
         cmd.append("--clip")
     if dry_run:
@@ -488,6 +492,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     p.add_argument("--dry-run", action="store_true")
     p.add_argument(
+        "--broll-skip-prefix", action="append", default=None, metavar="PREFIX",
+        help="Forwarded to broll-index.py as --skip-prefix: skip video files whose "
+             "basename starts with PREFIX (finished deliverables). Repeatable.",
+    )
+    p.add_argument(
         "--aroll-prefix", action="append", default=None, metavar="PREFIX",
         help="Extra A-roll filename prefix (case-insensitive). Repeatable. "
              "Extends the default prefixes: aroll-, cb-, post-.",
@@ -549,6 +558,7 @@ def main(argv: list[str] | None = None) -> int:
             run_broll_update(
                 args.broll_index_py, args.broll_index, roots,
                 args.broll_clip, dry_run=True,
+                skip_prefixes=args.broll_skip_prefix,
             )
         return 0
 
@@ -564,6 +574,7 @@ def main(argv: list[str] | None = None) -> int:
         run_broll_update(
             args.broll_index_py, args.broll_index, roots,
             args.broll_clip, dry_run=False,
+            skip_prefixes=args.broll_skip_prefix,
         )
     return 0
 
