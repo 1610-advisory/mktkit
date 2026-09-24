@@ -1,0 +1,14 @@
+{
+  "name": "mktkit",
+  "description": "The free, open-source 1610 Marketing Toolkit (AI CMO) for Claude Code and Claude Desktop.",
+  "owner": {
+    "name": "1610 Advisory"
+  },
+  "plugins": [
+    {
+      "name": "ai-cmo",
+      "source": "./",
+      "description": "AI Chief Marketing Officer: the full 1610 Marketing Toolkit as a Claude Code / Claude Desktop plugin."
+    }
+  ]
+}

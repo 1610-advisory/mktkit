@@ -320,6 +320,7 @@ The `references/` folder contains on-demand knowledge that you read when the tas
 | `ai-visibility-audit.md` | How assistants cite (or ignore) the site |
 | `branded-html-reports.md` | Self-contained HTML deliverable + optional BYO host |
 | `platform-backfill.md` | Revive a dormant social catalog without looking automated |
+| `newsletter-pipeline.md` | Segmented, tape-grounded newsletters; anti-slop stack; `scripts/lint-copy.py` and `scripts/scaffold-pipeline.py` |
 
 ### Integration References
 | File | When to Read |

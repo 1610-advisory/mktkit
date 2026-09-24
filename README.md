@@ -19,7 +19,20 @@ new client my-business
 
 This runs a guided ~20 minute interview that builds your complete marketing profile. You'll leave with your first monthly and weekly content plans ready to execute.
 
-**Requirements:** Claude Code with a Claude Pro or Max plan.
+### Or install it as a plugin
+
+The repo is also a plugin marketplace, so the skills work in any folder.
+
+In Claude Code:
+
+```
+/plugin marketplace add 1610-advisory/mktkit
+/plugin install ai-cmo@mktkit
+```
+
+In the Claude Desktop app, no terminal needed: open **Customize → Plugins**, add the marketplace `1610-advisory/mktkit`, then install **ai-cmo**. Planning, drafting, logging, and analysis skills work there. The media pipeline (transcription, reel cutting, carousel rendering) needs a local Mac with the tools below, so run those from Claude Code.
+
+**Requirements:** Claude Code or Claude Desktop with a Claude Pro or Max plan.
 
 **Requirements for the media pipeline:** `ffmpeg` and `ffprobe` on PATH, Python 3.11+. Optional: Playwright for `carousel-slides` PNG export; whisper (`mlx-whisper`) for shoot transcription.
 
@@ -87,6 +100,7 @@ In addition to the core workflows, the toolkit includes specialized marketing kn
 | **AI Visibility Audit** | How assistants cite (or ignore) the site |
 | **Branded HTML Reports** | Self-contained HTML deliverable + optional BYO host |
 | **Platform Backfill** | Revive a dormant social catalog without looking automated |
+| **Newsletter Pipeline** | Segmented, tape-grounded newsletters, a copy linter (`scripts/lint-copy.py`), and a pipeline scaffolder (`scripts/scaffold-pipeline.py`) |
 
 ## Client Folder Structure
 
