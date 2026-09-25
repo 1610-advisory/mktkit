@@ -82,7 +82,7 @@ Any cut (`resolve-reel`, `cut-video`) reads `resources/reel-style.json` (shape: 
 2. **Sizes:** cover 72; captions 56 unless the business has set one.
 3. **`edit_route`:** ask once (`references/edit-route.md` → step 4) or take the owner's known preference; write the reason.
 4. **`resolve` block:** leave `grade` values out (the skill's middle defaults apply) and say so. Set `camera_input` and `look_profile` only after real footage and a look review (`resolve-reel` step 0).
-5. Log the file in `_intake-log.md`.
+5. Write the sources and anything left open (camera, look) in the file's `_about`.
 
 ## Cover / caption style
 
