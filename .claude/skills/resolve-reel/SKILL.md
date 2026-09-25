@@ -8,14 +8,18 @@ description: >
   before it is committed. Use when the user says "edit it in Resolve", "cut this in
   Resolve", "new Resolve project", "grade it", "it looks like log", "not striking",
   "build a LUT", "show me LUT options", "compare looks", "color grade this reel",
-  or wants a Resolve-built version of a cut-video reel.
+  "I want a project I can edit", "make a montage", or wants a Resolve-built version of
+  a cut-video reel. When the tool is not named, pick between this and cut-video
+  with references/edit-route.md.
 metadata:
-  version: 1.0.0
+  version: 1.1.0
 ---
 
 # Resolve Reel
 
 The Resolve twin of `cut-video`. You decide what is said and shown; Resolve does the cut, grade, audio and render through the MCP; these scripts do the color math and the graphics so every result is repeatable and checkable. Proven end to end: the helpers rebuild a delivered reel pixel for pixel.
+
+**Right route?** Resolve suits a piece the person will watch and may tweak (they get an editable project), color-critical and cinematic cuts, and wordless montages. The ffmpeg route (`cut-video`) suits batches, unattended or headless runs, and script-rebuildable cuts. Decide with `references/edit-route.md` (toolkit root), honoring the business's `edit_route` preference, and say which route in one line. On delivery, name the Resolve project and the exported `.drp`.
 
 Load the business's pack first (`mkt-kit`). Then read the business's files below. **Everything that makes a reel look like that business lives in the business's repo, never here.**
 

@@ -108,7 +108,9 @@ When a user asks you to do something, match their request to the right workflow.
 | "where's the footage for [project]?" | Check asset index | `/index-content` |
 | "generate week" or "create typefully drafts" | Social drafts | `/generate-week` or `/create-typefully-drafts` |
 | "typefully status" | Check draft status | `/typefully-status` |
-| "cut this reel" / "cut the next N" | Talking reel from brief + transcript | `/cut-video` |
+| "edit / cut this video" (tool not named) | Pick the Resolve or ffmpeg route, recommend with a reason | `references/edit-route.md` → `resolve-reel` or `cut-video` |
+| "cut this reel" / "cut the next N" | Talking reel from brief + transcript | `/cut-video` (a queue points to ffmpeg; see `references/edit-route.md`) |
+| "cut it in Resolve" / "I want a project I can edit" | Reel or montage built in DaVinci Resolve | `resolve-reel` skill |
 | "QA this reel" | Machine QA on a vertical short | `reel-qa` skill |
 | "find B-roll for this line" | Index/search library stills and clips | `reel-broll` skill |
 | "ingest footage" | Compiled footage catalog | `footage-index` skill |
@@ -306,6 +308,7 @@ The `references/` folder contains on-demand knowledge that you read when the tas
 | `content-notes.md` | Content note schema, naming convention, Kanban setup |
 | `caption-protocol.md` | Writing/finalizing any spokesperson or on-camera caption (hook + expand, BANKED-promotion trap, pre-flight QA) |
 | `workflows.md` | Weekly and monthly workflow cadences |
+| `edit-route.md` | Any video cut: choosing Resolve (`resolve-reel`) or ffmpeg (`cut-video`), the business's `edit_route` preference, how to ask |
 
 ### Marketing Skills
 | File | When to Read |

@@ -26,6 +26,7 @@ With tone and gamut mapping off, the output step is plain math (DI decode → DW
    - **Saturation** about 0.68: log slope multiplies chroma by about the slope, and skin / saturated prints go hot without it.
 2. **LUT** in the same node (`Graph.SetLUT(1, path relative to Resolve's LUT folder)`). Resolve applies the node CDL before the node LUT (verified).
 3. **Vignette** (optional) in Fusion, before the color page: `BrightnessContrast` (Brightness = −vignette / slope, i.e. a log-space exposure drop) masked by an inverted soft `EllipseMask` (W 1.35, H 0.95, SoftEdge 0.45). Center unchanged; corners about 8–11 codes darker at 0.035.
+   - *Measured on a render (2026-09-25), 9:16 timeline:* the result behaves like a **scene-linear** drop, not a log one. Dark shots crush toward black at the edges; bright shots barely change. The ellipse is sized in image-**width** units on both axes, so on a 9:16 frame it reaches the top and bottom thirds. To reproduce it outside Resolve, see `references/edit-route.md` (toolkit root) → ffmpeg lessons.
 
 ### Exposure anchor
 

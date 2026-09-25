@@ -1,4 +1,9 @@
 {
+  "edit_route": {
+    "default": "ask",
+    "fallback": "ffmpeg",
+    "why": "resolve | ffmpeg | ask. Read by the agent (references/edit-route.md), ignored by the engine."
+  },
   "platforms": [
     "instagram_reels",
     "youtube_shorts",

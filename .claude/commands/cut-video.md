@@ -2,7 +2,9 @@
 description: >
   Slash entry for the cut-video skill. Cut a talking reel from an editor
   brief + transcript to a phone-ready 1080x1920 file, or run the queue
-  (--next N) over eligible content notes. Not for cinematic or wordless cuts.
+  (--next N) over eligible content notes (ffmpeg route). Not for cinematic or wordless cuts.
+  For a single piece the user will review, check references/edit-route.md first:
+  the business may prefer the resolve-reel route.
 argument-hint: /path/to/content-note.md | --next N
 allowed-tools: [Read, Write, Edit, Glob, Grep, Bash]
 ---
@@ -12,6 +14,10 @@ allowed-tools: [Read, Write, Edit, Glob, Grep, Bash]
 # Cut Video
 
 User provided: $ARGUMENTS
+
+## Route check
+
+A single interactive note: read `references/edit-route.md`. If the business's `edit_route` is `resolve` (or the signals point to Resolve and the Resolve MCP is up), say so in one line and offer `resolve-reel` before cutting here. Queue and unattended modes stay on this route.
 
 ## Select the work
 

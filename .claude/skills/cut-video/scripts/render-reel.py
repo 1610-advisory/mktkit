@@ -1145,6 +1145,9 @@ def load_style(path: Path) -> tuple[dict, dict | None]:
     # "resolve" holds settings only the resolve-reel skill reads (grade, cover shadow);
     # the manifest schema does not allow them, so they never reach the merge.
     data.pop("resolve", None)
+    # "edit_route" is the business's Resolve-vs-ffmpeg preference (references/edit-route.md),
+    # read by the agent, never by the engine.
+    data.pop("edit_route", None)
     defaults = data.pop("broll_defaults", None)
     if defaults is not None and not isinstance(defaults, dict):
         raise RenderError("style broll_defaults must be an object", 2)

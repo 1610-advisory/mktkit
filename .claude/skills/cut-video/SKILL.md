@@ -8,9 +8,11 @@ description: >
   pack. Use when the user says "cut this reel", "edit the video", "in-house
   cut", "cut-video", "rough cut from the brief", "edit lab", "overnight cut",
   "execute the edit lab", "finish this reel", "render the talking cut", or
-  runs the queue ("cut the next N").
+  runs the queue ("cut the next N"). This is the ffmpeg route: when the tool
+  is not named, pick between it and resolve-reel with references/edit-route.md
+  (batches and unattended runs point here; editable projects point to Resolve).
 metadata:
-  version: 2.1.0
+  version: 2.2.0
 ---
 
 # Cut Video: the reel factory
@@ -37,6 +39,8 @@ This skill is model-agnostic and harness-agnostic: plain files, Python 3.10+, ff
 | `scripts/cut-video.py`, `finish-reel.py`, `stills-to-broll.py` | Engines. render-reel.py calls them; you normally do not. |
 
 Building the reel inside DaVinci Resolve instead (color-managed grade, look LUTs, look-review pages)? Sibling skill `resolve-reel`; it reuses this skill's caption, safe-zone and QA code.
+
+**Pick the route before you cut.** Read `references/edit-route.md` (toolkit root): the business's `edit_route` preference, the hard limits (headless → ffmpeg; wordless montage → Resolve), and the task signals. Recommend one route with the reason; ask once only when it is unclear.
 
 Client-specific inputs live in the **client's** repo, never here: LUT and crop recipe (`resources/video-pipeline/README.md`), fonts and colors (`knowledge/DESIGN.md`), a style profile, a banned-words list, fixtures.
 
