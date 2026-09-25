@@ -90,7 +90,7 @@
     "with_text_min_s": 3.5,
     "with_text_max_s": 4.0,
     "max_consecutive_stills": 1,
-    "min_aroll_between_s": 2.5,
+    "min_aroll_between_s": 3.0,
     "max_punches_per_minute": 10,
     "max_stills_per_reel": 2,
     "still_on_noun_s": 0.3,

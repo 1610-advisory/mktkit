@@ -309,6 +309,7 @@ The `references/` folder contains on-demand knowledge that you read when the tas
 | `caption-protocol.md` | Writing/finalizing any spokesperson or on-camera caption (hook + expand, BANKED-promotion trap, pre-flight QA) |
 | `workflows.md` | Weekly and monthly workflow cadences |
 | `edit-route.md` | Any video cut: choosing Resolve (`resolve-reel`) or ffmpeg (`cut-video`), the business's `edit_route` preference, how to ask |
+| `edit-craft.md` | Any video cut: house edit rules for every business (hook, 3 s A-roll, hidden joins, clean edges, straight montages), their gates, and how to file a reviewer's note (craft → toolkit, taste → business repo) |
 
 ### Marketing Skills
 | File | When to Read |

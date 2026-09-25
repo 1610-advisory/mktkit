@@ -74,6 +74,16 @@ find /tmp/gf/out -iname '*.ttf' -o -iname '*.otf' | while read f; do cp "$f" "$D
 
 Do not use Marcellus, Inter, Geist, Playfair (unless the pack names it), or system fallback as the brand face.
 
+## Video style file
+
+Any cut (`resolve-reel`, `cut-video`) reads `resources/reel-style.json` (shape: `cut-video/resources/style.example.json`). If it is missing, build it before the first cut, from this repo only:
+
+1. **Fonts + colors** from `DESIGN.md` (Fonts above): cover = display face, captions = body sans. Absolute paths to files in `resources/fonts/`. Cover color from the pack.
+2. **Sizes:** cover 72; captions 56 unless the business has set one.
+3. **`edit_route`:** ask once (`references/edit-route.md` → step 4) or take the owner's known preference; write the reason.
+4. **`resolve` block:** leave `grade` values out (the skill's middle defaults apply) and say so. Set `camera_input` and `look_profile` only after real footage and a look review (`resolve-reel` step 0).
+5. Log the file in `_intake-log.md`.
+
 ## Cover / caption style
 
 - Cover line: public-safe, ≤7 words, **casing from voice** (sentence case unless the pack says otherwise).

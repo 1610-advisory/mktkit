@@ -187,6 +187,11 @@ This command will:
 
 - [ ] **Initialize `whats-working.md`** with any known insights
 
+- [ ] **Video style set up** (any business that will get reels or cuts; `.claude/skills/mkt-kit/REFERENCE.md` → Video style file)
+  - `resources/reel-style.json` built from `DESIGN.md`: cover + caption fonts (files in `resources/fonts/`), cover color, platforms
+  - `edit_route` set (Resolve, ffmpeg, or ask) with the reason
+  - First real footage: camera input measured, look review (`resolve-reel` step 0), owner picks a look
+
 ---
 
 ## Phase 6: Launch Preparation

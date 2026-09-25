@@ -12,7 +12,7 @@ description: >
   a cut-video reel. When the tool is not named, pick between this and cut-video
   with references/edit-route.md.
 metadata:
-  version: 1.1.0
+  version: 1.2.0
 ---
 
 # Resolve Reel
@@ -21,7 +21,7 @@ The Resolve twin of `cut-video`. You decide what is said and shown; Resolve does
 
 **Right route?** Resolve suits a piece the person will watch and may tweak (they get an editable project), color-critical and cinematic cuts, and wordless montages. The ffmpeg route (`cut-video`) suits batches, unattended or headless runs, and script-rebuildable cuts. Decide with `references/edit-route.md` (toolkit root), honoring the business's `edit_route` preference, and say which route in one line. On delivery, name the Resolve project and the exported `.drp`.
 
-Load the business's pack first (`mkt-kit`). Then read the business's files below. **Everything that makes a reel look like that business lives in the business's repo, never here.**
+Load the business's pack first (`mkt-kit`). Read `references/edit-craft.md` (toolkit root): the house edit rules and gates for every business, and how to file a reviewer's note. Then read the business's files below. **Everything that makes a reel look like that business lives in the business's repo, never here.**
 
 ## What comes from the business (read these first)
 
@@ -49,14 +49,15 @@ Load the business's pack first (`mkt-kit`). Then read the business's files below
 | `scripts/review_looks.py` | Numbered look-review page (HTML + JPEG) on real frames |
 | `scripts/house_graphics.py` | House captions + cover as ProRes 4444 alpha, via cut-video's own cue/ASS/safe-zone code |
 | `scripts/resolve_ops.py` | Resolve helpers to `exec` inside `run_script_unsafe` |
-| `resources/*.example.json` | `edit`, `grade`, `look` shapes |
+| `scripts/cut_check.py` | Cut gates: A-roll hold + hidden joins (`aroll`), clean 48 kHz edges (`edges`). Exit 3 on FAIL |
+| `resources/*.example.json` | `edit`, `grade`, `look`, `cut` shapes |
 | `REFERENCE.md` | Color settings, node recipe, why the looks work, every gotcha. Read before the first build. |
 
 ## Steps
 
 0. **New look?** Export DWG/DI stills from two or three real shots (two jobs if you can), write a `grade.json`, run `review_looks.py … --style <reel-style.json>`, put the HTML + JPEG where the owner reviews on a phone. They pick a number; write it to the business's `look.json` and generate the LUT. Never commit a look without that review.
 1. **Read** the brief and the word JSON. Contact-sheet the source.
-2. **Cut points** from word times, each edge moved into a measured audio valley; every word complete.
+2. **Cut points** from word times into a cut plan (`resources/cut.example.json`): open on the hook, spine, cutaways, `framing` per segment. Gate: `scripts/cut_check.py edges cut.json --fix`, then `scripts/cut_check.py aroll cut.json`; both must exit 0 (every word complete, A-roll ≥ 3 s, every join hidden). A wordless montage cuts straight: no zoom or push-in on its clips.
 3. **Build** (`run_script_unsafe`, `exec` resolve_ops): `new_project`, import, `set_clip_input(…, grade.camera_input)`, `build_timeline` (spine V1/A1, punches V2). Check one still for rotation / side bars.
 4. **Stills** `export_di_stills` (one per shot; two if the light changes inside a clip).
 5. **Solve** `grade_solve.py grade.json --style <reel-style.json>`; preview; faces should read the target ±1.5 IRE.
@@ -66,3 +67,4 @@ Load the business's pack first (`mkt-kit`). Then read the business's files below
 9. **Render** `render(…)`, then loudness only: `../cut-video/scripts/finish-reel.py --spine <render> --output <id>_vN.mp4 --skip-lut --no-eq --no-captions --orient none --cover-text "" --loudnorm-mode two-pass`.
 10. **QA** `../cut-video/scripts/qa-reel.py … --ass <captions.ass>`; read the contact sheet yourself.
 11. **Deliver for review** per the business's rules (review folder, run notes, content-note history, issue comment). Export the `.drp`. Never publish, schedule, or mark approved.
+12. **File the reviewer's notes** before the next version: craft → `references/edit-craft.md` (and a gate), this business's taste → its `reel-style.json` or `memory/`. Sort table: edit-craft.md → Filing a reviewer's note. Say where each note went.

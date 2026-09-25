@@ -1,0 +1,16 @@
+{
+  "_about": "Cut plan for scripts/cut_check.py. spine in/out = source seconds of that segment's audio (playback order); cutaways at/until = record (timeline) seconds. framing: wide | tight (a punch-in). cam: any id; a change of cam is a camera switch.",
+  "fps": 29.97002997002997,
+  "lead_s": 0.0,
+  "min_aroll_s": 3.0,
+  "audio": "/path/to/shoot/Audio/ARoll-Example-PRIMARY.wav",
+  "spine": [
+    {"cam": "A", "framing": "wide", "in": 12.40, "out": 19.86},
+    {"cam": "A", "framing": "tight", "in": 21.10, "out": 27.55},
+    {"cam": "B", "framing": "wide", "in": 30.02, "out": 36.70, "audio": "/path/to/shoot/Audio/ARoll-Example-CAM-B.wav"}
+  ],
+  "cutaways": [
+    {"at": 3.00, "until": 6.50, "shows": "the finished room, wide"},
+    {"at": 6.50, "until": 9.20, "shows": "the old wall, before"}
+  ]
+}

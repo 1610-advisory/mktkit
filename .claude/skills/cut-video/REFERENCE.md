@@ -54,7 +54,7 @@ Processing order is locked: extract hook → normalize A-roll (orient → LUT �
 | `--cover-text` · `--cover-seconds 2.0` · `--cover-anchor center|top` · `--cover-case as-is|upper|sentence` · `--cover-darken` | Title card. A backslash in the text is rejected (exit 2); the engine wraps via a textfile. `center` is the IG-safe default; darken dims one frame only |
 | `--font` · `--font-color #F2EDE0` · `--font-size 72` | Cover type, absolute font path. Family and color come from the client pack |
 | `--broll PATH:at=SEC:dur=SEC[:src=SEC][:kind=clip|still]` | Repeatable. `at` on the cut spine before hook prepend. Omit `src` for a mid-clip in-point |
-| `--max-broll-dur 3.0` · `--min-aroll 2.5` · `--join SEC` · `--broll-no-eq` · `--broll-no-lut` | Punch cap; butt punches closer than 2.5 s; cover a spine concat with the nearest punch; B-roll skips the match eq; B-roll skips the LUT (A-roll and hook still take it) |
+| `--max-broll-dur 3.0` · `--min-aroll 3.0` · `--join SEC` · `--broll-no-eq` · `--broll-no-lut` | Punch cap; butt punches closer than 3.0 s; cover a spine concat with the nearest punch; B-roll skips the match eq; B-roll skips the LUT (A-roll and hook still take it) |
 | `--super TEXT:at=SEC:dur=SEC` · `--super-size 44` | Upper-third annotation below the top safe band |
 | `--transcript` + `--spine-range start:end` (repeat) | Burn dialogue captions from kept words only; cues never cross a join; kept words are never dropped |
 | `--caption-font` · `--caption-size 42` · `--caption-style phrase|word` · `--caption-min-cue 0.8` · `--caption-max-cue 2.8` · `--caption-max-chars 32` · `--caption-max-lines 2` · `--no-captions` | Caption typography and grouping |

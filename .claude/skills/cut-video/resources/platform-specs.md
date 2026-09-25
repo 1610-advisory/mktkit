@@ -57,9 +57,9 @@ Consequences already built in:
 | Still punch | 3.5 s default | Slow-push stills need the extra second to read (owner note 2026-09-04) |
 | Punch carrying a super | 3.5 to 4.0 s | Text must be readable (owner note 2026-09-04) |
 | Consecutive stills | 2 maximum | Three stills in a row reads as a montage, not a talking reel |
-| A-roll between punches | 2.5 s minimum, or butt the punches | Sub-2.5 s A-roll flashes read as a glitch |
+| A-roll between punches | 3.0 s minimum, or butt the punches | Shorter A-roll flashes read as a glitch (reviewer, 2026-09-24) |
 | Visual change cadence | a visual change every 3 to 7 s, tighter in the first 5 s | Practitioner retention guidance for vertical short-form; not a standard, a budget the timeline should meet: https://www.strategia-x.com/blog/2026-07-01-vertical-video-retention-editing-playbook/ |
-| Punches per minute | 10 maximum | Derived from the cadence rule and the 2.5 s minimum A-roll; a soft ceiling the QA gate can warn on |
+| Punches per minute | 10 maximum | Derived from the cadence rule and the 3.0 s minimum A-roll; a soft ceiling the QA gate can warn on |
 
 Owner rule 2026-09-07: a punch must literally show the noun phrase spoken under it, or the reel stays on the speaker. Stills are the fallback to video: at most two per reel (`max_stills_per_reel: 2`), never two in a row (`max_consecutive_stills: 1`), and each still starts within 0.3 s of the spoken noun (`still_on_noun_s`). A photo pulls the viewer out of the moment; only an exact one earns it. Video punches use a looser 0.8 s window (`clip_on_noun_s`).
 

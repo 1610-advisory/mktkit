@@ -45,6 +45,8 @@ Never write pack answers into the toolkit repo. Client silo only.
 
 Display + body families come from `DESIGN.md` / `brand-identity.md`. Check `fc-list` (or `~/Library/Fonts`). Missing: download the family from Google Fonts into the client's `resources/fonts/` and pass **file paths** to ffmpeg/HTML. Procedure: `REFERENCE.md` → Fonts. Do not fall back to Marcellus, Inter, or Geist.
 
+Video: `resources/reel-style.json` holds this business's cut style. Missing and a cut is coming → build it from `DESIGN.md` first (`REFERENCE.md` → Video style file).
+
 ## Playbook match
 
 When the task is planning this week's content / "weekly brief" / "generate week":
@@ -55,7 +57,7 @@ When the task is planning this week's content / "weekly brief" / "generate week"
 
 Two-week execution plan (10–14 pieces, shoot list): follow the playbook skip; do not write a biweekly playbook here.
 
-Any "cut / edit this video": choose `resolve-reel` or `cut-video` with `references/edit-route.md` (business preference first, then hard limits, then task signals; ask once only when unclear). `cut-video`, `resolve-reel`, `film-board`, and other mkt verbs are unchanged. Pack first, then that skill. `resolve-reel` also reads the client's `resources/reel-style.json` (`resolve.grade` block) and look profile.
+Any "cut / edit this video": read `references/edit-craft.md` (house rules; file every reviewer note: craft → toolkit, taste → this repo), then choose `resolve-reel` or `cut-video` with `references/edit-route.md` (business preference first, then hard limits, then task signals; ask once only when unclear). `cut-video`, `resolve-reel`, `film-board`, and other mkt verbs are unchanged. Pack first, then that skill. `resolve-reel` also reads the client's `resources/reel-style.json` (`resolve.grade` block) and look profile.
 
 ## Other skills
 

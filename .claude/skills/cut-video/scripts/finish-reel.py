@@ -389,7 +389,7 @@ def resolve_broll_src(br: dict) -> dict:
 def snap_broll_gaps(clips: list[dict], min_aroll: float) -> list[dict]:
     """If A-roll between two punches is shorter than min_aroll, butt them.
 
-    Returning to A-roll for < ~2.5s reads as a jump cut. Stay on B-roll.
+    Returning to A-roll for < 3 s reads as a jump cut. Stay on B-roll.
     """
     if not clips or min_aroll <= 0:
         return clips
@@ -1339,8 +1339,8 @@ def main() -> int:
     p.add_argument(
         "--min-aroll",
         type=float,
-        default=2.5,
-        help="If A-roll between two B-roll punches is shorter than this, butt the punches (default 2.5).",
+        default=3.0,
+        help="If A-roll between two B-roll punches is shorter than this, butt the punches (default 3.0).",
     )
     p.add_argument(
         "--join",
