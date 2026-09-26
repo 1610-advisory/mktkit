@@ -50,7 +50,7 @@ Scriptable vs GUI: CDL, LUT, color management, Fusion comps, render — scriptab
 
 ## 4. Graphics
 
-`house_graphics.py` imports cut-video's `finish-reel.py` and uses its `group_caption_cues`, `write_ass`, `caption_layout` and `max_safe_zones`, so Resolve captions equal the ffmpeg pipeline's. Placement `safe-lower` = bottom of the union safe zone of the listed platforms (IG + Shorts + TikTok: MarginV 696, sides 81 / 156). ASS font sizes render smaller than the number suggests (libass scales by ascender + descender); on a phone 42 read too small, so the default is 56 and a business may go higher.
+`house_graphics.py` imports cut-video's `finish-reel.py` and uses its `group_caption_cues`, `write_ass`, `caption_layout` and `max_safe_zones`, so Resolve captions equal the ffmpeg pipeline's. Placement `safe-lower` = bottom of the union safe zone of the listed platforms (IG + Shorts + TikTok: MarginV 696, sides 81 / 156). ASS font sizes render smaller than the number suggests (libass scales by ascender + descender); on a phone 42 read too small and 56 still too small, so the default is 64 (reviewer, 2026-09-25).
 
 Word edges: whisper word times drift. A word that starts up to `lead_frames` before a keep is pulled into it (it is audible); a word that starts in the last `tail_frames` of a keep is dropped (it is not). Check each edge against the audio and record exceptions in `edit.json` `_edges`.
 

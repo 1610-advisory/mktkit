@@ -99,7 +99,7 @@ cues = fr.group_caption_cues(fr.map_words_to_output(edge, None, ranges),
                              min_cue=cap.get('min_cue_s', 0.83), max_lines=cap.get('max_lines', 2),
                              style=cap.get('style', 'phrase'))
 ass = out / 'captions.ass'
-fr.write_ass(ass, cues, font_name(cap_font), cap.get('size', 56), cap_color,
+fr.write_ass(ass, cues, font_name(cap_font), cap.get('size', 64), cap_color,
              alignment=layout['alignment'], margin_l=layout['margin_l'],
              margin_r=layout['margin_r'], margin_v=layout['margin_v'])
 fr.write_srt(out / 'captions.srt', cues)

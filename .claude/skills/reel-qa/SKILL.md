@@ -40,7 +40,7 @@ Script: `../cut-video/scripts/qa-reel.py`. Specs it reads: `../cut-video/resourc
 - `captions.safe_zone` FAIL: caption bottom sits inside the platform UI band; re-render with `--caption-placement safe-lower` (the engine default) or move the burned captions up in the NLE.
 - `audio.integrated_loudness` outside tolerance: normalize (two-pass loudnorm) rather than raising the gain by ear.
 - `video.frozen_frames` WARN inside a punch: a static tripod shot or a still; fine. FAIL outside a punch: a real freeze, usually a B-roll overlay whose timestamps were not shifted onto the spine clock.
-- `hook.once` WARN: the opening line appears again later; check whether the take repeats its hook.
+- `hook.once` WARN: the opening line appears again more often than designed (one repeat is expected when `lift_from_spine` is false); check whether the take says its hook twice.
 - `text.banned_words` FAIL: a client name or address is on screen or in the caption text. The file cannot ship.
 
 ## Must not

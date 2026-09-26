@@ -37,7 +37,7 @@ Load the business's pack first (`mkt-kit`). Read `references/edit-craft.md` (too
 
 `grade.*` below means `resolve.grade.*` in the business's `reel-style.json` (cut-video's renderer ignores the `resolve` block).
 
-**Defaults (the middle, used only when the business has not set a value):** look `clean`, face highlight 55 IRE, black point code 14, CDL saturation 0.68, WB target Rec.709 lin 1.02 : 1 : 0.97 (slightly warm), vignette 0.035, captions 56 px, cover shadow 0 2px 24px 45%, platforms IG Reels + Shorts + TikTok.
+**Defaults (the middle, used only when the business has not set a value):** look `clean`, face highlight 55 IRE, black point code 14, CDL saturation 0.68, WB target Rec.709 lin 1.02 : 1 : 0.97 (slightly warm), vignette 0.035, captions 64 px, cover shadow 0 2px 24px 45%, platforms IG Reels + Shorts + TikTok.
 
 ## Files
 

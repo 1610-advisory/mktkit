@@ -63,7 +63,7 @@
         "transcript_json": { "type": ["string", "null"], "default": null, "description": "Word JSON for the hook source when it is a different file (captions)." },
         "range": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
         "quote": { "type": "string" },
-        "lift_from_spine": { "type": "boolean", "default": true, "description": "When the hook comes from source.video, remove its range from the spine so the line plays once." }
+        "lift_from_spine": { "type": "boolean", "default": false, "description": "false (default): the hook opens the cut and the full edit then plays through, so the line repeats once in context. true: remove its range from the spine so the line plays once." }
       }
     },
     "cover": {

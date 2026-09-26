@@ -1936,7 +1936,7 @@ def check_text(
         mode = hook.get("mode") or "none"
         lift = hook.get("lift_from_spine")
         if lift is None:
-            lift = True
+            lift = False
         src_video = (manifest.get("source") or {}).get("video") if isinstance(manifest.get("source"), dict) else None
         hook_src = hook.get("source")
         same_src = hook_src in (None, "", src_video)
@@ -1994,17 +1994,22 @@ def check_text(
                     if hay[i : i + n] == seq:
                         repeats.append({"at": cue.start, "text": cue.text[:80]})
                         break
-            if repeats and hook_status != "fail":
+            # A prepended hook that stays in the spine repeats once by design.
+            by_design = hook_detail == "lift_from_spine is false, overlap is allowed"
+            if by_design and len(repeats) <= 1:
+                hook_measured = repeats
+                hook_detail = "hook repeats once in the full edit, by design" if repeats else hook_detail
+            elif repeats and hook_status != "fail":
                 hook_status = "warn"
                 hook_measured = repeats
-                hook_detail = "hook line may repeat"
+                hook_detail = "hook line may repeat" + (" more than once" if by_design else "")
             elif repeats and hook_status == "fail":
                 hook_detail += "; hook line may also repeat in captions"
     if hook_status == "na" and not (
         isinstance(manifest, dict) and isinstance(manifest.get("hook"), dict)
     ) and ass is None:
         hook_detail = "no manifest hook and no ASS file"
-    add(checks, "hook.once", hook_status, hook_measured, "hook plays once", hook_detail)
+    add(checks, "hook.once", hook_status, hook_measured, "hook opens the cut; repeats at most once, only by design", hook_detail)
 
     if not isinstance(manifest, dict):
         add(checks, "broll.verified", "na", None, None, "no manifest")

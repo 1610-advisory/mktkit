@@ -1310,7 +1310,7 @@ def brief_preflight_lint(manifest: dict) -> list[dict]:
                 ht = hook.get("transcript_json")
                 hwords = load_transcript_words(Path(str(ht))) if ht else []
             rows.extend(check_quote_edge(hook_quote, hs, he, hwords, "hook"))
-        lift = bool(hook.get("lift_from_spine", True))
+        lift = bool(hook.get("lift_from_spine", False))
         if hook_same and lift:
             ranges = subtract_hook(ranges, hs, he)
     hard_out = (manifest.get("spine") or {}).get("hard_out")
@@ -1984,7 +1984,7 @@ def main() -> int:
         else:
             hook_path = Path(hook_source_val)
             hook_same = hook_path.resolve() == spine_src.resolve()
-        lift = bool(hook.get("lift_from_spine", True))
+        lift = bool(hook.get("lift_from_spine", False))
         if hook_mode == "prepend" and hook_same and lift and hook_range:
             hs, he = float(hook_range[0]), float(hook_range[1])
             ranges = subtract_hook(ranges, hs, he)

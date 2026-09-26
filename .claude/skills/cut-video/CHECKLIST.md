@@ -4,7 +4,7 @@ Companion to `SKILL.md`. Two audiences: the model that cuts (run this before cal
 
 ## Why the gate is code
 
-Across the first nine working days of the in-house pipeline (about 35 renders, roughly 60 defect instances), every defect class that was fixed with a code gate stayed fixed: the frozen-punch check, the duration cap, the overwrite refusal. Every class fixed with a prose rule or a manual recipe came back at least once: the transpose direction (fixed in the engine, then re-introduced by a hand-built pre-grade step), the repeated hook (a rule existed; two repeats followed), the cover centering (fixed twice), the LUT on Rec.709 footage (three times). Half of all defects reached the reviewer. So: when a reviewer catches something, the fix is a check in `qa-reel.py`, a refusal in `render-reel.py`, or a fixture in `regress.py`, and only then a sentence in a document.
+Across the first nine working days of the in-house pipeline (about 35 renders, roughly 60 defect instances), every defect class that was fixed with a code gate stayed fixed: the frozen-punch check, the duration cap, the overwrite refusal. Every class fixed with a prose rule or a manual recipe came back at least once: the transpose direction (fixed in the engine, then re-introduced by a hand-built pre-grade step), the repeated hook (a rule existed; two repeats followed; since 2026-09-25 one repeat is the design, a second is the defect), the cover centering (fixed twice), the LUT on Rec.709 footage (three times). Half of all defects reached the reviewer. So: when a reviewer catches something, the fix is a check in `qa-reel.py`, a refusal in `render-reel.py`, or a fixture in `regress.py`, and only then a sentence in a document.
 
 ## Definition of done (the renderer and QA gate enforce most of this; you confirm the rest)
 
@@ -17,7 +17,7 @@ Machine-checked, from `qa-reel.py` (id in parentheses):
 - [ ] Captions inside the strictest platform safe zone, no cue under the minimum duration, no oversized cue (`captions.*`)
 - [ ] Cover text 7 words or fewer, no literal escape characters (`text.cover_words`)
 - [ ] No banned term (client surname, address) in cover, supers, captions, or punch lines (`text.banned_words`)
-- [ ] Hook does not also sit inside a spine range; first-cue words do not recur later (`hook.once`)
+- [ ] Hook opens the cut; it repeats once in the full edit only when `lift_from_spine` is false, never twice (`hook.once`)
 - [ ] Every punch has `verified: true` (`broll.verified`)
 
 Confirmed by a look at the contact sheet (see the questions below):

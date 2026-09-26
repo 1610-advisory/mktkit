@@ -29,7 +29,7 @@
     "source": null,
     "range": [52.30, 56.10],
     "quote": "and that is the whole point",
-    "lift_from_spine": true
+    "lift_from_spine": false
   },
   "cover": {
     "text": "BUILT TO LAST.",
@@ -43,7 +43,7 @@
   "captions": {
     "enabled": true,
     "font": "/path/to/client/resources/fonts/Body-Medium.ttf",
-    "size": 42,
+    "size": 64,
     "style": "phrase",
     "placement": "safe-lower"
   },
@@ -57,5 +57,5 @@
   "audio": { "loudnorm": "two-pass", "target_i": -16, "true_peak": -1.5, "lra": 11 },
   "render": { "mode": "final", "crf": 18, "preset": "fast", "encoder": "auto" },
   "qa": { "frames": true, "contact_sheet": true, "max_frame_px": 540, "banned_words_file": "/path/to/client/resources/public-safe-banned-words.txt" },
-  "notes": "v1 from the editor brief. Hook is the closer line pulled forward; lifted from the spine so it plays once."
+  "notes": "v1 from the editor brief. Hook is the closer line pulled forward; the full edit then plays through, so it repeats once in context."
 }

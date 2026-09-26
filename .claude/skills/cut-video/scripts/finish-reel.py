@@ -1239,8 +1239,8 @@ def main() -> int:
     p.add_argument(
         "--caption-size",
         type=int,
-        default=42,
-        help="Dialogue caption font size at 1080x1920 (default 42).",
+        default=64,
+        help="Dialogue caption font size at 1080x1920 (default 64).",
     )
     p.add_argument(
         "--caption-style",

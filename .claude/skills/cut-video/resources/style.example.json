@@ -23,7 +23,7 @@
   },
   "captions": {
     "font": "/path/to/fonts/Body-Medium.ttf",
-    "size": 56,
+    "size": 64,
     "style": "phrase",
     "placement": "safe-lower",
     "max_chars_per_line": 32,

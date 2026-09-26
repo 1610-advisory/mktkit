@@ -360,6 +360,21 @@ def test_suite() -> None:
         data = load_report(report_hook)
         assert status_of(data, "hook.once") == "fail"
 
+        # Default (no lift_from_spine): the hook stays in the spine and repeats once by design.
+        hook_doc = json.loads(man_hook.read_text(encoding="utf-8"))
+        del hook_doc["hook"]["lift_from_spine"]
+        man_hook.write_text(json.dumps(hook_doc), encoding="utf-8")
+        run_qa(
+            [
+                "--video", str(good),
+                "--manifest", str(man_hook),
+                "--platforms", "instagram_reels",
+                "--report", str(report_hook),
+            ]
+        )
+        data = load_report(report_hook)
+        assert status_of(data, "hook.once") == "pass"
+
 
 def test_collect_timestamps_labels() -> None:
     mod = load_qa_mod()

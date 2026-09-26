@@ -17,7 +17,7 @@ The render lock (`~/.cache/reel-factory/render.lock` by default) serializes ever
 ## Manifest semantics the renderer applies
 
 - `version: "auto"` picks the next free `_vN`; proxies are `_vN-proxy` and never consume a final number. Nothing is ever overwritten.
-- `hook.mode: prepend` with `lift_from_spine: true` removes the hook range from the spine (splitting the range it sits in). The line plays once. A hook from a different file lifts nothing.
+- `hook.mode: prepend` with `lift_from_spine: false` (default) opens on the hook and keeps it in the spine, so the line repeats once in context. `true` removes the hook range from the spine (splitting the range it sits in) so the line plays once. A hook from a different file lifts nothing.
 - `spine.hard_out` clamps the last range. It must be a word END from the JSON; the preflight lint warns when it is not.
 - `joins: "auto"` = every coarse-range boundary on the output clock, read from the spine timeline. finish-reel covers each join with the nearest punch.
 - `source.color: auto` and `broll[].color: auto` are measured per clip; stills are Rec.709 by definition. Log spine with log clips: `--lut` for everything. Log spine with any Rec.709 punch (stills, phone clips): the A-roll and hook keep the LUT in finish-reel, log B-roll clips are pre-graded in the work dir, and finish-reel runs with `--broll-no-lut --broll-no-eq` so Rec.709 punches are left alone. Rec.709 spine with log clips: log clips pre-graded, `--skip-lut`. The first model bench (2026-09-05) crushed the stills in all four runs before this rule; `qa-reel` now warns on a punch/A-roll saturation mismatch (`video.grade_mismatch`).
