@@ -27,12 +27,12 @@ Follow `edit-craft.md` rules 1 to 5 and 8: hook first (repeated once in context)
 ## Build
 
 ```
-python3 <skill>/scripts/reel.py build --edit <DIR>/edit.json --style <reel-style.json> --version vN --owner <business-slug>
+python3 <skill>/scripts/reel.py build --edit <DIR>/edit.json --style <reel-style.json> --version vN --owner <business-slug> --wait-lock 5400
 ```
 
 - Exit 2 means a gate failed. Fix `edit.json` and run the build again. This does not count as a round.
 - Exit 3 means Resolve or the render failed. Run it once more. If it fails again, stop and report the message.
-- If the lock is held by another session, run `reel.py lock status`, then report the holder and stop. Never break a live lock.
+- `--wait-lock` queues you behind another build for up to 90 min. If it still exits 3 with LOCKED, run `reel.py lock status`, report the holder and stop. Never break a live lock.
 
 Then run `reel.py qa --video <final.mp4> --edit <DIR>/edit.json --style <reel-style.json>`. Read the QA JSON and the one QA sheet. Fix only real blockers (edit-craft rule 9). Taste notes go in your report.
 

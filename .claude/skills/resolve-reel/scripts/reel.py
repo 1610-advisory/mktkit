@@ -910,7 +910,16 @@ def lock_release(owner, force=False):
 
 @contextlib.contextmanager
 def resolve_lock(owner, note):
-    got, _msg = lock_acquire(owner, note, pid=os.getpid())
+    wait = float(os.environ.get('REEL_LOCK_WAIT') or 0)   # seconds to queue behind another holder
+    deadline = time.monotonic() + wait
+    while True:
+        try:
+            got, _msg = lock_acquire(owner, note, pid=os.getpid())
+            break
+        except BackendError as e:
+            if not str(e).startswith('LOCKED') or time.monotonic() >= deadline:
+                raise
+            time.sleep(15)
     try:
         yield
     finally:
@@ -1374,6 +1383,8 @@ def make_cache(out_dir):
 
 
 def cmd_build(a, backend=None):
+    if getattr(a, 'wait_lock', 0):
+        os.environ['REEL_LOCK_WAIT'] = str(a.wait_lock)
     t0 = time.time()
     edit_path = Path(a.edit).resolve()
     work = edit_path.parent
@@ -1936,6 +1947,7 @@ def parser():
     b.add_argument('--edit', required=True, help="DIR/edit.json (schema below)")
     b.add_argument('--style', required=True, help="business reel-style.json (resolve.grade block)")
     b.add_argument('--version', required=True, help='v1, v2, ... (output <id>_<version>.mp4)')
+    b.add_argument('--wait-lock', type=float, default=0, metavar='SEC', help='wait up to SEC for another session to release Resolve (else exit 3)')
     b.add_argument('--dry-run', action='store_true', help='gates + graphics + the plan of Resolve calls; no Resolve')
     b.add_argument('--owner', help='lock owner name (default $REEL_OWNER or reel-build:<folder>)')
     b.add_argument('--force', action='store_true', help='replace an existing <id>_<version>.mp4')
