@@ -421,3 +421,15 @@ def test_help_lists_subcommands():
     assert r.returncode == 0 and all(s in r.stdout for s in ('prep', 'build', 'qa', 'lock'))
     r = cli('build', '--help')
     assert '"spine"' in r.stdout and '"punches"' in r.stdout
+
+
+def test_lock_same_owner_other_live_pid_queues(tmp_path, monkeypatch):
+    """Two parallel builds under one owner name must not both enter Resolve."""
+    monkeypatch.setenv('REEL_LOCK', str(tmp_path / 'resolve.lock'))
+    got, _ = reel.lock_acquire('biz', pid=os.getpid())
+    assert got
+    with pytest.raises(reel.BackendError, match='LOCKED'):
+        reel.lock_acquire('biz', pid=os.getppid())          # another live process, same owner
+    assert reel.lock_acquire('biz', pid=os.getpid())[0] is False   # same process re-enters
+    assert reel.lock_acquire('biz')[0] is False                    # manual pid-less hold re-enters
+    reel.lock_release('biz')

@@ -21,8 +21,11 @@ You check one cut. You do not edit it. Budget: about 12 tool calls.
 - a clipped word, broken or missing audio, or loudness more than 1.5 LU off the target in reel-style.json
 - a black, frozen, upside-down, sideways or corrupt shot
 - a wrong or missing cover
+- a plainly broken grade: neon or red skin, grass or walls far off natural, a cutaway near black next to a normal shot, crushed blacks. Compare every cutaway tile on the sheet against the A-roll tiles next to it.
 
-**Not blockers** (list them as notes only): grade taste, framing preference, pacing, music.
+**Checker false positives:** if a `reel.py qa` check fails but the sheet clearly shows it is fine (for example a low-contrast cover the detector misses), pass it and say so in `notes`. Never ask for a design change (cover size, caption style) to satisfy a checker.
+
+**Not blockers** (list them as notes only): subtle grade taste, framing preference, pacing, music.
 
 Return exactly:
 - `pass`: true or false

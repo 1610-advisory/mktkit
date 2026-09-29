@@ -209,11 +209,20 @@ def probe(path):
             fps = 0.0
         disp = [h, w] if abs(rot) % 180 == 90 else [w, h]
         out.update({'width': w, 'height': h, 'rotation': rot, 'display': disp, 'fps': round(fps, 5),
-                    'vcodec': v.get('codec_name'), 'pix_fmt': v.get('pix_fmt')})
+                    'vcodec': v.get('codec_name'), 'pix_fmt': v.get('pix_fmt'),
+                    'transfer': v.get('color_transfer'), 'tagged_input': tagged_input(v.get('color_transfer'))})
     if a:
         out.update({'audio_rate': int(a.get('sample_rate') or 0), 'audio_ch': a.get('channels'),
                     'acodec': a.get('codec_name')})
     return out
+
+
+def tagged_input(transfer):
+    """Resolve input space implied by an explicit transfer tag. Log camera files usually carry no
+    transfer tag; phone and screen clips do. A display-referred clip graded as log comes out neon
+    (live batch 2026-09-29: phone A-roll under a log camera_input), so a tag beats the style default."""
+    return {'bt709': 'Rec.709 Gamma 2.4', 'smpte170m': 'Rec.709 Gamma 2.4', 'bt470bg': 'Rec.709 Gamma 2.4',
+            'iec61966-2-1': 'sRGB', 'arib-std-b67': 'Rec.2100 HLG', 'smpte2084': 'Rec.2100 ST2084'}.get(transfer or '')
 
 
 def probe_line(p):
@@ -221,8 +230,9 @@ def probe_line(p):
         return f"audio only | {p['duration']:.2f} s"
     rot = f", rot {p['rotation']:+d} -> {p['display'][0]}x{p['display'][1]} display" if p['rotation'] else ''
     au = f"{p.get('acodec')} {p.get('audio_rate')} Hz {p.get('audio_ch')}ch" if p.get('audio_rate') else 'no audio'
+    tag = f" | tagged {p['tagged_input']} (build uses it, not the style camera_input)" if p.get('tagged_input') else ''
     return (f"{p['width']}x{p['height']} {p['vcodec']} {p['pix_fmt']}{rot} | {p['fps']:.3f} fps | "
-            f"{p['duration']:.2f} s | {au}")
+            f"{p['duration']:.2f} s | {au}{tag}")
 
 
 def has_words(path):
@@ -881,7 +891,9 @@ def lock_acquire(owner, note='', pid=0):
             fd = os.open(p, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
         except FileExistsError:
             cur = lock_read()
-            if cur and cur.get('owner') == owner:
+            # Same owner is only re-entrant for the same process (or a manual, pid-less hold).
+            # Two parallel builds with one owner name must still queue (batch run 2026-09-29).
+            if cur and cur.get('owner') == owner and (not pid or not cur.get('pid') or cur.get('pid') == pid):
                 return False, 'already held by ' + lock_describe(cur)
             stale, why = lock_stale(cur or {})
             if not stale:
@@ -1298,7 +1310,9 @@ def solve_grade(edit, plan, style, style_path, backend, cache, dry):
     stills = {n: f for sh in shots.values() for n, f in sh['stills'].items()}
     content = {n: still_content(plan, f) for n, f in stills.items()}
     cam = g.get('camera_input')
-    skey = sha({'content': content, 'cam': cam})
+    inputs = {cid: c.get('input') or (plan.get('probes', {}).get(cid) or {}).get('tagged_input') or cam
+              for cid, c in plan['clips'].items()}
+    skey = sha({'content': content, 'cam': cam, 'inputs': inputs})
     sdir = cache / f'stills-{skey}'
     look_file = None
     if g.get('look_profile'):
@@ -1503,7 +1517,7 @@ def resolve_section(a, edit, plan, style, style_path, g, backend, cache, out_dir
     res['clip_input'] = {}
     for cid, c in plan['clips'].items():
         if c['path'] in items:
-            space = c.get('input') or cam
+            space = c.get('input') or (plan.get('probes', {}).get(cid) or {}).get('tagged_input') or cam
             if space:
                 res['clip_input'][cid] = backend.set_clip_input(items[c['path']], space)
     spine = [(items[plan['clips'][s['clip']]['path']], s['src_in'], s['src_out']) for s in plan['spine']]
