@@ -2,7 +2,7 @@
 title: "Edit craft: house rules for every cut"
 description: "The editing rules that hold for every business, on both edit routes, and how a reviewer's note becomes a rule here or a value in the business's repo."
 status: active
-last_updated: 2026-09-25
+last_updated: 2026-09-28
 ---
 
 # Edit craft
@@ -18,8 +18,11 @@ Read this before the first cut in a session. Each rule came from a reviewer's no
 3. **Hide every join.** A spine join sits under a cutaway, at a camera switch, or at a framing change. Two same-angle segments that meet in view get a punch-in: the next segment about 10 to 15% tighter, the eyes on the same pixel, then back to wide on the next join. Not on the first segment. Check the source has the resolution headroom. Resolve detail: `resolve-reel/REFERENCE.md` → Jump cuts. Gate: `cut_check.py aroll`.
 4. **No clipped words.** Word times drift, and low-rate energy maps miss fricatives (the "s" of "house", the "th" of "the"). Check every edge on the full-band 48 kHz audio and on a >2.5 kHz band. Move an out-edge only later and an in-edge only earlier (keep more, never less). Where two words run together with no silence, cut at the quietest 10 ms and give that clip a 1-frame audio fade. Gate: `cut_check.py edges`.
 5. **Wordless montages cut straight.** No push-in, zoom or Ken Burns move on montage clips, even static shots. (A punch-in at a jump cut in a talking cut is rule 3, not this. A still used as a B-roll punch in a talking cut has its own move settings.)
-6. **Edit work stays on the session model.** Cut decisions, builds, prep, QA and checks run on the strongest model in the session. Do not hand any part to a smaller or other-family model: every such result needed a re-check, so it cost more than it saved. This overrides the toolkit's general delegation defaults for edit work.
+6. **Cheap labor, strong verdict.** The `reel-editor` agent (Sonnet class by default) reads one compact prep packet, makes the cut plan and runs `reel.py` and the gates; the `reel-qa` agent checks the result against rules 8 to 10. The session's strongest model gives the final verdict on each round from the QA JSON and the one sheet, and handles anything the rubric cannot settle. Never hand edit work to a small or other-family model: those results needed a full re-check every time. (Reviewer, 2026-09-28: the cost was the rework, not the edit.)
 7. **Review before anything ships.** The owner watches every cut before it is published or scheduled. A new look gets a stills review first (`resolve-reel` step 0).
+8. **Nothing crosses the caption zone.** A screen, tablet or frame edge that runs through the captions is a fail. Fix the picture (reframe or zoom the wide shot, or mask it with a power window), never move the captions.
+9. **Two rounds, then the reviewer.** A cut gets at most two build-and-check rounds. After that, hand it to the reviewer with the open notes. Block a round only for what the reviewer would reject: a public-safe name on screen or in audio, a missing, cut-off or covered caption, broken audio or a clipped word, a black, frozen, upside-down or corrupt shot. Grade and framing taste go into the delivery notes, not into another rebuild. (Reviewer, 2026-09-28, approving cuts that automatic QA had failed on taste.)
+10. **Judge from one sheet, not frame by frame.** QA reads `reel.py qa` output: one JSON and one contact sheet (frames around every cut, the cover, the caption zone). Reading frames one at a time keeps every image in context for the rest of the run and was the largest single cost.
 
 Gate commands (run from the business's repo; the scripts are in the plugin's `resolve-reel/scripts/`):
 

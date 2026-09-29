@@ -12,7 +12,7 @@ description: >
   a cut-video reel. When the tool is not named, pick between this and cut-video
   with references/edit-route.md.
 metadata:
-  version: 1.2.0
+  version: 1.3.0
 ---
 
 # Resolve Reel
@@ -48,10 +48,27 @@ Load the business's pack first (`mkt-kit`). Read `references/edit-craft.md` (too
 | `scripts/grade_solve.py` | Per-shot CDL (slope / offset / sat) from DWG/DI stills: face-anchored exposure, auto neutral WB, black point |
 | `scripts/review_looks.py` | Numbered look-review page (HTML + JPEG) on real frames |
 | `scripts/house_graphics.py` | House captions + cover as ProRes 4444 alpha, via cut-video's own cue/ASS/safe-zone code |
+| `scripts/reel.py` | **The default way in.** `prep` (one packet: transcript phrases, silence valleys, contact sheets), `build` (gates + Resolve + render + loudness + QA in one command, cached), `qa` (one JSON + one sheet), `lock` (one Resolve, many sessions) |
 | `scripts/resolve_ops.py` | Resolve helpers to `exec` inside `run_script_unsafe` |
 | `scripts/cut_check.py` | Cut gates: A-roll hold + hidden joins (`aroll`), clean 48 kHz edges (`edges`). Exit 3 on FAIL |
 | `resources/*.example.json` | `edit`, `grade`, `look`, `cut` shapes |
 | `REFERENCE.md` | Color settings, node recipe, why the looks work, every gotcha. Read before the first build. |
+
+## Fast path (default)
+
+Use `reel.py`; the numbered steps below are what it runs, kept as the manual fallback and for debugging.
+
+```
+python3 scripts/reel.py prep  --work DIR --footage FILES... --note NOTE.md --style reel-style.json
+# read DIR/prep.md, write DIR/edit.json (the decisions)
+python3 scripts/reel.py build --edit DIR/edit.json --style reel-style.json --version vN --owner <business>
+python3 scripts/reel.py qa    --video FINAL.mp4 --edit DIR/edit.json --style reel-style.json
+```
+
+- One reel = one `reel-editor` agent, then one `reel-qa` agent (plugin agents). At most two rounds (edit-craft #9), then the reviewer.
+- `build` takes the Resolve lock; if another session holds it, wait or report. Never drive Resolve by hand while a lock is held.
+- Do not call the MCP's `get_whats_new` or read `REFERENCE.md` on every build. Read them only when a Resolve call fails.
+- Keep run notes short: the build writes `build-vN.json`; add only decisions and reviewer notes to the piece's run notes.
 
 ## Steps
 
