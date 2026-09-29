@@ -863,6 +863,35 @@ def lock_read():
         return None
 
 
+PASSTHROUGH_CDL = {'slope': 1.0, 'offset': [0.0, 0.0, 0.0], 'sat': 1.0}
+
+
+def apply_cdl_overrides(edit, plan, gr):
+    """Fixed CDLs that skip the solve. A shot's `cdl` in edit.json wins ("passthrough" or a
+    {slope, offset, sat} dict). Otherwise a shot whose clips all carry a display-referred tag
+    (phone / Rec.709 / HLG) passes through: the solve's face anchor and log-oriented saturation
+    (0.68) turned a sunlit phone A-roll grey and dull (reviewer, 2026-09-29), while the look LUT
+    alone kept it right. Set `"solve": true` on the shot to force the solve anyway."""
+    shots = (edit.get('grade') or {}).get('shots') or {}
+    by_k = {it['k']: it for it in plan['spine'] + plan['punches']}
+    done = []
+    for name in list(gr.get('cdl') or {}):
+        sh = shots.get(name) or {}
+        fixed = sh.get('cdl')
+        if fixed is None and not sh.get('solve'):
+            items = [by_k[k] for k in (sh.get('items') or []) if k in by_k] or \
+                    [it for it in by_k.values() if it['clip'] == name]
+            tags = {(plan.get('probes', {}).get(it['clip']) or {}).get('tagged_input')
+                    for it in items}
+            if items and None not in tags and all(not (plan['clips'][it['clip']].get('input') or '').lower().startswith('canon')
+                                                  for it in items):
+                fixed = 'passthrough'
+        if fixed is not None:
+            gr['cdl'][name] = dict(PASSTHROUGH_CDL) if fixed == 'passthrough' else fixed
+            done.append(name)
+    return done
+
+
 def lock_stale(info):
     try:
         age = time.time() - dt.datetime.fromisoformat(info['started_at']).timestamp()
@@ -1372,6 +1401,8 @@ def solve_grade(edit, plan, style, style_path, backend, cache, dry):
             out['match_wall'] = sh['match_wall']
         if sh.get('manual_wb'):
             out['manual_wb'] = sh['manual_wb']
+        if sh.get('slope_min') is not None:
+            out['slope_min'] = sh['slope_min']
         cfg['shots'][n] = out
     write_json(sdir / f'grade-{gkey}.json', cfg)
     if dry:
@@ -1454,7 +1485,8 @@ def cmd_build(a, backend=None):
         lines.append(f"grade: stills {'cached' if gr['stills_cached'] else 'exported'}, solve "
                      f"{'cached' if gr['solve_cached'] else 'run'}; " + ', '.join(
                          f"{n} slope {c.get('slope')} face {c.get('anchor_ire', '-')}" for n, c in gr['cdl'].items())
-                     + (f"; default wall match: {', '.join(gr['default_match'])}" if gr['default_match'] else ''))
+                     + (f"; default wall match: {', '.join(gr['default_match'])}" if gr['default_match'] else '')
+                     + (f"; passthrough (no solve): {', '.join(gr['passthrough'])}" if gr.get('passthrough') else ''))
         if a.dry_run:
             counts = {}
             for c in backend.calls:
@@ -1528,6 +1560,7 @@ def resolve_section(a, edit, plan, style, style_path, g, backend, cache, out_dir
             if it['zoom'] != plan['base_zoom'] or it['pan'] or it['tilt'] or it['rotation'] != plan['spine'][0]['rotation']:
                 backend.set_transform(track, i, it['zoom'], it['pan'], it['tilt'], it['rotation'])
     gr = solve_grade(edit, plan, style, style_path, backend, cache, a.dry_run)
+    gr['passthrough'] = apply_cdl_overrides(edit, plan, gr)
     res['grade'] = gr
     lut, vig = g.get('lut_resolve'), float(g.get('vignette') or 0)
     if not lut:

@@ -15,7 +15,7 @@ output set to DWG/DI, no grade on the clip) and a grade.json:
     "S2": {"stills": ["di_S2.tif"],
            "match_wall": {"box": [x0, y0, x1, y1], "ref_shot": "S1", "ref_still": 0,
                           "ref_box": [x0, y0, x1, y1]}},
-    "S3": {"stills": ["di_S3.tif"], "manual_wb": [1.0, 1.0, 1.0], "faces": [[0, [..]]]}
+    "S3": {"stills": ["di_S3.tif"], "manual_wb": [1.0, 1.0, 1.0], "slope_min": 0.5, "faces": [[0, [..]]]}
   }
 }
 
@@ -119,7 +119,9 @@ def solve(cfg_path, style_path=None, look_override=None, write=True, quiet=False
             def measure(s, off, m=m, stills=stills):
                 return float(np.median(Y(render(crop(stills[0], m['box']), s, off))))
         best = None
-        for s in np.linspace(0.75, 2.0, 26):
+        # slope_min: underexposed log can crush its shadows even at 0.75 (a dark shower shot at
+        # about -2 stops kept p1 at 0.1 code); let such a shot trade contrast for shadow detail.
+        for s in np.linspace(float(sc.get('slope_min', 0.75)), 2.0, 26):
             lo, hi = -0.4, 0.3
             for _ in range(18):                              # exposure: bisection to the anchor
                 e = (lo + hi) / 2
