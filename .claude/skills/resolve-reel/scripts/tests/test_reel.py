@@ -290,7 +290,7 @@ def test_build_full_with_fake_backend_caches_grade(media, tmp_path, monkeypatch)
     assert b2['resolve']['grade']['cdl'] == cdl
 
     # v3: the hook moves -> what is on screen at still A1 changes -> stills + solve again.
-    # The export also peaks over -1 dBTP -> one re-render with lower voice gain.
+    # The export also peaks hot -> no whole-mix re-render; finish + peak_guard hold the ceiling.
     doc['spine'][0]['in_s'] = 3.9
     doc['spine'][0]['out_s'] = 7.5
     ep.write_text(json.dumps(doc))
@@ -301,8 +301,10 @@ def test_build_full_with_fake_backend_caches_grade(media, tmp_path, monkeypatch)
     assert 'export_stills' in [c[0] for c in be3.calls]
     assert b3['resolve']['grade']['stills_cached'] is False
     assert b3['graphics']['cached'] is False                         # the spine moved, captions re-timed
-    assert b3['resolve'].get('rerender') and b3['resolve']['voice_gain_db'] < 4.0
-    assert [c[0] for c in be3.calls].count('voice_chain') == 2
+    assert not b3['resolve'].get('rerender') and b3['resolve']['voice_gain_db'] == 4.0
+    assert [c[0] for c in be3.calls].count('voice_chain') == 1
+    fin = b3['finish']
+    assert fin['true_peak'] is not None and fin['true_peak'] <= -1.2, fin
 
     # the same version again is refused without --force
     a = reel.parser().parse_args(['build', '--edit', str(ep), '--style', str(media['style']), '--version', 'v3'])

@@ -1212,8 +1212,10 @@ def detect_face(tif):
     from dwg_look import to_display
     di = tifffile.imread(str(tif)).astype(float) / 65535
     rgb = (to_display(di[..., :3]) * 255).astype(np.uint8)
-    gray = cv2.equalizeHist(cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY))
     best = None
+    if not hasattr(cv2, 'CascadeClassifier'):  # OpenCV 5 dropped Haar: use YuNet
+        return detect_face_yunet(cv2, rgb)
+    gray = cv2.equalizeHist(cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY))
     for name in ('haarcascade_frontalface_default.xml', 'haarcascade_profileface.xml'):
         casc = cv2.CascadeClassifier(cv2.data.haarcascades + name)
         for flip in (False, True):
@@ -1228,6 +1230,40 @@ def detect_face(tif):
     if not best:
         return None
     x, y, w, h = best
+    return [x + int(0.15 * w), y + int(0.2 * h), x + w - int(0.15 * w), y + h - int(0.1 * h)]
+
+
+YUNET_URL = ('https://github.com/opencv/opencv_zoo/raw/main/models/'
+             'face_detection_yunet/face_detection_yunet_2023mar.onnx')
+YUNET_SHA256 = '8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4'
+
+
+def yunet_model():
+    """YuNet ONNX model, fetched once into ~/.cache/reel/models and checked by SHA-256."""
+    import hashlib
+    import urllib.request
+    path = Path.home() / '.cache' / 'reel' / 'models' / 'face_detection_yunet_2023mar.onnx'
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        urllib.request.urlretrieve(YUNET_URL, path)
+    if hashlib.sha256(path.read_bytes()).hexdigest() != YUNET_SHA256:
+        path.unlink()
+        raise RuntimeError('YuNet model checksum mismatch; deleted, run again')
+    return path
+
+
+def detect_face_yunet(cv2, rgb):
+    """Largest face via OpenCV's YuNet detector; same inner-face box as the Haar path."""
+    h0, w0 = rgb.shape[:2]
+    s = min(1.0, 1280 / max(h0, w0))
+    img = cv2.resize(rgb, (int(w0 * s), int(h0 * s))) if s < 1 else rgb
+    bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+    det = cv2.FaceDetectorYN.create(str(yunet_model()), '', (bgr.shape[1], bgr.shape[0]), 0.7)
+    _, faces = det.detect(bgr)
+    if faces is None or not len(faces):
+        return None
+    x, y, w, h = (float(v) / s for v in max(faces, key=lambda f: f[2] * f[3])[:4])
+    x, y, w, h = int(x), int(y), int(w), int(h)
     return [x + int(0.15 * w), y + int(0.2 * h), x + w - int(0.15 * w), y + h - int(0.1 * h)]
 
 
@@ -1496,7 +1532,10 @@ def resolve_section(a, edit, plan, style, style_path, g, backend, cache, out_dir
         return res
     tp, li = true_peak(render)
     res['render_tp'], res['render_lufs'] = tp, li
-    if tp is not None and tp > -1.0:                  # one retry: bring the export under -1.5 dBTP
+    # Overs in Resolve's float export survive the AAC file; finish-reel + peak_guard limit them.
+    # Pulling the whole mix down for one transient left the voice ~-31 LUFS and a noisy +15 dB lift
+    # (live test 2026-09-29), so only a gross over triggers the lower-gain re-render.
+    if tp is not None and tp > 6.0:                   # one retry: bring the export under -1.5 dBTP
         delta = round(-1.5 - tp, 1)
         apply_audio(backend, plan, gain + delta, delta)
         render2, st2 = backend.render(out_dir, name + '-r2', timeout)
@@ -1540,7 +1579,33 @@ def finish(render, master, style):
     except subprocess.CalledProcessError as e:
         raise BackendError(f'finish-reel.py failed: {e.stderr}')
     m = re.search(r'Normalization Type:\s*(\w+)', r.stdout + r.stderr)
-    return {'master': str(master), 'normalization': f'loudnorm {m.group(1)}' if m else ''}
+    out = {'master': str(master), 'normalization': f'loudnorm {m.group(1)}' if m else ''}
+    out.update(peak_guard(master, float(au.get('true_peak', -1.5))))
+    return out
+
+
+def peak_guard(master, tp_target):
+    """Loudnorm falls back to dynamic mode on peaky nat sound (a big lift on a quiet render) and can
+    overshoot the true-peak ceiling. If it did, run a 4x-oversampled limiter on the audio only (video
+    copied) and measure again; up to two tries, each 0.5 dB tighter."""
+    tp, lufs = true_peak(master)
+    res = {'lufs': lufs, 'true_peak': tp}
+    if tp is None or tp <= tp_target + 0.3:
+        return res
+    limit = tp_target - 0.5
+    for _ in range(2):
+        tmp = master.with_name(master.stem + '.peak' + master.suffix)
+        af = f'aresample=192000,alimiter=limit={10 ** (limit / 20):.4f}:level=disabled:attack=1:release=50,aresample=48000'
+        subprocess.run(['ffmpeg', '-y', '-hide_banner', '-loglevel', 'error', '-i', str(master), '-map', '0',
+                        '-c:v', 'copy', '-af', af, '-c:a', 'aac', '-b:a', '320k', '-ar', '48000',
+                        '-movflags', '+faststart', str(tmp)], check=True)
+        tmp.replace(master)
+        tp, lufs = true_peak(master)
+        res.update({'lufs': lufs, 'true_peak': tp, 'peak_limited': round(limit, 2)})
+        if tp is not None and tp <= tp_target + 0.3:
+            break
+        limit -= 0.5
+    return res
 
 
 # ---------------------------------------------------------------- qa
