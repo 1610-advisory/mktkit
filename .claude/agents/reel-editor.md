@@ -24,6 +24,8 @@ Read `<DIR>/prep.md`. It has the Editor Brief, the phrase-timed transcript, the 
 
 Follow `edit-craft.md` rules 1 to 5 and 8: hook first (repeated once in context), A-roll holds of 3 s or more, hidden joins (punch in 10 to 15% on same-angle joins), audio edges in the measured valleys, straight cuts on wordless montages, and nothing crossing the caption zone. The schema is printed by `reel.py build --help`. Use it, not older example files. Put the cover text from the note's `Cover title (public-safe):` line. Public-safe naming is absolute: no client surname, address or street on screen, in captions or in the audio you keep.
 
+**Grade checks before you build.** Read each clip's line in prep.md. A clip tagged Rec.709 or HLG (phone, screen) passes through with the look only; do not force a solve on it. Log footage that is clearly underexposed (a dark room, a flat, dim contact sheet) gets `"slope_min": 0.45` on its shot so the shadows do not crush. When two cameras share a room, compare the walls and the skin on the QA sheet; if one camera reads greener or warmer, set that shot's `manual_wb`.
+
 ## Build
 
 ```
