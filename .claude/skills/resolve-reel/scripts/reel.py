@@ -1565,9 +1565,14 @@ def resolve_section(a, edit, plan, style, style_path, g, backend, cache, out_dir
     lut, vig = g.get('lut_resolve'), float(g.get('vignette') or 0)
     if not lut:
         raise GateError('style resolve.grade.lut_resolve is not set (generate it: dwg_look.py write)')
+    # Display-referred (phone / Rec.709) shots: 'look' = look LUT only; 'none' = no grade at all.
+    # A reviewer found even the LUT wrong on phone A-roll and removed every node (2026-09-30).
+    dr_mode = g.get('display_referred', 'look')
     for track, lst in ((1, plan['spine']), (2, plan['punches'])):
         for i, it in enumerate(lst):
             shot = gr['owner'][it['k']]
+            if dr_mode == 'none' and shot in (gr.get('passthrough') or []):
+                continue
             if not backend.apply_grade(track, i, gr['cdl'][shot], lut, vig, vignette_geom(plan, it, g.get('vignette_mode', 'gain'))):
                 raise BackendError(f"apply_grade failed on {it['k']}")
     cap, cov = gfx['captions_mov'], gfx['cover_mov']
