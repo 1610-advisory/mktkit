@@ -70,3 +70,9 @@ Post Bridge ([post-bridge.com](https://post-bridge.com)) schedules posts to mult
 - Connected social-account IDs + which platform/handle each is
 - Default posting cadence/times and timezone
 - Whether scheduling is via Post Bridge vs. native vs. Typefully (per client)
+
+## Per-platform options worth knowing (OpenAPI v1.0, re-read 2026-09-30)
+
+- **Instagram `collaborators`:** up to 3 public usernames, invited as co-authors. A private or misspelled handle makes the post fail, so check the handle first. Also available: `user_tags`, `first_comment`, `video_cover_timestamp_ms` (pick the cover frame; for reels that open on a title card, 1000 ms), and `cover_image` (a `media_id`).
+- **YouTube `thumbnail`:** a `media_id` for an image, but it applies only to long, horizontal videos. YouTube ignores custom thumbnails on Shorts. A Short's cover is picked from a frame in the YouTube app after it posts.
+- **PATCH replaces `platform_configurations` as a whole.** To add an Instagram cover to a scheduled post, GET the post, merge your change into its full object, and PATCH that. Otherwise the YouTube title and caption are lost. Check the post again after the PATCH.
