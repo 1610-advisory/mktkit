@@ -2,7 +2,7 @@
 title: "Edit craft: house rules for every cut"
 description: "The editing rules that hold for every business, on both edit routes, and how a reviewer's note becomes a rule here or a value in the business's repo."
 status: active
-last_updated: 2026-09-28
+last_updated: 2026-10-07
 ---
 
 # Edit craft
@@ -14,6 +14,7 @@ Read this before the first cut in a session. Each rule came from a reviewer's no
 ## Rules
 
 1. **Open on the hook.** Read the real transcript (never a summary) and find the grabbiest line: a contrarian setup, a vivid concrete detail, a clean list, a before/after contrast. It is usually in the middle of the take, not at the top. Open the cut on it (the first 2 to 5 s), under the strongest visual. Then play the whole edit through from the top, so the hook line repeats once, in context (reviewer, 2026-09-25: repeat the hook). `cut-video`: `hook.mode: prepend`, `lift_from_spine: false` (the default); in Resolve, prepend the hook and leave the spine whole. Never more than one repeat (`hook.once`). A brief for an outside editor gives the verbatim quote, the source timecode and a runner-up.
+   **In a talking cut, the strongest visual is the speaker on camera, with movement** (walking toward the lens, the camera following, hands working). Do not put a static cutaway under the opening line with the speaker off camera; a walkthrough that opened that way got very poor reach and was re-cut (reviewer, 2026-10-07: "open with [the speaker] talking and some movement"). Pick the hook take where the speaker is on screen and moving. When the hook plays on camera, do not repeat it in context on the same picture: drop the repeat, or cover it with different picture that moves.
 2. **A-roll holds at least 3.0 s.** Never cut back to the speaker for a second between two cutaways. If the gap is shorter, run the cutaways back to back (extend one, or pull the next one earlier). Gate: `cut_check.py aroll`.
 3. **Hide every join.** A spine join sits under a cutaway, at a camera switch, or at a framing change. Two same-angle segments that meet in view get a punch-in: the next segment about 10 to 15% tighter, the eyes on the same pixel, then back to wide on the next join. Not on the first segment. Check the source has the resolution headroom. Resolve detail: `resolve-reel/REFERENCE.md` → Jump cuts. Gate: `cut_check.py aroll`.
 4. **No clipped words.** Word times drift, and low-rate energy maps miss fricatives (the "s" of "house", the "th" of "the"). Check every edge on the full-band 48 kHz audio and on a >2.5 kHz band. Move an out-edge only later and an in-edge only earlier (keep more, never less). Where two words run together with no silence, cut at the quietest 10 ms and give that clip a 1-frame audio fade. Gate: `cut_check.py edges`.
