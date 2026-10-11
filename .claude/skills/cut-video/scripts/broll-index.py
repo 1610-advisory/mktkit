@@ -14,6 +14,11 @@ The sourcing ladder this index serves:
      files under 1 MB are skipped. Photos are the fallback when no exact clip
      exists.
 
+Several roots (e.g. a main drive and an archive drive) may be passed in
+priority order. A mirrored file is indexed once, from the earliest root. On
+--update, an entry whose file moved roots keeps its write-back, and entries
+under a root not passed this run (an unplugged drive) are kept, not dropped.
+
 Exit codes:
   0  success, including --help and --dry-run
   1  usage or processing error
@@ -707,9 +712,14 @@ def resolve_caption(
 
 
 def walk_media(roots: list[Path]) -> list[tuple[Path, Path, str]]:
-    """Return (abs_path, root, rel) for eligible media, sorted by rel."""
+    """Return (abs_path, root, rel) for eligible media, sorted by rel.
+
+    Roots are in priority order. The same rel with the same size under two
+    roots (a mirrored drive) is one file, taken from the earlier root.
+    """
     found: list[tuple[Path, Path, str]] = []
     seen: set[str] = set()
+    seen_rel: set[tuple[str, int]] = set()
     for root in roots:
         root_r = root.resolve()
         for dirpath, dirnames, filenames in os.walk(root_r):
@@ -738,6 +748,9 @@ def walk_media(roots: list[Path]) -> list[tuple[Path, Path, str]]:
                     rel = path.relative_to(root_r).as_posix()
                 except ValueError:
                     rel = name
+                if (rel, size) in seen_rel:
+                    continue
+                seen_rel.add((rel, size))
                 found.append((path, root_r, rel))
     found.sort(key=lambda t: (t[2], t[0].as_posix()))
     return found
@@ -1048,6 +1061,18 @@ def middle_frame(frames: list[dict], duration_s: float | None) -> dict | None:
         return None
     mid = float(duration_s or 0.0) / 2.0
     return min(frames, key=lambda fr: abs(float(fr.get("t") or 0.0) - mid))
+
+
+def strip_live_thumbs(entry: dict, live: set[str]) -> dict:
+    """Copy of entry without thumbs another entry still uses (same head hash)."""
+    out = dict(entry)
+    if out.get("thumb") and str(out["thumb"]) in live:
+        out["thumb"] = None
+    out["frames"] = [
+        fr for fr in (out.get("frames") or [])
+        if not (isinstance(fr, dict) and fr.get("thumb") and str(fr["thumb"]) in live)
+    ]
+    return out
 
 
 def cleanup_entry_thumbs(entry: dict, thumbs_dir: Path | None) -> None:
@@ -1489,6 +1514,13 @@ def main(argv: list[str] | None = None) -> int:
         eprint(f"broll-index: --update but {args.out} is missing; building fresh")
 
     old_by_path = {e.get("path"): e for e in old.get("entries") or [] if e.get("path")}
+    # A file that moved to another root (same rel, size, and head hash) keeps
+    # its entry: descriptions, rejects, vectors, and thumbs.
+    old_by_relsize: dict[tuple[str, int], dict] = {}
+    for e in old.get("entries") or []:
+        if e.get("rel") and e.get("size") is not None and e.get("path"):
+            old_by_relsize.setdefault((e["rel"], int(e["size"])), e)
+    moved_from: set[str] = set()
     project_from = resolve_project_from(args.project_from, roots)
     print(f"[broll-index] project-from: {project_from}")
     clipper = None
@@ -1528,7 +1560,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     entries: list[dict] = []
-    n_kept = n_rescanned = n_new = 0
+    n_kept = n_rescanned = n_new = n_moved = 0
     seen_paths: set[str] = set()
 
     def caption_fields(path: Path) -> tuple[str | None, str | None, str | None]:
@@ -1550,6 +1582,25 @@ def main(argv: list[str] | None = None) -> int:
             continue
         cap, page_title, vof = caption_fields(path)
         prev = old_by_path.get(abs_path)
+        if prev is None and args.update:
+            cand = old_by_relsize.get((rel, int(st.st_size)))
+            if (
+                cand is not None
+                and cand.get("path") != abs_path
+                and cand.get("path") not in moved_from
+                and cand.get("path") not in seen_paths
+                and (not cand.get("sha1_16") or cand.get("sha1_16") == sha1_16(path))
+            ):
+                entry = dict(cand)
+                entry.update({
+                    "path": abs_path, "root": str(root), "rel": rel,
+                    "mtime": st.st_mtime, "caption": cap,
+                    "page_title": page_title, "variant_of": vof,
+                })
+                moved_from.add(cand["path"])
+                entries.append(entry)
+                n_moved += 1
+                continue
         if (
             args.update
             and prev is not None
@@ -1583,14 +1634,36 @@ def main(argv: list[str] | None = None) -> int:
         entries.append(entry)
 
     n_dropped = 0
+    kept_roots: list[str] = []
     if args.update:
-        dropped_entries = [e for p, e in old_by_path.items() if p not in seen_paths]
+        # A run manages only the roots it scans. Entries under a root that is
+        # not in this run (an unplugged drive) are kept as they are.
+        scanned = {str(r) for r in roots}
+        dropped_entries: list[dict] = []
+        n_offline = 0
+        for p, e in old_by_path.items():
+            if p in seen_paths or p in moved_from:
+                continue
+            if e.get("root") and str(e.get("root")) not in scanned:
+                entries.append(e)
+                n_offline += 1
+                if str(e["root"]) not in kept_roots:
+                    kept_roots.append(str(e["root"]))
+                continue
+            dropped_entries.append(e)
         n_dropped = len(dropped_entries)
+        live_thumbs = {
+            str(t) for e in entries
+            for t in [e.get("thumb")] + [
+                fr.get("thumb") for fr in (e.get("frames") or []) if isinstance(fr, dict)
+            ]
+            if t
+        }
         for e in dropped_entries:
-            cleanup_entry_thumbs(e, thumbs_dir)
+            cleanup_entry_thumbs(strip_live_thumbs(e, live_thumbs), thumbs_dir)
         print(
             f"[broll-index] update: kept={n_kept} rescanned={n_rescanned} "
-            f"new={n_new} dropped={n_dropped}"
+            f"new={n_new} moved={n_moved} offline={n_offline} dropped={n_dropped}"
         )
 
     if clip_model_label is None:
@@ -1601,7 +1674,7 @@ def main(argv: list[str] | None = None) -> int:
     index = {
         "schema": SCHEMA,
         "built": iso_now(),
-        "roots": [str(r) for r in roots],
+        "roots": [str(r) for r in roots] + kept_roots,
         "clip_model": clip_model_label,
         "thumbs_dir": str(thumbs_dir) if thumbs_dir is not None else None,
         "video_step_s": float(args.video_step),

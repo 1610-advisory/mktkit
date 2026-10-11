@@ -10,6 +10,10 @@ Exit codes:
   1  usage or processing error
   2  no named footage root is mounted
 
+Every mounted --root is scanned, in order. Catalog keys are relative, so a
+shoot mirrored on two drives is one row, taken from the earlier root. Rows
+from an unmounted root stay in the catalog until that root is mounted again.
+
 --aroll-prefix PREFIX  extra A-roll filename prefix (repeatable). Extends
                        the default tuple (aroll-, cb-, post-).
 --broll-skip-prefix P  forwarded to broll-index.py as --skip-prefix (repeatable).
@@ -339,24 +343,27 @@ def copy_transcript(src: Path, dest: Path, dry_run: bool) -> str | None:
 
 
 def broll_roots_to_pass(index_path: Path, extra: list[Path]) -> list[Path]:
+    """Mounted broll roots: footage roots first, in --root priority order, so
+    a mirrored file is indexed from the main drive; then any other roots the
+    index already knows (e.g. a website image folder)."""
     roots: list[Path] = []
     seen: set[str] = set()
+
+    def add(p: Path) -> None:
+        key = str(p.resolve()) if p.exists() else str(p)
+        if key not in seen and p.exists():
+            roots.append(p)
+            seen.add(key)
+
+    for p in extra:
+        add(p)
     if index_path.exists():
         try:
             data = json.loads(index_path.read_text(encoding="utf-8"))
             for raw in data.get("roots") or []:
-                p = Path(raw)
-                key = str(p)
-                if key not in seen and p.exists():
-                    roots.append(p)
-                    seen.add(key)
+                add(Path(raw))
         except (OSError, json.JSONDecodeError):
             pass
-    for p in extra:
-        key = str(p)
-        if key not in seen and p.exists():
-            roots.append(p)
-            seen.add(key)
     return roots
 
 
@@ -398,7 +405,9 @@ def ingest_shoot(
     transcripts_out: Path,
     ingested_at: str,
     dry_run: bool,
+    skip_rel: set[str] | None = None,
 ) -> list[dict]:
+    """skip_rel: rels already taken from an earlier root (no row, no copy)."""
     rel_shoot = shoot_dir.relative_to(root).as_posix()
     mapping = load_mapping(shoot_dir / "file-mapping.csv")
     shoot_date = shoot_date_from_folder(shoot_dir.name)
@@ -412,6 +421,8 @@ def ingest_shoot(
         word_json: Path | None,
     ) -> None:
         rel = path.relative_to(root).as_posix()
+        if skip_rel is not None and rel in skip_rel:
+            return
         stem = path.stem
         transcript_repo = None
         if transcript_src is not None and transcript_src.exists():
@@ -472,8 +483,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     p.add_argument(
         "--root", action="append", required=True, metavar="NAME=PATH",
-        help="Named footage root. Repeatable. First existing root is used for "
-             "catalog rel paths; all existing roots are eligible. Example: ssd:/Volumes/SSD-01/Jobs",
+        help="Named footage root. Repeatable, in priority order. Every mounted "
+             "root is scanned; a rel found on two roots is cataloged from the "
+             "earlier one. Unmounted roots are skipped. Example: ssd=/Volumes/SSD-01/Jobs"
     )
     p.add_argument("--catalog", type=Path, required=True)
     p.add_argument("--transcripts-out", type=Path, required=True)
@@ -517,8 +529,8 @@ def main(argv: list[str] | None = None) -> int:
         tried = ", ".join(f"{n}={p}" for n, p in named)
         die(f"ingest-footage: no footage root is mounted ({tried})", 2)
 
-    primary_name, primary = existing[0]
-    eprint(f"ingest-footage: using root {primary_name}={primary}")
+    for n, p in existing:
+        eprint(f"ingest-footage: using root {n}={p}")
 
     social_map: dict[str, str] = {}
     if args.social_map is not None:
@@ -534,22 +546,28 @@ def main(argv: list[str] | None = None) -> int:
     if args.dry_run:
         catalog = {}
 
+    # Every mounted root is scanned, in --root order. Keys are relative, so a
+    # shoot mirrored on two drives is one row; the earlier root wins.
     n_new = 0
-    shoots = iter_shoots(primary)
-    eprint(f"ingest-footage: {len(shoots)} shoot folder(s) under {primary_name}")
-    for project_folder, shoot_dir in shoots:
-        social = social_map.get(project_folder, "")
-        rows = ingest_shoot(
-            primary, project_folder, shoot_dir, social, notes,
-            args.transcripts_out, ingested_at, args.dry_run,
-        )
-        for row in rows:
-            if row["kind"] not in KINDS:
-                continue
-            catalog[row["rel"]] = row
-            n_new += 1
-            if args.dry_run:
-                eprint(f"  {row['kind']:13} {row['rel']}")
+    seen_rel: set[str] = set()
+    for root_name, root in existing:
+        shoots = iter_shoots(root)
+        eprint(f"ingest-footage: {len(shoots)} shoot folder(s) under {root_name}")
+        for project_folder, shoot_dir in shoots:
+            social = social_map.get(project_folder, "")
+            rows = ingest_shoot(
+                root, project_folder, shoot_dir, social, notes,
+                args.transcripts_out, ingested_at, args.dry_run,
+                skip_rel=seen_rel,
+            )
+            for row in rows:
+                if row["kind"] not in KINDS:
+                    continue
+                seen_rel.add(row["rel"])
+                catalog[row["rel"]] = row
+                n_new += 1
+                if args.dry_run:
+                    eprint(f"  {row['kind']:13} {row['rel']}")
 
     if args.dry_run:
         eprint(f"ingest-footage: dry-run {n_new} row(s); wrote nothing")

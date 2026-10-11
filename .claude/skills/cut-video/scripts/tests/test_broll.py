@@ -934,6 +934,55 @@ def test_update_keeps_frames(tmp: Path) -> None:
         assert abs(p.stat().st_mtime - mt) < 0.01
 
 
+def test_multi_root_mirror_and_unplugged(tmp: Path) -> None:
+    """Main + archive roots: a mirrored file is indexed once from the main
+    root, keeps its write-back when it moves, and archive-only entries survive
+    a run where the archive is not passed (unplugged)."""
+    main_root = tmp / "mr-main"
+    archive = tmp / "mr-archive"
+    rel_m = Path("2026_Job_A") / "2026-01-01" / "Photos" / "_edited" / "mirror.png"
+    rel_a = Path("2026_Job_B") / "2026-01-02" / "Photos" / "_edited" / "old-only.png"
+    make_still(archive / rel_m, 900, 700, (90, 60, 40), 11, "mirror")
+    make_still(archive / rel_a, 900, 700, (40, 60, 90), 12, "old")
+    out = tmp / "mr-index.json"
+    thumbs = tmp / "mr-thumbs"
+    base = ["--out", str(out), "--thumbs", str(thumbs)]
+    run(INDEX_PY, ["--root", str(archive), *base])
+    idx = load_json(out)
+    for e in idx["entries"]:
+        if e["rel"] == rel_m.as_posix():
+            e["descriptions"] = ["verified subject"]
+    out.write_text(json.dumps(idx), encoding="utf-8")
+
+    # The same file now also lives on the main drive (a copy: new mtime).
+    (main_root / rel_m).parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(archive / rel_m, main_root / rel_m)
+    r = run(INDEX_PY, ["--root", str(main_root), "--root", str(archive), *base, "--update"])
+    assert "moved=1" in r.stdout and "dropped=0" in r.stdout, r.stdout
+    idx = load_json(out)
+    by_rel = Counter(e["rel"] for e in idx["entries"])
+    assert by_rel[rel_m.as_posix()] == 1, by_rel
+    m = next(e for e in idx["entries"] if e["rel"] == rel_m.as_posix())
+    assert m["path"].startswith(str(main_root.resolve())), m["path"]
+    assert m["descriptions"] == ["verified subject"]
+    assert m.get("thumb") and Path(m["thumb"]).is_file()
+
+    # Archive unplugged: only the main root is passed. Nothing is dropped.
+    r = run(INDEX_PY, ["--root", str(main_root), *base, "--update"])
+    assert "offline=1" in r.stdout and "dropped=0" in r.stdout, r.stdout
+    idx = load_json(out)
+    rels = {e["rel"] for e in idx["entries"]}
+    assert rels == {rel_m.as_posix(), rel_a.as_posix()}, rels
+    a = next(e for e in idx["entries"] if e["rel"] == rel_a.as_posix())
+    assert a.get("thumb") and Path(a["thumb"]).is_file()
+    assert str(archive.resolve()) in idx["roots"], idx["roots"]
+
+    # A file deleted from a scanned root is still dropped.
+    (main_root / rel_m).unlink()
+    r = run(INDEX_PY, ["--root", str(main_root), *base, "--update"])
+    assert "dropped=1" in r.stdout, r.stdout
+
+
 def main() -> int:
     test_help()
     test_prefix_table()
@@ -963,6 +1012,7 @@ def main() -> int:
         test_video_frame_sampling(tmp)
         test_raw_clip_exclusions(tmp)
         test_update_keeps_frames(tmp)
+        test_multi_root_mirror_and_unplugged(tmp)
     print("all tests passed")
     return 0
 

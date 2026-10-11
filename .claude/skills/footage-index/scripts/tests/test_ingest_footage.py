@@ -179,12 +179,51 @@ def test_upsert_replaces_same_rel() -> None:
         assert len(rels) == len(set(rels))
 
 
+def test_multi_root_priority_and_unmounted() -> None:
+    """Every mounted root is scanned; a mirrored rel comes from the earlier
+    root (its transcript wins); rows from an unmounted root are kept."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        main_root = tmp_path / "main"
+        archive = tmp_path / "archive"
+        fixture(archive)
+        fixture(main_root)
+        write(main_root / "2026_Acme_Kitchen" / "2026-08-17" / "Audio"
+              / "ARoll-Walkthrough-PRIMARY.txt", "corrected on the main drive")
+        old = archive / "2025_Old_Bath" / "2025-05-01"
+        mp4(old / "Video" / "BRoll-Tile.MP4")
+        new = main_root / "2026_New_Job" / "2026-10-01"
+        mp4(new / "Video" / "BRoll-Demo.MP4")
+        catalog = tmp_path / "catalog.jsonl"
+        transcripts = tmp_path / "audio"
+        common = [
+            "--catalog", str(catalog),
+            "--transcripts-out", str(transcripts),
+            "--content-index-out", str(tmp_path / "content-index.md"),
+            "--skip-broll",
+        ]
+        run(["--root", f"main={main_root}", "--root", f"archive={archive}", *common])
+        rows = [json.loads(line) for line in catalog.read_text().splitlines() if line]
+        rels = [row["rel"] for row in rows]
+        assert len(rels) == len(set(rels)), rels
+        assert "2025_Old_Bath/2025-05-01/Video/BRoll-Tile.MP4" in rels
+        assert "2026_New_Job/2026-10-01/Video/BRoll-Demo.MP4" in rels
+        txt = transcripts / "2026_Acme_Kitchen" / "2026-08-17" / "ARoll-Walkthrough-PRIMARY.txt"
+        assert txt.read_text() == "corrected on the main drive"
+
+        # Archive unplugged: its rows stay; the main root still ingests.
+        run(["--root", f"main={main_root}", "--root", f"archive={tmp_path / 'gone'}", *common])
+        rels2 = {json.loads(line)["rel"] for line in catalog.read_text().splitlines() if line}
+        assert set(rels) == rels2
+
+
 if __name__ == "__main__":
     tests = [
         test_missing_root_exits_2,
         test_ingest_fixture,
         test_dry_run_writes_nothing,
         test_upsert_replaces_same_rel,
+        test_multi_root_priority_and_unmounted,
     ]
     failed = 0
     for fn in tests:
