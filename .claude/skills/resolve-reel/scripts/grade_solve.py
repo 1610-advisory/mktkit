@@ -19,11 +19,12 @@ output set to DWG/DI, no grade on the clip) and a grade.json:
   }
 }
 
-Precedence for every setting: grade.json > the client's reel style profile "resolve"."grade" block
-(--style) > the defaults below. Boxes are 1080x1920 timeline pixels; stills paths are
-relative to grade.json. Writes cdl.json next to grade.json (slope, offset R G B, sat per
-shot) ready for TimelineItem.SetCDL. `manual_wb` (linear gains) skips the automatic
-neutral search for shots lit by one colored source.
+Precedence for every setting: grade.json > by_camera[shot input] in the style "resolve"."grade"
+block (--style) > the rest of that block > the defaults below. A shot's input is shot["input"]
+(or the inputs argument), else the style camera_input. look is not per camera. Boxes are
+1080x1920 timeline pixels; stills paths are relative to grade.json. Writes cdl.json next to
+grade.json (slope, offset R G B, sat per shot) ready for TimelineItem.SetCDL. `manual_wb`
+(linear gains) skips the automatic neutral search for shots lit by one colored source.
 
     python3 grade_solve.py path/to/grade.json [--style client/resources/reel-style.json]
 Needs numpy + tifffile.
@@ -47,16 +48,24 @@ def Y(x):
     return x @ LW
 
 
-def settings(cfg, style_path=None, base=None):
-    """grade.json > client style profile "grade" block > DEFAULTS."""
+def style_grade(style_path):
+    sty = json.loads(Path(style_path).read_text())
+    return (sty.get('resolve') or {}).get('grade') or sty.get('grade') or {}
+
+
+def settings(cfg, style_path=None, base=None, camera=None):
+    """grade.json > by_camera[camera] > style grade > DEFAULTS. look is not per camera."""
     s = dict(DEFAULTS)
     if style_path:
-        sty = json.loads(Path(style_path).read_text())
-        g = (sty.get('resolve') or {}).get('grade') or sty.get('grade') or {}
-        root = Path(style_path).resolve().parents[1]           # <client>/resources/reel-style.json
+        g = style_grade(style_path)
+        root = Path(style_path).resolve().parents[1]           # <business>/resources/reel-style.json
         if g.get('look_profile'):
             s['look'] = str((root / g['look_profile']).resolve())
         s.update({k: v for k, v in g.items() if k in DEFAULTS and k != 'look'})
+        by = g.get('by_camera') if isinstance(g.get('by_camera'), dict) else {}
+        ov = by.get(camera) if camera else None
+        if isinstance(ov, dict):
+            s.update({k: v for k, v in ov.items() if k in DEFAULTS and k != 'look' and v is not None})
     s.update({k: v for k, v in cfg.items() if k in DEFAULTS and k != 'look' and v is not None})
     if cfg.get('look'):                                      # preset name, or a path relative to grade.json
         s['look'] = cfg['look'] if (base is None or not (base / cfg['look']).exists()) else str(base / cfg['look'])
@@ -85,22 +94,24 @@ def crop(di, b):
     return di[y0:y1:2, x0:x1:2].reshape(-1, 3)
 
 
-def solve(cfg_path, style_path=None, look_override=None, write=True, quiet=False):
+def solve(cfg_path, style_path=None, look_override=None, write=True, quiet=False, inputs=None):
     cfg_path = Path(cfg_path)
     cfg, base = json.loads(cfg_path.read_text()), cfg_path.parent
-    st = settings(cfg, style_path, base)
-    p = load_look(look_override or st['look'])
-    sat, face_t, black, pivot = st['sat'], st['face_ire'] / 100, st['black_code'] / 255, st['pivot']
+    st0 = settings(cfg, style_path, base)                    # look is shared; exposure is per shot
+    p = load_look(look_override or st0['look'])
+    style_cam = style_grade(style_path).get('camera_input') if style_path else None
+    inputs = inputs or {}
 
-    def cdlsat(x):
+    def render(arr, s, off, sat):
+        x = np.clip(arr * s + off, 0, 1)
         l = Y(x)[..., None]
-        return np.clip(l + sat * (x - l), 0, 1)
-
-    def render(arr, s, off):
-        return to_display(look(cdlsat(np.clip(arr * s + off, 0, 1)), p))
+        return to_display(look(np.clip(l + sat * (x - l), 0, 1), p))
 
     out, stills_of = {}, {}
     for shot, sc in cfg['shots'].items():
+        cam = inputs.get(shot) or sc.get('input') or style_cam
+        st = settings(cfg, style_path, base, camera=cam)
+        sat, face_t, black, pivot = st['sat'], st['face_ire'] / 100, st['black_code'] / 255, st['pivot']
         stills = [tf.imread(base / f).astype(float) / 65535 for f in sc['stills']]
         stills_of[shot] = stills
         g = np.array(sc['manual_wb'], float) if 'manual_wb' in sc else wb_gains(stills, st['wb_target_709'])
@@ -109,15 +120,15 @@ def solve(cfg_path, style_path=None, look_override=None, write=True, quiet=False
         samp = np.concatenate([d.reshape(-1, 3)[rng.choice(d.shape[0] * d.shape[1], 8000, replace=False)] for d in stills])
         if 'faces' in sc:
             target = face_t
-            def measure(s, off, sc=sc, stills=stills):
-                return np.mean([np.percentile(Y(render(crop(stills[i], b), s, off)), 98) for i, b in sc['faces']])
+            def measure(s, off, sc=sc, stills=stills, sat=sat):
+                return np.mean([np.percentile(Y(render(crop(stills[i], b), s, off, sat)), 98) for i, b in sc['faces']])
         else:
             m = sc['match_wall']
             ref = out[m['ref_shot']]
             ref_px = crop(stills_of[m['ref_shot']][m.get('ref_still', 0)], m['ref_box'])
-            target = float(np.median(Y(render(ref_px, ref['slope'], np.array(ref['offset'])))))
-            def measure(s, off, m=m, stills=stills):
-                return float(np.median(Y(render(crop(stills[0], m['box']), s, off))))
+            target = float(np.median(Y(render(ref_px, ref['slope'], np.array(ref['offset']), ref['sat']))))
+            def measure(s, off, m=m, stills=stills, sat=sat):
+                return float(np.median(Y(render(crop(stills[0], m['box']), s, off, sat))))
         best = None
         # slope_min: underexposed log can crush its shadows even at 0.75 (a dark shower shot at
         # about -2 stops kept p1 at 0.1 code); let such a shot trade contrast for shadow detail.
@@ -127,7 +138,7 @@ def solve(cfg_path, style_path=None, look_override=None, write=True, quiet=False
                 e = (lo + hi) / 2
                 lo, hi = (e, hi) if measure(s, wb + e + (1 - s) * pivot) < target else (lo, e)
             off = wb + e + (1 - s) * pivot
-            p1 = np.percentile(Y(render(samp, s, off)), 1)
+            p1 = np.percentile(Y(render(samp, s, off, sat)), 1)
             if best is None or abs(p1 - black) < best[0]:    # contrast: 1st pct at the black code
                 best = (abs(p1 - black), s, off, p1, measure(s, off))
         _, s, off, p1, v = best

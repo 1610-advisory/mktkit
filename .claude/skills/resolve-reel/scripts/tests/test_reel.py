@@ -191,6 +191,8 @@ def test_build_dry_run_plans_resolve_calls(media, tmp_path, monkeypatch):
     assert st['tilt'] == -30.0
     ag = [c[1] for c in b['resolve_calls'] if c[0] == 'apply_grade']
     assert ag[1]['geom']['w'] < 1.35 and ag[0]['geom']['w'] == 1.35          # vignette follows the punch-in
+    assert all(c.get('drx') is None for c in ag)                             # no post_drx: same calls as before
+    assert all(not (c.get('override')) for c in (b['resolve']['grade'].get('cameras') or {}).values())
     assert Path(b['graphics']['captions_mov']).exists() and Path(b['graphics']['cover_mov']).exists()
     assert (tmp_path / 'piece' / '.reel-cache' / '.gitignore').read_text() == '*\n'
     assert b['gates']['aroll'].startswith('ok')
@@ -442,6 +444,223 @@ def test_help_lists_subcommands():
     assert r.returncode == 0 and all(s in r.stdout for s in ('prep', 'build', 'qa', 'lock'))
     r = cli('build', '--help')
     assert '"spine"' in r.stdout and '"punches"' in r.stdout
+
+
+def write_style(tmp, media, **grade):
+    style = json.loads(Path(media['style']).read_text())
+    style['resolve']['grade'].update(grade)
+    p = Path(tmp) / 'resources' / 'reel-style.json'
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(style))
+    return p, style
+
+
+def load_grade_solve():
+    pytest.importorskip('numpy')
+    return reel.grade_solve_mod()
+
+
+def test_settings_precedence_by_camera(tmp_path):
+    gs = load_grade_solve()
+    assert reel.GRADE_OVERRIDE_KEYS == tuple(k for k in gs.DEFAULTS if k != 'look')
+    style = {
+        'resolve': {'grade': {
+            'camera_input': 'Canon Cinema Gamut/Canon Log 3', 'face_ire': 55, 'sat': 0.68, 'black_code': 14,
+            'by_camera': {
+                'Apple Log 2': {'face_ire': 62, 'sat': 0.80, 'pivot': 0.35, 'look': 'bold', 'vignette': 0.2},
+                'Canon Cinema Gamut/Canon Log 3': {'black_code': 10, 'wb_target_709': [1.0, 1.0, 1.0]},
+            }}},
+    }
+    sp = tmp_path / 'resources' / 'reel-style.json'
+    sp.parent.mkdir()
+    sp.write_text(json.dumps(style))
+    plain = gs.settings({}, sp)
+    assert plain['face_ire'] == 55 and plain['sat'] == 0.68 and plain['black_code'] == 14
+    assert plain['pivot'] == 0.40 and plain['look'] is None
+    apple = gs.settings({}, sp, camera='Apple Log 2')
+    assert apple['face_ire'] == 62 and apple['sat'] == 0.80 and apple['pivot'] == 0.35
+    assert apple['black_code'] == 14 and apple['look'] is None and 'vignette' not in apple
+    canon = gs.settings({}, sp, camera='Canon Cinema Gamut/Canon Log 3')
+    assert canon['black_code'] == 10 and canon['wb_target_709'] == [1.0, 1.0, 1.0]
+    assert canon['face_ire'] == 55 and canon['sat'] == 0.68
+    won = gs.settings({'face_ire': 50, 'sat': 0.55}, sp, camera='Apple Log 2')
+    assert won['face_ire'] == 50 and won['sat'] == 0.55 and won['pivot'] == 0.35   # grade.json beats by_camera
+    other = gs.settings({}, sp, camera='Rec.709 Gamma 2.4')
+    assert other['face_ire'] == 55 and other['sat'] == 0.68 and other['black_code'] == 14
+    bare = tmp_path / 'resources' / 'bare.json'
+    bare.write_text(json.dumps({'resolve': {'grade': {'face_ire': 51, 'sat': 0.66}}}))
+    assert gs.settings({}, bare) == gs.settings({}, bare, camera='Apple Log 2')    # no by_camera: unchanged
+
+
+def test_shot_input_selects_override_per_shot():
+    plan = {
+        'clips': {'C1': {}, 'C2': {'input': 'Apple Log 2'}, 'C3': {}},
+        'probes': {'C1': {'tagged_input': 'Rec.709 Gamma 2.4'}, 'C2': {'tagged_input': 'Rec.709 Gamma 2.4'},
+                   'C3': {}},
+        'spine': [{'k': 'H', 'clip': 'C1'}, {'k': 'K1', 'clip': 'C3'}],
+        'punches': [{'k': 'P1', 'clip': 'C2'}],
+    }
+    shots = {'A': {'items': ['H']}, 'B': {'items': ['K1']}, 'BR': {'items': ['P1']}}
+    grade = {'camera_input': 'Canon Cinema Gamut/Canon Log 3', 'by_camera': {
+        'Rec.709 Gamma 2.4': {'sat': 1.0}, 'Apple Log 2': {'sat': 0.8},
+        'Canon Cinema Gamut/Canon Log 3': {'sat': 0.5}}}
+    cams = reel.shot_cameras(plan, shots, grade)
+    assert cams['A']['input'] == 'Rec.709 Gamma 2.4' and cams['A']['override']['sat'] == 1.0   # tag beats style
+    assert cams['BR']['input'] == 'Apple Log 2' and cams['BR']['override']['sat'] == 0.8       # clip input beats tag
+    assert cams['B']['input'] == 'Canon Cinema Gamut/Canon Log 3' and cams['B']['override']['sat'] == 0.5
+    shots['A']['items'] = ['H', 'P1']
+    with pytest.raises(reel.GateError, match='mixes input'):
+        reel.shot_cameras(plan, shots, grade)
+    assert reel.shot_cameras(plan, shots, {'camera_input': 'Canon Cinema Gamut/Canon Log 3'})['A']['input']
+
+
+def test_solve_grade_uses_each_cameras_settings(media, tmp_path):
+    gs = load_grade_solve()
+    pytest.importorskip('tifffile')
+    sp, style = write_style(tmp_path, media, by_camera={
+        'Apple Log 2': {'face_ire': 62, 'sat': 0.80},
+        'Canon Cinema Gamut/Canon Log 3': {'sat': 0.50, 'black_code': 10},
+    })
+    doc = edit_doc(media)
+    doc['clips']['C1']['input'] = 'Apple Log 2'
+    doc['clips']['C2']['input'] = 'Canon Cinema Gamut/Canon Log 3'
+    doc['grade']['face_ire'] = 48                                            # grade.json beats by_camera 62
+    ep = write_edit(tmp_path / 'mix', doc)
+    plan = reel.normalize(doc, ep, style)
+    rec = reel.solve_grade(doc, plan, style, str(sp), fake_backend(tmp_path, {'on': False}),
+                           tmp_path / 'mix' / '.reel-cache', False)
+    assert rec['cdl']['A']['sat'] == 0.80 and rec['cdl']['BR']['sat'] == 0.50
+    assert abs(rec['cdl']['A']['anchor_ire'] - 48) < 2          # grade.json face_ire, not by_camera 62
+    assert rec['cameras']['A']['input'] == 'Apple Log 2' and rec['cameras']['A']['override']['face_ire'] == 62
+    assert rec['cameras']['BR']['override']['sat'] == 0.50 and 'face_ire' not in rec['cameras']['BR']['override']
+    assert gs.settings({'face_ire': 48}, sp, camera='Apple Log 2')['sat'] == 0.80
+    assert gs.settings({'face_ire': 48}, sp, camera='Canon Cinema Gamut/Canon Log 3')['sat'] == 0.50
+
+
+def test_prep_line_names_camera_overrides():
+    style = {'resolve': {'grade': {
+        'camera_input': 'Canon Cinema Gamut/Canon Log 3', 'voice_gain_db': 4,
+        'by_camera': {'Apple Log 2': {'face_ire': 62, 'sat': 0.8},
+                      'Canon Cinema Gamut/Canon Log 3': {'black_code': 10}}}}}
+    clip = {'name': 'a.mp4', 'path': '/tmp/a.mp4', 'width': 1920, 'height': 1080, 'vcodec': 'hevc',
+            'pix_fmt': 'yuv422p10le', 'fps': 29.97, 'duration': 4.0, 'rotation': 0, 'words': None,
+            'phrases': [], 'valleys': [], 'sheet': None, 'tagged_input': 'Apple Log 2'}
+    md = reel.prep_markdown({'work': '/tmp/piece', 'clips': {'C1': clip}}, style)
+    line = next(ln for ln in md.splitlines() if ln.startswith('Style: camera'))
+    assert 'camera `Canon Cinema Gamut/Canon Log 3`' in line
+    assert 'C1 `Apple Log 2` face_ire 62, sat 0.8' in line
+    bits = reel.grade_shot_bits({'cdl': {'A': {'slope': 1.1, 'anchor_ire': 48.0}, 'BR': {'slope': 0.9}},
+                                 'cameras': {'A': {'input': 'Apple Log 2', 'override': {'face_ire': 62, 'sat': 0.8}},
+                                             'BR': {'input': 'Canon Cinema Gamut/Canon Log 3', 'override': {}}}})
+    assert 'A slope 1.1 face 48.0 [Apple Log 2: face_ire 62, sat 0.8]' in bits
+    assert 'BR slope 0.9 face -' in bits and 'Canon' not in bits.split('BR', 1)[1]
+
+
+def test_dry_run_post_drx_and_per_shot_override(media, tmp_path):
+    drx = tmp_path / 'resources' / 'video-pipeline' / 'house.drx'
+    drx.parent.mkdir(parents=True)
+    drx.write_bytes(b'drx')
+    sp, _style = write_style(tmp_path, media, post_drx='resources/video-pipeline/house.drx', by_camera={
+        'Apple Log 2': {'face_ire': 62, 'sat': 0.8},
+        'Canon Cinema Gamut/Canon Log 3': {'black_code': 10},
+    })
+    doc = edit_doc(media)
+    doc['clips']['C1']['input'] = 'Apple Log 2'
+    doc['clips']['C2']['input'] = 'Canon Cinema Gamut/Canon Log 3'
+    ep = write_edit(tmp_path / 'piece', doc)
+    r = cli('build', '--edit', ep, '--style', sp, '--version', 'v1', '--dry-run')
+    assert r.returncode == 0, r.stdout + r.stderr
+    b = json.loads((tmp_path / 'piece' / 'build-v1.json').read_text())
+    ag = [c[1] for c in b['resolve_calls'] if c[0] == 'apply_grade']
+    assert ag and all(c['drx'] == str(drx.resolve()) for c in ag)
+    assert 'post_drx x3' in r.stdout
+    cams = b['resolve']['grade']['cameras']
+    assert cams['A']['input'] == 'Apple Log 2' and cams['A']['override']['face_ire'] == 62
+    assert cams['BR']['input'] == 'Canon Cinema Gamut/Canon Log 3' and cams['BR']['override']['black_code'] == 10
+    assert 'Apple Log 2: face_ire 62, sat 0.8' in r.stdout
+    assert 'Canon Cinema Gamut/Canon Log 3: black_code 10' in r.stdout
+
+
+def test_missing_post_drx_stops_before_resolve(media, tmp_path):
+    sp, _style = write_style(tmp_path, media, post_drx='resources/video-pipeline/missing.drx')
+    ep = write_edit(tmp_path / 'piece', edit_doc(media))
+    r = cli('build', '--edit', ep, '--style', sp, '--version', 'v1', '--dry-run')
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert 'post_drx not found' in r.stdout
+    assert 'graphics:' not in r.stdout and 'connect' not in r.stdout
+    b = json.loads((tmp_path / 'piece' / 'build-v1.json').read_text())
+    assert b['status'] == 'gate-fail' and 'post_drx not found' in b['error'] and 'resolve' not in b
+    fails = [ln for ln in r.stdout.splitlines() if ln.startswith('FAIL')]
+    assert len(fails) == 1
+
+
+def test_apply_grade_loads_drx_then_node1(tmp_path):
+    spec = importlib.util.spec_from_file_location('resolve_ops_under_test', HERE.parent / 'resolve_ops.py')
+    ops = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ops)
+    calls = []
+
+    class Graph:
+        def ApplyGradeFromDRX(self, path, mode):
+            calls.append(('drx', path, mode))
+            return self.ok_drx
+
+        def SetLUT(self, idx, lut):
+            calls.append(('lut', idx, lut))
+            return self.ok_lut
+
+    class Tool:
+        def SetInput(self, *a, **k):
+            return None
+
+        def ConnectInput(self, *a, **k):
+            return None
+
+    class Comp:
+        def FindTool(self, name):
+            return Tool()
+
+        def AddTool(self, *a, **k):
+            return Tool()
+
+    class Item:
+        def __init__(self):
+            self.graph = Graph()
+            self.graph.ok_drx = True
+            self.graph.ok_lut = True
+            self.ok_cdl = True
+
+        def GetNodeGraph(self):
+            return self.graph
+
+        def SetCDL(self, d):
+            calls.append(('cdl', d['NodeIndex']))
+            return self.ok_cdl
+
+        def AddFusionComp(self):
+            calls.append(('fusion',))
+            return Comp()
+
+    cdl = {'slope': 1.2, 'offset': [0.1, 0.0, -0.1], 'sat': 0.68}
+    drx = tmp_path / 'house.drx'
+    drx.write_bytes(b'drx')
+    item = Item()
+    assert ops.apply_grade(item, cdl, 'Test/house.cube', 0.035, str(drx)) is True
+    assert [c[0] for c in calls] == ['drx', 'cdl', 'lut', 'fusion']
+    assert calls[0][1:] == (str(drx), 0) and calls[1][1] == '1' and calls[2][1:] == (1, 'Test/house.cube')
+    missing = tmp_path / 'nope.drx'
+    with pytest.raises(RuntimeError, match='post_drx missing'):
+        ops.apply_grade(Item(), cdl, 'Test/house.cube', 0, str(missing))
+    item.graph.ok_drx = False
+    with pytest.raises(RuntimeError, match='ApplyGradeFromDRX failed'):
+        ops.apply_grade(item, cdl, 'Test/house.cube', 0, str(drx))
+    item.graph.ok_drx = True
+    item.ok_cdl = False
+    with pytest.raises(RuntimeError, match='node 1 did not take CDL/LUT'):
+        ops.apply_grade(item, cdl, 'Test/house.cube', 0, str(drx))
+    bare = Item()
+    bare.ok_cdl = False
+    assert ops.apply_grade(bare, cdl, 'Test/house.cube', 0) is False          # no DRX: still a false, not a raise
 
 
 def test_lock_same_owner_other_live_pid_queues(tmp_path, monkeypatch):

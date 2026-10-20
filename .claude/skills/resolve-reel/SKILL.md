@@ -29,6 +29,8 @@ Load the business's pack first (`mkt-kit`). Read `references/edit-craft.md` (too
 |---|---|---|
 | Fonts, colors, caption size, cover spec, platforms | `resources/reel-style.json` (shape: `../cut-video/resources/style.example.json`) | Ask; fonts from `knowledge/DESIGN.md` (no stock-font fallback) |
 | Grade choices: camera input, look, face IRE, WB target, vignette, voice gain; cover shadow | `reel-style.json` → `resolve.grade` block (+ `resolve.cover_shadow`) | Skill defaults (below) and say so |
+| Per-camera grade overrides | `resolve.grade.by_camera`: input color space name → `face_ire`, `sat`, `black_code`, `wb_target_709` (not `look`) | None; every shot uses the style grade |
+| Post-grade node template | `resolve.grade.post_drx`: repo-root-relative `.drx` (node 1 placeholder, node 2+ add-ons; recipe in REFERENCE.md) | None; CDL + LUT + vignette only |
 | The look itself | `grade.look_profile`, e.g. `resources/video-pipeline/look.json` (shape: `resources/look.example.json`) | Run a look review (step 0) |
 | The LUT file Resolve loads | `grade.lut_resolve` (inside Resolve's LUT folder) + the repo copy under `resources/video-pipeline/luts/` | Generate it: `dwg_look.py write` |
 | Business-specific notes, decisions, hashes | `resources/video-pipeline/RESOLVE-PLAYBOOK.md` or `README.md` | None needed |
@@ -37,7 +39,7 @@ Load the business's pack first (`mkt-kit`). Read `references/edit-craft.md` (too
 
 `grade.*` below means `resolve.grade.*` in the business's `reel-style.json` (cut-video's renderer ignores the `resolve` block).
 
-**Defaults (the middle, used only when the business has not set a value):** look `clean`, face highlight 55 IRE, black point code 14, CDL saturation 0.68, WB target Rec.709 lin 1.02 : 1 : 0.97 (slightly warm), vignette 0.035, captions 64 px, cover shadow 0 2px 24px 45%, platforms IG Reels + Shorts + TikTok.
+**Defaults (the middle, used only when the business has not set a value):** look `clean`, face highlight 55 IRE, black point code 14, CDL saturation 0.68, WB target Rec.709 lin 1.02 : 1 : 0.97 (slightly warm), vignette 0.035, captions 64 px, cover shadow 0 2px 24px 45%, platforms IG Reels + Shorts + TikTok. No `by_camera` overrides and no `post_drx` unless the business sets them.
 
 ## Files
 

@@ -97,7 +97,9 @@ TL_W, TL_H = 1080, 1920
 LOCK_MAX_AGE_S = 4 * 3600
 DI_PER_STOP = 0.07329          # DaVinci Intermediate code per stop (vignette gain math)
 GRADE_DEFAULTS = {'camera_input': None, 'lut_resolve': None, 'vignette': 0.035, 'voice_gain_db': 4.0,
-                  'vignette_mode': 'gain'}
+                  'vignette_mode': 'gain', 'post_drx': None}
+# grade_solve.DEFAULTS except look: a by_camera entry may override these, never the look
+GRADE_OVERRIDE_KEYS = ('face_ire', 'black_code', 'sat', 'wb_target_709', 'pivot')
 
 
 class GateError(Exception):
@@ -215,6 +217,68 @@ def probe(path):
         out.update({'audio_rate': int(a.get('sample_rate') or 0), 'audio_ch': a.get('channels'),
                     'acodec': a.get('codec_name')})
     return out
+
+
+def clip_space(plan, cid, camera_input):
+    """Effective Resolve input: edit.json input, else the file's tagged input, else camera_input."""
+    c = (plan.get('clips') or {}).get(cid) or {}
+    return c.get('input') or (plan.get('probes') or {}).get(cid, {}).get('tagged_input') or camera_input
+
+
+def override_for(grade, space):
+    by = grade.get('by_camera') if isinstance(grade, dict) else None
+    if not isinstance(by, dict) or not space:
+        return {}
+    ov = by.get(space)
+    if not isinstance(ov, dict):
+        return {}
+    return {k: ov[k] for k in GRADE_OVERRIDE_KEYS if k in ov and ov[k] is not None}
+
+
+def override_text(ov):
+    return ', '.join(f'{k} {ov[k]}' for k in ov) if ov else ''
+
+
+def grade_shot_bits(gr):
+    bits = []
+    for n, c in (gr.get('cdl') or {}).items():
+        bit = f"{n} slope {c.get('slope')} face {c.get('anchor_ire', '-')}"
+        cam = (gr.get('cameras') or {}).get(n) or {}
+        ov = cam.get('override') or {}
+        if ov:
+            bit += f" [{cam.get('input')}: " + ', '.join(f'{k} {ov[k]}' for k in ov) + ']'
+        bits.append(bit)
+    return ', '.join(bits)
+
+
+def shot_cameras(plan, shots, grade):
+    """{shot: {input, override}} from each shot's clips. A shot that mixes spaces is a gate error."""
+    cam = (grade or {}).get('camera_input')
+    by_k = {it['k']: it for it in plan['spine'] + plan['punches']}
+    out = {}
+    for name, sh in shots.items():
+        spaces = []
+        for k in sh.get('items') or []:
+            it = by_k.get(k)
+            if not it:
+                continue
+            sp = clip_space(plan, it['clip'], cam)
+            if sp not in spaces:
+                spaces.append(sp)
+        if len(spaces) > 1 and (grade or {}).get('by_camera'):
+            raise GateError(f"grade: shot {name} mixes input spaces ({', '.join(map(str, spaces))}); split the shot")
+        space = spaces[0] if spaces else cam
+        out[name] = {'input': space, 'override': override_for(grade, space)}
+    return out
+
+
+def post_drx_path(grade, style_path):
+    """Absolute path of resolve.grade.post_drx, relative to the business repo root (like look_profile)."""
+    post = (grade or {}).get('post_drx')
+    if not post:
+        return None
+    root = Path(style_path).resolve().parents[1]
+    return (root / post).resolve()
 
 
 def tagged_input(transfer):
@@ -418,10 +482,22 @@ def prep_markdown(prep, style):
     cap, cov = style.get('captions') or {}, style.get('cover') or {}
     L = [f"# Prep: {Path(prep['work']).name}", '']
     if style:
+        used = []
+        for cid, c in prep['clips'].items():
+            eff = c.get('tagged_input') or g.get('camera_input')
+            note = override_text(override_for(g, eff))
+            if note:
+                used.append(f"{cid} `{eff}` {note}")
+        over = (' Grade overrides: ' + '; '.join(used) + '.') if used else ''
+        if not over and isinstance(g.get('by_camera'), dict) and g.get('by_camera'):
+            mapped = [f"`{sp}` {override_text(override_for(g, sp))}" for sp in g['by_camera']
+                      if override_text(override_for(g, sp))]
+            over = (' by_camera ' + '; '.join(mapped) + '.') if mapped else ''
         L.append(f"Style: camera `{g.get('camera_input')}`, captions {cap.get('size')} px "
                  f"{cap.get('placement', '')}, cover {cov.get('seconds', 2.0)} s {cov.get('case', '')}, "
                  f"platforms {', '.join(style.get('platforms') or [])}, voice gain {g.get('voice_gain_db')} dB, "
-                 f"banned-words list: {'yes' if (style.get('qa') or {}).get('banned_words_file') else 'no'}.")
+                 f"banned-words list: {'yes' if (style.get('qa') or {}).get('banned_words_file') else 'no'}."
+                 f"{over}")
     L += ['Times are source seconds (frame = s x fps). `~` lines are silence valleys on the 48 kHz full band',
           'AND the >2.5 kHz band, >= 120 ms, as `start-end (dB)`: the only safe audio edges (edit-craft',
           'rule 4). An in-edge may move only earlier, an out-edge only later. `?` = low-confidence words',
@@ -1110,10 +1186,13 @@ class ResolveBackend:
     def export_stills(self, frames, out_dir):
         return self.ops['export_di_stills'](self.p, self.tl, frames, str(out_dir))
 
-    def apply_grade(self, track, idx, cdl, lut, vignette, geom):
+    def apply_grade(self, track, idx, cdl, lut, vignette, geom, drx=None):
         it = self._item(track, idx)
         mode = geom.get('mode', 'gain')
-        ok = self.ops['apply_grade'](it, cdl, lut, vignette if mode == 'brightness' else 0)
+        try:
+            ok = self.ops['apply_grade'](it, cdl, lut, vignette if mode == 'brightness' else 0, drx)
+        except RuntimeError as e:
+            raise BackendError(str(e)) from e
         if vignette and mode != 'brightness':
             ok &= self._vignette_gain(it, cdl['slope'], vignette, geom)
         return bool(ok)
@@ -1216,9 +1295,9 @@ class FakeBackend:
             ok[n] = True
         return ok
 
-    def apply_grade(self, track, idx, cdl, lut, vignette, geom):
+    def apply_grade(self, track, idx, cdl, lut, vignette, geom, drx=None):
         self._c('apply_grade', track=track, idx=idx, slope=cdl.get('slope'), lut=lut, vignette=vignette,
-                geom=geom)
+                geom=geom, drx=drx)
         return True
 
     def add_graphics(self, captions_mov, cover_mov, frames, cover_frames):
@@ -1360,8 +1439,8 @@ def solve_grade(edit, plan, style, style_path, backend, cache, dry):
     stills = {n: f for sh in shots.values() for n, f in sh['stills'].items()}
     content = {n: still_content(plan, f) for n, f in stills.items()}
     cam = g.get('camera_input')
-    inputs = {cid: c.get('input') or (plan.get('probes', {}).get(cid) or {}).get('tagged_input') or cam
-              for cid, c in plan['clips'].items()}
+    cameras = shot_cameras(plan, shots, g)
+    inputs = {cid: clip_space(plan, cid, cam) for cid, c in plan['clips'].items()}
     skey = sha({'content': content, 'cam': cam, 'inputs': inputs})
     sdir = cache / f'stills-{skey}'
     look_file = None
@@ -1369,14 +1448,25 @@ def solve_grade(edit, plan, style, style_path, backend, cache, dry):
         lp = Path(style_path).resolve().parents[1] / g['look_profile']
         look_file = file_sha(lp) if lp.exists() else str(lp)
     over = {k: v for k, v in (edit.get('grade') or {}).items() if k != 'shots'}
+    grade_rec = {k: g.get(k) for k in ('look_profile', 'face_ire', 'black_code', 'sat', 'wb_target_709')}
+    if g.get('by_camera'):
+        grade_rec['by_camera'] = g['by_camera']
+        grade_rec['camera_input'] = cam
     solve_in = {'skey': skey, 'shots': {n: {k: v for k, v in sh.items() if k != 'items'} for n, sh in shots.items()},
-                'grade': {k: g.get(k) for k in ('look_profile', 'face_ire', 'black_code', 'sat', 'wb_target_709')},
-                'look': look_file, 'over': over,
+                'grade': grade_rec, 'look': look_file, 'over': over,
                 'code': [file_sha(SCRIPTS / 'grade_solve.py'), file_sha(SCRIPTS / 'dwg_look.py')]}
+    if g.get('by_camera'):
+        solve_in['cameras'] = cameras
     gkey = sha(solve_in)
     cdl_path = sdir / f'cdl-{gkey}.json'
+
+    def dry_sat(name):
+        if over.get('sat') is not None:
+            return over['sat']
+        return (cameras.get(name) or {}).get('override', {}).get('sat', g.get('sat', 0.68))
+
     rec = {'stills_dir': str(sdir), 'stills': stills, 'owner': owner, 'stills_cached': False, 'solve_cached': False,
-           'default_match': [n for n, sh in shots.items() if sh.get('_default_match')]}
+           'default_match': [n for n, sh in shots.items() if sh.get('_default_match')], 'cameras': cameras}
     if cdl_path.exists():
         rec.update(stills_cached=True, solve_cached=True, cdl=load_json(cdl_path))
         return rec
@@ -1384,8 +1474,7 @@ def solve_grade(edit, plan, style, style_path, backend, cache, dry):
     if not have:
         if dry:
             backend.export_stills(stills, sdir)
-            rec['cdl'] = {n: {'slope': 1.0, 'offset': [0, 0, 0], 'sat': g.get('sat', 0.68), '_dry': True}
-                          for n in shots}
+            rec['cdl'] = {n: {'slope': 1.0, 'offset': [0, 0, 0], 'sat': dry_sat(n), '_dry': True} for n in shots}
             return rec
         sdir.mkdir(parents=True, exist_ok=True)
         ok = backend.export_stills(stills, sdir)
@@ -1424,14 +1513,17 @@ def solve_grade(edit, plan, style, style_path, backend, cache, dry):
             out['manual_wb'] = sh['manual_wb']
         if sh.get('slope_min') is not None:
             out['slope_min'] = sh['slope_min']
+        if cameras.get(n, {}).get('input'):
+            out['input'] = cameras[n]['input']
         cfg['shots'][n] = out
     write_json(sdir / f'grade-{gkey}.json', cfg)
     if dry:
-        rec['cdl'] = {n: {'slope': 1.0, 'offset': [0, 0, 0], 'sat': g.get('sat', 0.68), '_dry': True} for n in shots}
+        rec['cdl'] = {n: {'slope': 1.0, 'offset': [0, 0, 0], 'sat': dry_sat(n), '_dry': True} for n in shots}
         return rec
     gs = grade_solve_mod()
     with contextlib.redirect_stdout(io.StringIO()):
-        cdl = gs.solve(sdir / f'grade-{gkey}.json', style_path, write=False, quiet=True)
+        cdl = gs.solve(sdir / f'grade-{gkey}.json', style_path, write=False, quiet=True,
+                       inputs={n: cameras[n].get('input') for n in cfg['shots']})
     write_json(cdl_path, cdl)
     rec['cdl'] = cdl
     return rec
@@ -1473,9 +1565,13 @@ def cmd_build(a, backend=None):
         log(f'FAIL {master.name} exists: use a new --version, or --force to replace it')
         return 2
     try:
+        drx = post_drx_path(g, style_path)
+        if g.get('post_drx') and not drx.is_file():
+            raise GateError(f'post_drx not found: {drx}')
         if not (edit.get('cover_text') or '').strip():
             raise GateError('gate cover: edit.json needs a public-safe cover_text')
         plan = normalize(edit, edit_path, style)
+        shot_cameras(plan, grade_shots(edit, plan)[0], g)   # mixed input spaces fail before Resolve
         gates = run_gates(plan, cache)
         rec['gates'] = gates
         if gates['moved'] and not a.dry_run:
@@ -1495,7 +1591,8 @@ def cmd_build(a, backend=None):
         lock = contextlib.nullcontext() if a.dry_run else resolve_lock(owner, f'build {pid} {ver}')
         with lock:
             try:
-                res = resolve_section(a, edit, plan, style, style_path, g, backend, cache, out_dir, pid, ver, gfx)
+                res = resolve_section(a, edit, plan, style, style_path, g, backend, cache, out_dir, pid, ver, gfx,
+                                      drx=drx)
             finally:
                 with contextlib.suppress(Exception):
                     backend.close()
@@ -1504,15 +1601,18 @@ def cmd_build(a, backend=None):
             rec['resolve_calls'] = backend.calls
         gr = res['grade']
         lines.append(f"grade: stills {'cached' if gr['stills_cached'] else 'exported'}, solve "
-                     f"{'cached' if gr['solve_cached'] else 'run'}; " + ', '.join(
-                         f"{n} slope {c.get('slope')} face {c.get('anchor_ire', '-')}" for n, c in gr['cdl'].items())
+                     f"{'cached' if gr['solve_cached'] else 'run'}; " + grade_shot_bits(gr)
                      + (f"; default wall match: {', '.join(gr['default_match'])}" if gr['default_match'] else '')
                      + (f"; passthrough (no solve): {', '.join(gr['passthrough'])}" if gr.get('passthrough') else ''))
         if a.dry_run:
             counts = {}
             for c in backend.calls:
                 counts[c[0]] = counts.get(c[0], 0) + 1
-            lines.append('dry-run plan: ' + ', '.join(f'{k} x{v}' for k, v in counts.items()))
+            plan_line = 'dry-run plan: ' + ', '.join(f'{k} x{v}' for k, v in counts.items())
+            if g.get('post_drx'):
+                n_drx = sum(1 for c in backend.calls if c[0] == 'apply_grade' and c[1].get('drx'))
+                plan_line += f', post_drx x{n_drx}'
+            lines.append(plan_line)
             code = 0
         else:
             lines.append(f"resolve: project {res['project']} ({res['project_state']}), timeline {res['timeline']}, "
@@ -1552,7 +1652,7 @@ def cmd_build(a, backend=None):
     return code
 
 
-def resolve_section(a, edit, plan, style, style_path, g, backend, cache, out_dir, pid, ver, gfx):
+def resolve_section(a, edit, plan, style, style_path, g, backend, cache, out_dir, pid, ver, gfx, drx=None):
     fps = plan['fps']
     res = {'backend': type(backend).__name__}
     res['resolve_version'] = backend.connect()
@@ -1570,7 +1670,7 @@ def resolve_section(a, edit, plan, style, style_path, g, backend, cache, out_dir
     res['clip_input'] = {}
     for cid, c in plan['clips'].items():
         if c['path'] in items:
-            space = c.get('input') or (plan.get('probes', {}).get(cid) or {}).get('tagged_input') or cam
+            space = clip_space(plan, cid, cam)
             if space:
                 res['clip_input'][cid] = backend.set_clip_input(items[c['path']], space)
     spine = [(items[plan['clips'][s['clip']]['path']], s['src_in'], s['src_out']) for s in plan['spine']]
@@ -1594,7 +1694,9 @@ def resolve_section(a, edit, plan, style, style_path, g, backend, cache, out_dir
             shot = gr['owner'][it['k']]
             if dr_mode == 'none' and shot in (gr.get('passthrough') or []):
                 continue
-            if not backend.apply_grade(track, i, gr['cdl'][shot], lut, vig, vignette_geom(plan, it, g.get('vignette_mode', 'gain'))):
+            if not backend.apply_grade(track, i, gr['cdl'][shot], lut, vig,
+                                       vignette_geom(plan, it, g.get('vignette_mode', 'gain')),
+                                       str(drx) if drx else None):
                 raise BackendError(f"apply_grade failed on {it['k']}")
     cap, cov = gfx['captions_mov'], gfx['cover_mov']
     if not a.dry_run:                    # a fresh file name per version, so Resolve imports it again
@@ -2011,7 +2113,8 @@ def parser():
                        epilog=SCHEMA,
                        description=textwrap.fill('SKILL.md steps 2-10 from edit.json. Gates (cut_check edges --fix, aroll, '
                                    'public-safe words), graphics (house_graphics.py), then in Resolve: project, '
-                                   'import, clip input, timeline, DI stills, grade_solve, CDL + LUT + vignette, '
+                                   'import, clip input, timeline, DI stills, grade_solve, optional post_drx, '
+                                   'CDL + LUT + vignette, '
                                    'graphics, voice chain, render, .drp; then finish-reel.py (loudness only) and '
                                    'reel.py qa. Stills + solve are cached on what is on screen at each still, '
                                    'graphics on captions + cover, so a caption tweak does not re-solve the grade. '

@@ -16,7 +16,9 @@ Read before the first build on a new machine or a new camera. The business's own
 
 With tone and gamut mapping off, the output step is plain math (DI decode → DWG→709 matrix → encode), so `dwg_look.to_display()` reproduces the Resolve render; checked at about 0.3 of an 8-bit code. That is what makes stills previews trustworthy.
 
-**Clip input color space** is per camera, from the business's `grade.camera_input`. Canon C-Log3: `Canon Cinema Gamut/Canon Log 3`. Rec.709 graphics: `Rec.709 Gamma 2.4`. A new camera changes only this; the look is camera-agnostic because it works in DWG/DI.
+**Clip input color space** is per camera, from the business's `grade.camera_input`, else a clip's tagged input or `input` override. Canon C-Log3: `Canon Cinema Gamut/Canon Log 3`. Rec.709 graphics: `Rec.709 Gamma 2.4`. The look is camera-agnostic because it works in DWG/DI.
+
+**Per-camera grade overrides** (`grade.by_camera`): a map from that same input-space string (`Apple Log 2`, `Canon Cinema Gamut/Canon Log 3`, …) to grade keys that override the style grade for shots whose effective input is that space. Allowed keys are the solver defaults except `look`: `face_ire`, `sat`, `black_code`, `wb_target_709`, `pivot`. Precedence for a shot: `grade.json` > `by_camera[effective input]` > style grade > skill defaults. Effective input is the clip's `input`, else its tagged input, else `camera_input`. Each shot is solved with its own camera; a shot that mixes input spaces while `by_camera` is set is an error (split the shot). Unset, every shot uses the style grade.
 
 ## 2. Node 1 on every graded clip
 
@@ -27,6 +29,10 @@ With tone and gamut mapping off, the output step is plain math (DI decode → DW
 2. **LUT** in the same node (`Graph.SetLUT(1, path relative to Resolve's LUT folder)`). Resolve applies the node CDL before the node LUT (verified).
 3. **Vignette** (optional) in Fusion, before the color page: `BrightnessContrast` (Brightness = −vignette / slope, i.e. a log-space exposure drop) masked by an inverted soft `EllipseMask` (W 1.35, H 0.95, SoftEdge 0.45). Center unchanged; corners about 8–11 codes darker at 0.035.
    - *Measured on a render (2026-09-25), 9:16 timeline:* the result behaves like a **scene-linear** drop, not a log one. Dark shots crush toward black at the edges; bright shots barely change. The ellipse is sized in image-**width** units on both axes, so on a 9:16 frame it reaches the top and bottom thirds. To reproduce it outside Resolve, see `references/edit-route.md` (toolkit root) → ffmpeg lessons.
+
+**Post-grade node template** (`grade.post_drx`): a path relative to the business repo root (the same root as `look_profile`) to a `.drx` grade still. Node 1 is a placeholder; the build sets its CDL and look LUT after the load. Node 2 and later are fixed add-ons (a ResolveFX DCTL plugin for halation and grain, for example). When set, `apply_grade` calls `Graph.ApplyGradeFromDRX(abs_path, 0)` first, then `SetCDL` and `SetLUT` on node 1, then the vignette. If node 1 does not take the CDL and LUT, the apply fails. If the file is missing, the build stops before Resolve. Unset means no DRX.
+
+One-time, on the Color page: node 1 empty (the build writes CDL and LUT there), node 2+ the add-ons, Grab Still, right-click the still > Export > `.drx` into the business repo (for example `resources/video-pipeline/post.drx`). The scripting API cannot create nodes (Resolve 21). A DCTL loaded as a node LUT freezes `TIMELINE_FRAME_INDEX`, so moving grain has to be the ResolveFX DCTL plugin, not a LUT.
 
 ### Exposure anchor
 
@@ -46,7 +52,7 @@ What the presets do instead (sources: Steve Yedlin's display-prep writing, Culle
 
 Preset parameters: `resources/looks.presets.json`. A business look = `base` preset + `params` overrides in its look profile. To tune: change params, `review_looks.py --looks base,path/to/candidate.json`, compare, commit only after the owner picks.
 
-Scriptable vs GUI: CDL, LUT, color management, Fusion comps, render — scriptable. Tracked windows, curves, OFX parameters (Film Look Creator, ColorSlice), node creation — GUI only. A subject window (+⅓ to ½ stop on the person, walls down) is the biggest win left for the GUI.
+Scriptable vs GUI: CDL, LUT, color management, Fusion comps, render, loading a `.drx` — scriptable. Tracked windows, curves, OFX parameters (Film Look Creator, ColorSlice), node creation — GUI only. Extra nodes ride in via `post_drx` (a grade still exported from the GUI); the build cannot create them. A subject window (+⅓ to ½ stop on the person, walls down) is the biggest win left for the GUI.
 
 ## 4. Graphics
 

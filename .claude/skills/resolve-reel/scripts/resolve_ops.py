@@ -10,6 +10,7 @@ Every function takes explicit arguments; nothing here knows about a business. Va
 differ per business (camera input space, LUT, vignette) come from the style profile's
 "grade" block, read by the caller.
 """
+import os
 import time
 
 FPS = 30000 / 1001
@@ -94,14 +95,23 @@ def export_di_stills(p, tl, frames, out_dir):
     return ok
 
 
-def apply_grade(item, cdl, lut, vignette=0.035):
+def apply_grade(item, cdl, lut, vignette=0.035, drx=None):
     """Node 1: CDL (dict with slope, offset[3], sat) + LUT (path relative to Resolve's LUT
     folder, e.g. 'MCP/house.cube'); then a Fusion vignette: BrightnessContrast masked by an
-    inverted soft EllipseMask. vignette = 0 skips it."""
+    inverted soft EllipseMask. vignette = 0 skips it. drx, if set, is an absolute .drx loaded
+    first (node 1 stays the CDL/LUT placeholder; later nodes are the still's add-ons)."""
+    graph = item.GetNodeGraph()
+    if drx:
+        if not os.path.isfile(drx):
+            raise RuntimeError(f'post_drx missing: {drx}')
+        if not graph.ApplyGradeFromDRX(str(drx), 0):
+            raise RuntimeError(f'ApplyGradeFromDRX failed: {drx}')
     ok = item.SetCDL({'NodeIndex': '1', 'Slope': ' '.join([str(cdl['slope'])] * 3),
                       'Offset': ' '.join(str(o) for o in cdl['offset']), 'Power': '1 1 1',
                       'Saturation': str(cdl['sat'])})
-    ok &= item.GetNodeGraph().SetLUT(1, lut)
+    ok &= graph.SetLUT(1, lut)
+    if drx and not ok:
+        raise RuntimeError(f'node 1 did not take CDL/LUT after post_drx: {drx}')
     if vignette:
         comp = item.AddFusionComp()
         mi, mo = comp.FindTool('MediaIn1'), comp.FindTool('MediaOut1')
