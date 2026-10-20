@@ -224,6 +224,27 @@ def test_edges_fix_moves_edge_and_keeps_punch_on_its_moment(media, tmp_path):
     assert json.loads(ep.read_text())['spine'][0]['in_s'] <= 4.2
 
 
+def test_continuous_join_is_not_an_edge_and_overlap_fails(media, tmp_path):
+    doc = edit_doc(media)
+    doc['spine'][1:] = [{'k': 'K1', 'clip': 'C1', 'in_s': 0.1, 'out_s': 4.5, 'framing': 'tight'},
+                        {'k': 'K2', 'clip': 'C1', 'in_s': 4.5, 'out_s': 9.6, 'framing': 'wide'}]
+    doc['grade']['shots']['A']['items'] = ['H', 'K1', 'K2']
+    doc['edge_exceptions'] = {'K2 in': 'set on purpose: a continuous join still gets no fade'}
+    ep = write_edit(tmp_path / 'cont', doc)
+    style = json.loads(media['style'].read_text())
+    plan = reel.normalize(doc, ep, style)
+    k1, k2 = plan['spine'][1], plan['spine'][2]
+    assert k1['src_out'] == k2['src_in'] and k1['rec_out'] == k2['rec_in']   # rounding snapped shut
+    assert k1['fades'][1] == 0 and k2['fades'][0] == 0
+    assert plan['continuous'] == {'K1 out', 'K2 in'}
+    g = reel.run_gates(plan, tmp_path / 'cont' / '.reel-cache')          # 4.5 s is mid-burst
+    assert not any(m.startswith(('K1 out', 'K2 in')) for m in g['moved'])
+    assert k1['src_out'] == k2['src_in']
+    doc['spine'][1]['out_s'] = 4.7                                       # 0.2 s plays twice
+    with pytest.raises(reel.GateError, match='overlaps'):
+        reel.normalize(doc, write_edit(tmp_path / 'over', doc), style)
+
+
 # ---------------------------------------------------------------- build (FakeBackend, full pipeline)
 
 def fake_backend(tmp_path, loud):

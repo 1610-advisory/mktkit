@@ -548,6 +548,24 @@ def normalize(edit, edit_path, style=None, probes=None):
                       'gain_db': s.get('gain_db'), 'fades': fades, 'grade': s.get('grade')})
         rec += b - a
     total = rec
+    # A join that continues the same source (a framing change only) is not an audio edge.
+    # The edge gate must leave it alone: widening both sides plays a slice of audio twice.
+    continuous = set()
+    for x, y in zip(spine, spine[1:]):
+        if x['clip'] != y['clip']:
+            continue
+        if y['src_in'] <= x['src_out'] <= y['src_in'] + 2:   # meets, give or take in/out rounding
+            x['src_out'] = y['src_in']
+            x['fades'][1] = y['fades'][0] = 0              # a fade here would dip mid-word
+            continuous |= {f"{x['k']} out", f"{y['k']} in"}
+        elif y['src_in'] < x['src_out'] <= y['src_in'] + round(fps):
+            raise GateError(f"spine {x['k']}/{y['k']}: source overlaps by {x['src_out'] - y['src_in']} frames, "
+                            'so that audio plays twice; make the join meet or leave a gap')
+    rec = 0
+    for s in spine:
+        s['rec_in'], s['rec_out'] = rec, rec + s['src_out'] - s['src_in']
+        rec = s['rec_out']
+    total = rec
     punches = []
     for i, p in enumerate(edit.get('punches') or []):
         k = p.get('k') or f'P{i + 1}'
@@ -581,6 +599,7 @@ def normalize(edit, edit_path, style=None, probes=None):
     return {'fps': fps, 'clips': clips, 'probes': probes, 'spine': spine, 'punches': punches,
             'total': total, 'base_zoom': base_zoom, 'hook': hook,
             'min_aroll_s': float(edit.get('min_aroll_s', 3.0)), 'exceptions': exceptions,
+            'continuous': continuous,
             'cover_text': edit.get('cover_text', ''),
             'platforms': edit.get('platforms') or style.get('platforms') or ['instagram_reels', 'youtube_shorts'],
             'lead_frames': int(edit.get('lead_frames', 4)), 'tail_frames': int(edit.get('tail_frames', 3))}
@@ -630,7 +649,7 @@ def run_gates(plan, cache, max_move=0.40):
         changed = False
         for s, f in zip(plan['spine'], fixed):
             for side in ('in', 'out'):
-                if f'{s["k"]} {side}' in plan['exceptions']:
+                if f'{s["k"]} {side}' in plan['exceptions'] or f'{s["k"]} {side}' in plan['continuous']:
                     continue
                 new = fl(f[side] * fps) if side == 'in' else ce(f[side] * fps)
                 key = 'src_' + side
@@ -656,7 +675,8 @@ def run_gates(plan, cache, max_move=0.40):
             continue
         k = plan['spine'][int(m.group(1)) - 1]['k']
         for side, _t, status, _to in EDGE_RE.findall(ln):
-            if status != 'ok' and f'{k} {side}' not in plan['exceptions']:
+            if status != 'ok' and f'{k} {side}' not in plan['exceptions'] \
+                    and f'{k} {side}' not in plan['continuous']:
                 bad.append(f'{k} {side}: ' + ('no clean edge (add to edge_exceptions with a 1-frame fade, '
                                                'or move the cut)' if status.startswith('NO') else f'wants {status}'))
     if bad:
@@ -714,7 +734,8 @@ def graphics(plan, style, style_path, work, cache, dry=False):
               'platforms': plan['platforms'], 'lead': plan['lead_frames'], 'tail': plan['tail_frames'],
               'words': {c: file_sha(w) for c, w in words.items()},
               'style': {k: style.get(k) for k in ('captions', 'cover', 'platforms')},
-              'shadow': (style.get('resolve') or {}).get('cover_shadow'), 'code': file_sha(HOUSE_GRAPHICS)}
+              'shadow': (style.get('resolve') or {}).get('cover_shadow'),
+              'code': [file_sha(HOUSE_GRAPHICS), file_sha(FINISH)]}   # finish-reel.py groups the cues
     for f in ((style.get('captions') or {}).get('font'), (style.get('cover') or {}).get('font')):
         if f and Path(f).exists():
             key_in.setdefault('fonts', []).append(file_sha(f))

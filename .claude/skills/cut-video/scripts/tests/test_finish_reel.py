@@ -211,6 +211,27 @@ def test_group_and_map_unit() -> None:
     assert all(e - s >= 0.8 - 1e-6 for s, e, _t in phrase), phrase
     assert len(word) > len(phrase)
 
+    # Slow speech: the sentence's last word joins its cue instead of sitting alone,
+    # and the next sentence starts a new cue.
+    slow = [(i * 0.4, i * 0.4 + 0.3, t, 0) for i, t in enumerate(
+        "this is the end of a long hall. but nobody wants to stay".split())]
+    cues = fr.group_caption_cues(slow, max_chars=32, max_dur=2.8, min_cue=0.8,
+                                 max_lines=2, style="phrase")
+    texts = [t.replace("\\N", " ") for _s, _e, t in cues]
+    assert texts[0].endswith("hall."), texts
+    assert texts[1].startswith("but"), texts
+
+    # A full two-line cue pushes the sentence's last word to the next cue: it pulls
+    # words back so the payoff never sits alone ("door.").
+    full = [(i * 0.3, i * 0.3 + 0.25, t, 0) for i, t in enumerate(
+        "and I can promise you that it is going to be the one room with no door.".split())]
+    cues = fr.group_caption_cues(full, max_chars=32, max_dur=4.0, min_cue=0.8,
+                                 max_lines=2, style="phrase")
+    texts = [t.replace("\\N", " ") for _s, _e, t in cues]
+    tail = texts[-1].split()
+    assert len(texts) == 2 and tail[-1] == "door." and len(tail) >= 3, texts
+    assert cues[-1][0] == full[-len(tail)][0], cues
+
     src_words = [(7.9, 8.4, "tail")]
     mapped = fr.map_words_to_output(src_words, None, [(0.0, 8.0)])
     assert len(mapped) == 1, mapped

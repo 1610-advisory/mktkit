@@ -622,6 +622,37 @@ def _group_word_cues(
     return cues
 
 
+def _ends_sentence(tok: str) -> bool:
+    return tok.rstrip("\"')").endswith((".", "?", "!"))
+
+
+def _balance_sentence_tails(
+    groups: list[tuple[list[tuple[float, float, str]], int]],
+    max_chars: int,
+    max_lines: int,
+    tail: int = 3,
+) -> list[tuple[list[tuple[float, float, str]], int]]:
+    """Give a sentence's last one or two words some company on their cue.
+
+    When a cue holds only the end of a sentence ("door.", "is open."), pull words
+    back from the cue before it (same sentence, same keep-range) until it holds `tail`
+    words. The cue before keeps at least two words, and both still fit the line limit.
+    """
+    out = [(list(g), sp) for g, sp in groups]
+    for i in range(1, len(out)):
+        prev, psp = out[i - 1]
+        cue, sp = out[i]
+        if sp != psp or len(cue) >= tail or not _ends_sentence(cue[-1][2]) \
+                or _ends_sentence(prev[-1][2]):
+            continue
+        while len(cue) < tail and len(prev) > 2 and not _ends_sentence(prev[-1][2]):
+            trial = " ".join(w[2] for w in [prev[-1]] + cue)
+            if _cue_line_count(trial, max_chars) > max_lines:
+                break
+            cue.insert(0, prev.pop())
+    return out
+
+
 def group_caption_cues(
     words: list[tuple[float, float, str]] | list[tuple[float, float, str, int]],
     max_chars: int = 32,
@@ -634,8 +665,8 @@ def group_caption_cues(
     if style == "word":
         return _group_word_cues(words, min_cue=min_cue)
 
-    packed: list[tuple[float, float, str, int]] = []
-    cur: list[str] = []
+    groups: list[tuple[list[tuple[float, float, str]], int]] = []
+    cur: list[tuple[float, float, str]] = []
     start: float | None = None
     prev_end = 0.0
     cur_span = 0
@@ -645,22 +676,31 @@ def group_caption_cues(
         if start is None:
             start = ws
             cur_span = span
-        trial = " ".join(cur + [tok])
+        trial = " ".join([w[2] for w in cur] + [tok])
         crossed = bool(cur) and span != cur_span
         too_long = bool(cur) and (we - start) > max_dur
         too_many_lines = bool(cur) and _cue_line_count(trial, max_chars) > max_lines
-        if cur and (crossed or too_long or too_many_lines):
-            packed.append((start, prev_end, " ".join(cur), cur_span))
-            cur = [tok]
+        # A sentence's last word stays with its sentence rather than sitting alone
+        # on the next cue ("...at the end of the" / "hall."), if it still fits.
+        if too_long and not crossed and not too_many_lines and _ends_sentence(tok) \
+                and (we - start) <= max_dur + 0.8:
+            too_long = False
+        # Phrase cues close at a sentence end, so no cue runs on past a full stop.
+        after_stop = bool(cur) and _ends_sentence(cur[-1][2]) and (prev_end - start) >= min_cue
+        if cur and (crossed or too_long or too_many_lines or after_stop):
+            groups.append((cur, cur_span))
+            cur = [(ws, we, tok)]
             start = ws
             cur_span = span
         else:
-            cur.append(tok)
+            cur.append((ws, we, tok))
             cur_span = span
         prev_end = we
-    if cur and start is not None:
-        packed.append((start, prev_end, " ".join(cur), cur_span))
+    if cur:
+        groups.append((cur, cur_span))
 
+    groups = _balance_sentence_tails(groups, max_chars, max_lines)
+    packed = [(g[0][0], g[-1][1], " ".join(w[2] for w in g), sp) for g, sp in groups]
     packed = _enforce_min_cue(packed, min_cue)
     out: list[tuple[float, float, str]] = []
     for s, e, text, _span in packed:
