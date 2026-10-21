@@ -106,10 +106,12 @@ def apply_grade(item, cdl, lut, vignette=0.035, drx=None):
             raise RuntimeError(f'post_drx missing: {drx}')
         if not graph.ApplyGradeFromDRX(str(drx), 0):
             raise RuntimeError(f'ApplyGradeFromDRX failed: {drx}')
+        # the pre-DRX graph handle is stale: SetLUT on it segfaults Resolve 21.1
+        graph = item.GetNodeGraph()
     ok = item.SetCDL({'NodeIndex': '1', 'Slope': ' '.join([str(cdl['slope'])] * 3),
                       'Offset': ' '.join(str(o) for o in cdl['offset']), 'Power': '1 1 1',
                       'Saturation': str(cdl['sat'])})
-    ok &= graph.SetLUT(1, lut)
+    ok = bool(ok) and bool(graph.SetLUT(1, lut))
     if drx and not ok:
         raise RuntimeError(f'node 1 did not take CDL/LUT after post_drx: {drx}')
     if vignette:
