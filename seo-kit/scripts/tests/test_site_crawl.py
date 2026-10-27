@@ -464,7 +464,7 @@ def test_collect_sitemap_ignores_index_lastmod():
     ]
 
 
-def test_sitemap_lastmod_uniform_only_when_every_value_matches():
+def test_sitemap_lastmod_uniform_when_most_values_match():
     urls = [f"https://example.com/p{i}" for i in range(6)]
     same = ["2026-01-01T00:00:00Z"] * 6
     issues = sc.compute_issues({}, urls, QUIET_ROBOTS, QUIET_LLMS, SITE, same)
@@ -472,14 +472,12 @@ def test_sitemap_lastmod_uniform_only_when_every_value_matches():
     assert len(hits) == 1
     assert hits[0]["url"] == SITE
     assert hits[0]["severity"] == "low"
-    assert hits[0]["detail"] == "All 6 URLs share lastmod 2026-01-01T00:00:00Z"
+    assert hits[0]["detail"] == "6 of 6 URLs share lastmod 2026-01-01T00:00:00Z"
 
-    varied = same[:]
-    varied[-1] = "2026-02-01T00:00:00Z"
-    assert _codes(sc.compute_issues({}, urls, QUIET_ROBOTS, QUIET_LLMS, SITE, varied), "sitemap_lastmod_uniform") == []
+    half = same[:3] + ["2026-02-01T00:00:00Z", "2026-02-02T00:00:00Z", "2026-02-03T00:00:00Z"]
+    assert _codes(sc.compute_issues({}, urls, QUIET_ROBOTS, QUIET_LLMS, SITE, half), "sitemap_lastmod_uniform") == []
     assert _codes(sc.compute_issues({}, urls[:5], QUIET_ROBOTS, QUIET_LLMS, SITE, same[:5]), "sitemap_lastmod_uniform") == []
-    missing = same[:]
-    missing[2] = None
+    missing = [None] * 6
     assert _codes(sc.compute_issues({}, urls, QUIET_ROBOTS, QUIET_LLMS, SITE, missing), "sitemap_lastmod_uniform") == []
 
 
@@ -638,4 +636,18 @@ def test_crawl_records_link_header_lastmod_and_non_html(tmp_path):
     assert non_html[0]["detail"] == "text/markdown"
     lastmod = _codes(report["issues"], "sitemap_lastmod_uniform")
     assert len(lastmod) == 1
-    assert "All 7 URLs share lastmod 2026-01-01" == lastmod[0]["detail"]
+    assert "7 of 7 URLs share lastmod 2026-01-01" == lastmod[0]["detail"]
+
+
+def test_lastmod_flags_majority_build_stamp():
+    urls = [f"https://example.com/p{i}" for i in range(8)]
+    stamps = ["2026-01-01"] * 2 + ["2026-03-01T12:00:00.000Z"] * 6
+    issue = sc._sitemap_lastmod_issue(urls, stamps, "https://example.com")
+    assert issue and issue["code"] == "sitemap_lastmod_uniform"
+    assert "6 of 8" in issue["detail"]
+
+
+def test_lastmod_mixed_dates_not_flagged():
+    urls = [f"https://example.com/p{i}" for i in range(8)]
+    stamps = [f"2026-01-0{i + 1}" for i in range(8)]
+    assert sc._sitemap_lastmod_issue(urls, stamps, "https://example.com") is None

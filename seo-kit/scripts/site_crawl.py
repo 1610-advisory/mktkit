@@ -33,7 +33,7 @@ import socket
 import ssl
 import sys
 import time
-from collections import deque
+from collections import Counter, deque
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
@@ -1003,26 +1003,24 @@ def _jsonld_entity_issues(pages: dict, site: str) -> list[dict]:
 
 
 def _sitemap_lastmod_issue(sitemap_urls: list[str], sitemap_lastmods: list | None, site: str) -> dict | None:
-    """Flag a sitemap whose every URL was stamped with the same lastmod.
+    """Flag a sitemap where more than half the URLs share one lastmod.
 
     That value is usually the build time, so crawlers cannot tell what changed.
-    A missing lastmod means they are not all the same stamp, so no flag.
+    Real sites mix a few hand-set dates with the build stamp, so "all equal"
+    misses the common case.
     """
     if sitemap_lastmods is None or len(sitemap_urls) <= 5:
         return None
-    if len(sitemap_lastmods) != len(sitemap_urls):
+    values = [m.strip() for m in sitemap_lastmods if isinstance(m, str) and m.strip()]
+    if not values:
         return None
-    values = []
-    for lastmod in sitemap_lastmods:
-        if not isinstance(lastmod, str) or not lastmod.strip():
-            return None
-        values.append(lastmod.strip())
-    if len(set(values)) != 1:
+    value, count = Counter(values).most_common(1)[0]
+    if count * 2 <= len(sitemap_urls):
         return None
     return _issue(
         "sitemap_lastmod_uniform",
         site,
-        f"All {len(values)} URLs share lastmod {values[0]}",
+        f"{count} of {len(sitemap_urls)} URLs share lastmod {value}",
     )
 
 
