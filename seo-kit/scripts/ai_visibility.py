@@ -597,13 +597,23 @@ def perform_request(request: dict, client, sleep_fn=time.sleep, secrets: list[st
             body = resp.json()
         except Exception:
             body = {"_raw": redact(resp.text[:300], secrets)}
-        if resp.status_code == 429 or resp.status_code >= 500:
-            return resp.status_code, body, f"HTTP {resp.status_code}"
         if resp.status_code >= 400:
-            return resp.status_code, body, f"HTTP {resp.status_code}"
+            return resp.status_code, body, redact(_error_text(resp.status_code, body), secrets)
         return resp.status_code, body, None
 
     return request_with_retry(once, sleep_fn=sleep_fn)
+
+
+def _error_text(status: int, body) -> str:
+    # Keep the vendor's reason: a 429 can mean "out of credits", not just "slow down".
+    err = body.get("error") if isinstance(body, dict) else None
+    if isinstance(err, dict):
+        detail = err.get("code") or err.get("type") or err.get("status") or ""
+        message = str(err.get("message") or "")[:160]
+        return f"HTTP {status} {detail}: {message}".strip()
+    if isinstance(err, str):
+        return f"HTTP {status}: {err[:160]}"
+    return f"HTTP {status}"
 
 
 def read_facts(config: dict) -> str:

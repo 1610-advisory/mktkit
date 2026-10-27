@@ -297,3 +297,10 @@ def test_load_prompts_template():
     prompts = ai_visibility.load_prompts(str(path))
     assert len(prompts) == 8
     assert {item["kind"] for item in prompts} == {"branded", "category", "comparison", "cost"}
+
+
+def test_error_text_keeps_vendor_reason():
+    body = {"error": {"type": "insufficient_quota", "code": "credit_balance_exhausted", "message": "No credits."}}
+    assert ai_visibility._error_text(429, body) == "HTTP 429 credit_balance_exhausted: No credits."
+    assert ai_visibility._error_text(500, {"_raw": "oops"}) == "HTTP 500"
+    assert ai_visibility._error_text(400, {"error": "bad model"}) == "HTTP 400: bad model"
