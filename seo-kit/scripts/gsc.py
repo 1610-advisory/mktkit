@@ -18,7 +18,7 @@ Usage:
     uv run gsc.py all --config tracking/seo/config.yaml --out gsc.json
 
 Authentication (tries in order):
-    1. Cached OAuth token (~/.config/google/ga4-token.json), refresh if expired
+    1. Cached OAuth token (~/.config/google/seo-kit-token.json), refresh if expired
     2. Service account at GOOGLE_APPLICATION_CREDENTIALS
     3. Interactive OAuth flow (opens a browser, requires --oauth-client)
 
@@ -54,7 +54,7 @@ import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-TOKEN_PATH = Path.home() / ".config" / "google" / "ga4-token.json"
+TOKEN_PATH = Path.home() / ".config" / "google" / "seo-kit-token.json"
 SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"]
 INSPECT_LIMIT = 200
 INSPECT_DELAY_S = 0.2
@@ -343,7 +343,7 @@ def get_credentials(oauth_client_path: str | None = None):
             "Options:\n"
             "  1. Set GOOGLE_APPLICATION_CREDENTIALS to a service account JSON file\n"
             "  2. Set GA4_OAUTH_CLIENT or pass --oauth-client for the interactive flow\n"
-            "  3. Reuse a cached token at ~/.config/google/ga4-token.json\n"
+            "  3. Reuse a cached token at ~/.config/google/seo-kit-token.json\n"
             "\n"
             "The token must include the webmasters.readonly scope. If you authenticated\n"
             "for Analytics only, re-auth so Search Console is granted.",

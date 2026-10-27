@@ -8,6 +8,8 @@ competitors: [Competitor A, Competitor B]
 facts_file: knowledge/corpus-numbers.md   # path relative to client repo root; the allowlist of true numbers
 skip_links: ["/cdn-cgi/l/email-protection"]  # URL substrings the crawler never fetches
 max_pages: 300
+site_repo: ~/code/example-site            # local clone of the site; seo-fix opens PRs here
+indexnow_key_url: ""                 # e.g. https://example.com/<key>.txt once the key file is live; empty = IndexNow off
 lighthouse:
   pages: [/, /about]
   form_factors: [mobile]
