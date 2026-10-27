@@ -67,6 +67,7 @@ SEVERITY = {
     "missing_title": "high",
     "canonical_mismatch": "high",
     "sitemap_redirect": "medium",
+    "sitemap_non_html": "medium",
     "title_too_long": "medium",
     "duplicate_title": "medium",
     "missing_description": "medium",
@@ -76,6 +77,8 @@ SEVERITY = {
     "canonical_missing": "medium",
     "not_in_sitemap": "medium",
     "jsonld_parse_error": "medium",
+    "jsonld_entity_no_id": "medium",
+    "jsonld_entity_ids_differ": "medium",
     "redirect_chain": "medium",
     "orphan": "medium",
     "robots_blocks_ai_bot": "medium",
@@ -83,6 +86,8 @@ SEVERITY = {
     "noindex_linked": "low",
     "thin_inbound": "low",
     "llms_txt_missing": "low",
+    "jsonld_org_incomplete": "low",
+    "sitemap_lastmod_uniform": "low",
 }
 SEV_RANK = {"high": 0, "medium": 1, "low": 2}
 
@@ -156,6 +161,70 @@ def header_value(headers: dict, name: str) -> str | None:
     if not values:
         return None
     return ", ".join(values)
+
+
+def _split_link_values(header: str) -> list[str]:
+    """Split a Link header on commas that are outside quotes and <URI>s."""
+    parts: list[str] = []
+    buf: list[str] = []
+    in_quotes = False
+    quote = ""
+    angle = 0
+    for ch in header:
+        if in_quotes:
+            buf.append(ch)
+            if ch == quote:
+                in_quotes = False
+            continue
+        if ch in "\"'":
+            in_quotes = True
+            quote = ch
+            buf.append(ch)
+            continue
+        if ch == "<":
+            angle += 1
+            buf.append(ch)
+            continue
+        if ch == ">" and angle:
+            angle -= 1
+            buf.append(ch)
+            continue
+        if ch == "," and angle == 0:
+            part = "".join(buf).strip()
+            if part:
+                parts.append(part)
+            buf = []
+            continue
+        buf.append(ch)
+    tail = "".join(buf).strip()
+    if tail:
+        parts.append(tail)
+    return parts
+
+
+def has_canonical_link(header: str | None) -> bool:
+    """True when an HTTP Link header has rel=canonical as its own token."""
+    if not header:
+        return False
+    for part in _split_link_values(header):
+        # rel= inside the URI is not a parameter. Parameters follow the >.
+        gt = part.find(">")
+        params = part[gt + 1 :] if gt >= 0 else part
+        for match in re.finditer(
+            r"""\brel\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s;,]+))""",
+            params,
+            re.I,
+        ):
+            raw = next(group for group in match.groups() if group is not None)
+            if "canonical" in raw.lower().split():
+                return True
+    return False
+
+
+def _is_text_html(content_type: str | None) -> bool:
+    if not content_type:
+        return False
+    return content_type.split(";", 1)[0].strip().lower() == "text/html"
 
 
 def decode_body(body: bytes, content_type: str, headers: dict | None = None) -> str:
@@ -279,8 +348,12 @@ def _local(tag: str) -> str:
     return tag.rsplit("}", 1)[-1].lower()
 
 
-def parse_sitemap(xml_text: str | bytes) -> tuple[str, list[str]]:
-    """Return ('index' or 'urlset', loc URLs). Raises ValueError on bad XML."""
+def parse_sitemap_entries(xml_text: str | bytes) -> tuple[str, list[dict]]:
+    """Return ('index' or 'urlset', entries with loc and lastmod).
+
+    lastmod is the stripped text, or None when that entry has none.
+    Raises ValueError on bad XML.
+    """
     if isinstance(xml_text, str):
         data = xml_text.lstrip("\ufeff").encode("utf-8")
     else:
@@ -290,11 +363,29 @@ def parse_sitemap(xml_text: str | bytes) -> tuple[str, list[str]]:
     except ElementTree.ParseError as exc:
         raise ValueError(f"sitemap XML: {exc}") from exc
     kind = "index" if _local(root.tag) == "sitemapindex" else "urlset"
-    locs = []
+    parent = "sitemap" if kind == "index" else "url"
+    entries = []
     for el in root.iter():
-        if _local(el.tag) == "loc" and el.text and el.text.strip():
-            locs.append(el.text.strip())
-    return kind, locs
+        if _local(el.tag) != parent:
+            continue
+        loc = None
+        lastmod = None
+        for child in list(el):
+            name = _local(child.tag)
+            text = (child.text or "").strip()
+            if name == "loc" and text and loc is None:
+                loc = text
+            elif name == "lastmod" and text and lastmod is None:
+                lastmod = text
+        if loc:
+            entries.append({"loc": loc, "lastmod": lastmod})
+    return kind, entries
+
+
+def parse_sitemap(xml_text: str | bytes) -> tuple[str, list[str]]:
+    """Return ('index' or 'urlset', loc URLs). Raises ValueError on bad XML."""
+    kind, entries = parse_sitemap_entries(xml_text)
+    return kind, [entry["loc"] for entry in entries]
 
 
 def _robots_pattern_matches(pattern: str, path: str) -> bool:
@@ -399,6 +490,72 @@ def _collapse(text: str) -> str:
     return " ".join(text.split())
 
 
+ORG_TYPES = {
+    "Organization",
+    "Corporation",
+    "LocalBusiness",
+    "ProfessionalService",
+    "AccountingService",
+    "FinancialService",
+}
+ORG_PROP_KEYS = ("url", "logo", "sameAs", "founder", "name")
+# logo, sameAs, and url are the fields a crawler can actually use. founder and
+# name are recorded so a later pass can see them, but they do not gate the issue.
+ORG_REQUIRED = ("logo", "sameAs", "url")
+
+
+def _type_names(kind) -> list[str]:
+    if kind is None:
+        return []
+    if isinstance(kind, list):
+        raw_items = kind
+    else:
+        raw_items = re.split(r"\s*,\s*", str(kind))
+    names = []
+    for item in raw_items:
+        text = str(item).strip()
+        if not text:
+            continue
+        # https://schema.org/Organization and schema:Organization both count.
+        if "/" in text or "#" in text or ":" in text:
+            text = re.split(r"[/#:]", text)[-1]
+        if text:
+            names.append(text)
+    return names
+
+
+def _is_org_type(kind) -> bool:
+    return any(name in ORG_TYPES for name in _type_names(kind))
+
+
+def _value_present(value) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, dict)):
+        return len(value) > 0
+    return True
+
+
+def _org_url_value(node: dict):
+    """String url, a list of them, or None. Host checks need the value, not just presence."""
+    value = node.get("url")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    if isinstance(value, list):
+        urls = [item.strip() for item in value if isinstance(item, str) and item.strip()]
+        if not urls:
+            return None
+        return urls[0] if len(urls) == 1 else urls
+    if isinstance(value, dict):
+        for key in ("url", "@id"):
+            inner = value.get(key)
+            if isinstance(inner, str) and inner.strip():
+                return inner.strip()
+    return None
+
+
 def parse_jsonld_nodes(text: str) -> tuple[list[dict], list[str]]:
     raw = (text or "").strip()
     if not raw:
@@ -412,11 +569,19 @@ def parse_jsonld_nodes(text: str) -> tuple[list[dict], list[str]]:
     def add(node: dict) -> None:
         kind = node.get("@type")
         if isinstance(kind, list):
-            kind = ", ".join(str(item) for item in kind)
+            kind_s = ", ".join(str(item) for item in kind)
         elif kind is not None:
-            kind = str(kind)
+            kind_s = str(kind)
+        else:
+            kind_s = None
         node_id = node.get("@id")
-        nodes.append({"type": kind, "id": node_id if isinstance(node_id, str) else None})
+        record = {"type": kind_s, "id": node_id if isinstance(node_id, str) else None}
+        if _is_org_type(kind):
+            record["org_props"] = [key for key in ORG_PROP_KEYS if _value_present(node.get(key))]
+            url_value = _org_url_value(node)
+            if url_value is not None:
+                record["url"] = url_value
+        nodes.append(record)
 
     def walk(node) -> None:
         if isinstance(node, list):
@@ -425,13 +590,14 @@ def parse_jsonld_nodes(text: str) -> tuple[list[dict], list[str]]:
             return
         if not isinstance(node, dict):
             return
-        graph = node.get("@graph")
-        if isinstance(graph, list):
-            for item in graph:
-                walk(item)
-            return
+        # Nested publisher/founder objects are real entities, not just @graph siblings.
         if "@type" in node or "@id" in node:
             add(node)
+        for key, value in node.items():
+            if key == "@context":
+                continue
+            if isinstance(value, (dict, list)):
+                walk(value)
 
     walk(data)
     return nodes, []
@@ -627,6 +793,7 @@ def record_from_fetch(url: str, raw: dict, site: str, in_sitemap: bool) -> dict:
         "redirect_chain": [url],
         "final_url": url,
         "content_type": content_type,
+        "link_header": header_value(headers, "link"),
         "x_robots_tag": header_value(headers, "x-robots-tag"),
         "cache_control": header_value(headers, "cache-control"),
         "in_sitemap": in_sitemap,
@@ -738,7 +905,128 @@ def _inbound(pages: dict) -> dict[str, set[str]]:
     return inbound
 
 
-def compute_issues(pages: dict, sitemap_urls: list[str], robots: dict, llms: dict, site: str) -> list[dict]:
+def _host_kind(value: str, page_url: str, site: str) -> str:
+    absolute = urljoin(page_url, value.strip())
+    if not urlparse(absolute).hostname:
+        return "none"
+    return "ours" if same_site(absolute, site) else "foreign"
+
+
+def _id_key(value: str, page_url: str) -> str:
+    """Identity for an @id. www is the same host; the fragment is not."""
+    absolute = urljoin(page_url, value.strip())
+    parsed = urlparse(absolute)
+    if not parsed.hostname:
+        return value.strip()
+    path = parsed.path or "/"
+    if len(path) > 1 and path.endswith("/"):
+        path = path.rstrip("/")
+    query = f"?{parsed.query}" if parsed.query else ""
+    frag = f"#{parsed.fragment}" if parsed.fragment else ""
+    return f"{parsed.scheme.lower()}://{bare_host(parsed.hostname)}{path}{query}{frag}"
+
+
+def _org_urls(node: dict) -> list[str]:
+    value = node.get("url")
+    if isinstance(value, str):
+        return [value] if value.strip() else []
+    if isinstance(value, list):
+        return [item.strip() for item in value if isinstance(item, str) and item.strip()]
+    return []
+
+
+def _is_org_node(node: dict) -> bool:
+    if "org_props" in node:
+        return True
+    return _is_org_type(node.get("type"))
+
+
+def _org_is_ours(node: dict, page_url: str, site: str) -> bool:
+    """True when this organization node is the crawled business, not a client.
+
+    An org whose url is on another host is a partner embedded in the page.
+    No url and no @id still counts: nothing points off-site.
+    """
+    urls = _org_urls(node)
+    node_id = node.get("id") if isinstance(node.get("id"), str) else ""
+    has_id = bool(node_id.strip())
+    if not urls and not has_id:
+        return True
+    if urls:
+        kinds = [_host_kind(url, page_url, site) for url in urls]
+        if "foreign" in kinds:
+            return False
+        if "ours" in kinds:
+            return True
+    if has_id:
+        kind = _host_kind(node_id, page_url, site)
+        if kind == "ours":
+            return True
+        if kind == "foreign":
+            return False
+    return False
+
+
+def _jsonld_entity_issues(pages: dict, site: str) -> list[dict]:
+    issues = []
+    id_pages: dict[str, set[str]] = {}
+    id_props: dict[str, set[str]] = {}
+    for page in pages.values():
+        page_url = page.get("url") or ""
+        missing_types = []
+        for node in page.get("json_ld") or []:
+            if not isinstance(node, dict) or not _is_org_node(node):
+                continue
+            if not _org_is_ours(node, page_url, site):
+                continue
+            node_id = node.get("id") if isinstance(node.get("id"), str) else ""
+            if not node_id.strip():
+                missing_types.append(node.get("type") or "Organization")
+                continue
+            cid = _id_key(node_id, page_url)
+            id_pages.setdefault(cid, set()).add(page_url)
+            id_props.setdefault(cid, set()).update(node.get("org_props") or [])
+        if missing_types:
+            issues.append(_issue("jsonld_entity_no_id", page_url, "No @id on " + ", ".join(missing_types)))
+    if len(id_pages) > 1:
+        listed = ", ".join(sorted(id_pages))
+        issues.append(_issue("jsonld_entity_ids_differ", site, f"Distinct @id values: {listed}"))
+    if id_pages:
+        best = max(len(seen) for seen in id_pages.values())
+        # One site-level issue. A tie picks the alphabetically first id.
+        winner = sorted(cid for cid, seen in id_pages.items() if len(seen) == best)[0]
+        missing = [key for key in ORG_REQUIRED if key not in id_props.get(winner, set())]
+        if missing:
+            missing_text = ", ".join(missing)
+            issues.append(_issue("jsonld_org_incomplete", site, f"{winner} lacks {missing_text}"))
+    return issues
+
+
+def _sitemap_lastmod_issue(sitemap_urls: list[str], sitemap_lastmods: list | None, site: str) -> dict | None:
+    """Flag a sitemap whose every URL was stamped with the same lastmod.
+
+    That value is usually the build time, so crawlers cannot tell what changed.
+    A missing lastmod means they are not all the same stamp, so no flag.
+    """
+    if sitemap_lastmods is None or len(sitemap_urls) <= 5:
+        return None
+    if len(sitemap_lastmods) != len(sitemap_urls):
+        return None
+    values = []
+    for lastmod in sitemap_lastmods:
+        if not isinstance(lastmod, str) or not lastmod.strip():
+            return None
+        values.append(lastmod.strip())
+    if len(set(values)) != 1:
+        return None
+    return _issue(
+        "sitemap_lastmod_uniform",
+        site,
+        f"All {len(values)} URLs share lastmod {values[0]}",
+    )
+
+
+def compute_issues(pages: dict, sitemap_urls: list[str], robots: dict, llms: dict, site: str, sitemap_lastmods: list | None = None) -> list[dict]:
     stamp_chains(pages)
     by_norm = index_pages(pages)
     inbound = _inbound(pages)
@@ -783,6 +1071,11 @@ def compute_issues(pages: dict, sitemap_urls: list[str], robots: dict, llms: dic
             issues.append(_issue("sitemap_non_200", record.get("url") or sitemap_url, detail))
         elif final and is_html_200(final) and has_noindex(final):
             issues.append(_issue("sitemap_noindex", record.get("url") or sitemap_url, "Sitemap URL is noindex"))
+        # Markdown and JSON twins are 200s that are not HTML. Errors stay on sitemap_non_200.
+        if final_status == 200 and not _is_text_html((final or record).get("content_type")):
+            if not has_canonical_link((final or record).get("link_header")):
+                ctype = (final or record).get("content_type") or "(missing)"
+                issues.append(_issue("sitemap_non_html", record.get("url") or sitemap_url, ctype))
 
     html_pages = [record for record in pages.values() if is_html_200(record)]
     titles: dict[str, list[str]] = {}
@@ -878,6 +1171,11 @@ def compute_issues(pages: dict, sitemap_urls: list[str], robots: dict, llms: dic
             detail += f". {llms['error']}"
         issues.append(_issue("llms_txt_missing", llms_url, detail))
 
+    issues.extend(_jsonld_entity_issues(pages, site))
+    lastmod_issue = _sitemap_lastmod_issue(sitemap_urls, sitemap_lastmods, site)
+    if lastmod_issue:
+        issues.append(lastmod_issue)
+
     issues.sort(key=lambda item: (SEV_RANK.get(item["severity"], 9), item["code"], item["url"]))
     return issues
 
@@ -886,7 +1184,12 @@ def _content_type(raw: dict) -> str:
     return header_value(raw.get("headers") or {}, "content-type") or ""
 
 
-def collect_sitemap(url: str, fetch, site: str, seen: set[str] | None = None, depth: int = 0) -> tuple[list[str], str | None]:
+def collect_sitemap(url: str, fetch, site: str, seen: set[str] | None = None, depth: int = 0) -> tuple[list[dict], str | None]:
+    """Return urlset entries ({loc, lastmod}) and an error string.
+
+    Index lastmod is not copied onto child URLs. Those dates belong to the
+    child sitemap file, not to the pages.
+    """
     if seen is None:
         seen = set()
     key = normalize_url(url)
@@ -903,20 +1206,22 @@ def collect_sitemap(url: str, fetch, site: str, seen: set[str] | None = None, de
         return [], f"sitemap status {status} for {url}"
     text = decode_body(raw.get("body") or b"", _content_type(raw), raw.get("headers"))
     try:
-        kind, locs = parse_sitemap(text)
+        kind, entries = parse_sitemap_entries(text)
     except ValueError as exc:
         return [], str(exc)
-    locs = [urljoin(url, loc) for loc in locs]
+    resolved = []
+    for entry in entries:
+        resolved.append({"loc": urljoin(url, entry["loc"]), "lastmod": entry.get("lastmod")})
     if kind == "index":
-        found: list[str] = []
+        found: list[dict] = []
         errors = []
-        for loc in locs:
-            child, err = collect_sitemap(loc, fetch, site, seen, depth + 1)
+        for entry in resolved:
+            child, err = collect_sitemap(entry["loc"], fetch, site, seen, depth + 1)
             found.extend(child)
             if err:
                 errors.append(err)
         return found, "; ".join(errors) or None
-    return locs, None
+    return resolved, None
 
 
 def _robots_record(url: str, raw: dict) -> dict:
@@ -963,19 +1268,21 @@ def crawl(config: dict, *, fetch=None, delay: float = 0.3, max_pages: int | None
     robots = _robots_record(robots_url, polite(robots_url))
     llms = _llms_record(llms_url, polite(llms_url))
 
-    sitemap_urls, sitemap_error = collect_sitemap(config["sitemap"], polite, site)
+    sitemap_entries, sitemap_error = collect_sitemap(config["sitemap"], polite, site)
     # Dedupe sitemap locs but keep the first spelling for the fetch.
     deduped = []
     seen_sm = set()
-    for url in sitemap_urls:
+    for entry in sitemap_entries:
+        url = entry.get("loc") or ""
         if not same_site(url, site):
             continue
         key = normalize_url(url)
         if key in seen_sm:
             continue
         seen_sm.add(key)
-        deduped.append(strip_fragment(url))
-    sitemap_urls = deduped
+        deduped.append({"loc": strip_fragment(url), "lastmod": entry.get("lastmod")})
+    sitemap_urls = [entry["loc"] for entry in deduped]
+    sitemap_lastmods = [entry.get("lastmod") for entry in deduped]
     if sitemap_error and not sitemap_urls:
         raise NetworkError(sitemap_error)
     if sitemap_error:
@@ -1029,7 +1336,7 @@ def crawl(config: dict, *, fetch=None, delay: float = 0.3, max_pages: int | None
             break
 
     stamp_chains(pages)
-    issues = compute_issues(pages, sitemap_urls, robots, llms, site)
+    issues = compute_issues(pages, sitemap_urls, robots, llms, site, sitemap_lastmods)
     html_pages = sum(1 for record in pages.values() if is_html_200(record))
     by_sev = {"high": 0, "medium": 0, "low": 0}
     for item in issues:

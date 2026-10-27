@@ -119,7 +119,7 @@ def test_parse_html_fields():
     assert parsed["og_image"] == "https://example.com/og.png"
     assert parsed["h1"] == ["Hello there"]
     assert parsed["h2_count"] == 2
-    assert parsed["json_ld"] == [{"type": "Organization", "id": "https://example.com/#org"}]
+    assert parsed["json_ld"] == [{"type": "Organization", "id": "https://example.com/#org", "org_props": []}]
     assert parsed["json_ld_errors"]
     assert parsed["internal_links"] == ["https://example.com/about"]
     assert parsed["external_link_count"] == 1
@@ -352,3 +352,290 @@ def test_main_config_error(tmp_path, capsys):
     code = sc.main(["--config", str(tmp_path / "missing.yaml"), "--out", str(tmp_path / "out.json")])
     assert code == 1
     assert "Error:" in capsys.readouterr().err
+
+
+QUIET_ROBOTS = {"url": "https://example.com/robots.txt", "status": 200, "blocks": {}}
+QUIET_LLMS = {"url": "https://example.com/llms.txt", "status": 200, "present": True}
+
+
+def _codes(issues, code):
+    return [item for item in issues if item["code"] == code]
+
+
+def test_link_header_recorded_raw():
+    raw = _raw(200, b"# title", "text/markdown")
+    raw["headers"]["link"] = [
+        '<https://example.com/llms.txt>; rel="describedby"',
+        '<https://example.com/post>; rel="canonical"',
+    ]
+    record = sc.record_from_fetch("https://example.com/post.md", raw, SITE, True)
+    assert record["link_header"] == (
+        '<https://example.com/llms.txt>; rel="describedby", '
+        '<https://example.com/post>; rel="canonical"'
+    )
+    missing = sc.record_from_fetch("https://example.com/gone", _raw(404, b"", "text/plain"), SITE, False)
+    assert missing["link_header"] is None
+
+
+def test_has_canonical_link_is_a_rel_token():
+    assert sc.has_canonical_link('<https://example.com/post>; rel="canonical"')
+    assert sc.has_canonical_link('<https://example.com/post>; rel=canonical')
+    assert sc.has_canonical_link(
+        '<https://example.com/md>; rel="alternate", <https://example.com/post>; rel="canonical"'
+    )
+    # Same shape as a site that advertises llms.txt and the sitemap, not a canonical.
+    described = (
+        '<https://example.com/llms.txt>; rel="describedby"; type="text/plain", '
+        '<https://example.com/sitemap.xml>; rel="sitemap"; type="application/xml"'
+    )
+    assert not sc.has_canonical_link(described)
+    assert not sc.has_canonical_link('<https://example.com/?rel=canonical>; rel="alternate"')
+    assert not sc.has_canonical_link(None)
+
+
+def test_sitemap_non_html_requires_canonical_link_header():
+    md = "https://example.com/post.md"
+    js = "https://example.com/post.json"
+    html = "https://example.com/post"
+    pages = {
+        md: {
+            "url": md,
+            "status": 200,
+            "content_type": "text/markdown; charset=utf-8",
+            "link_header": '<https://example.com/llms.txt>; rel="describedby"',
+            "redirect_chain": [md],
+            "final_url": md,
+        },
+        js: {
+            "url": js,
+            "status": 200,
+            "content_type": "application/json",
+            "link_header": '<https://example.com/post>; rel="canonical"',
+            "redirect_chain": [js],
+            "final_url": js,
+        },
+        html: _page(html),
+    }
+    issues = sc.compute_issues(pages, [md, js, html], QUIET_ROBOTS, QUIET_LLMS, SITE)
+    hits = _codes(issues, "sitemap_non_html")
+    assert len(hits) == 1
+    assert hits[0]["url"] == md
+    assert hits[0]["severity"] == "medium"
+    assert hits[0]["detail"] == "text/markdown; charset=utf-8"
+
+
+def test_parse_sitemap_entries_keeps_lastmod():
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+    <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+      <url><loc>https://example.com/a</loc><lastmod>2026-01-01</lastmod></url>
+      <url><loc>https://example.com/b</loc></url>
+    </urlset>
+    """
+    kind, entries = sc.parse_sitemap_entries(xml)
+    assert kind == "urlset"
+    assert entries == [
+        {"loc": "https://example.com/a", "lastmod": "2026-01-01"},
+        {"loc": "https://example.com/b", "lastmod": None},
+    ]
+    kind, locs = sc.parse_sitemap(xml)
+    assert kind == "urlset"
+    assert locs == ["https://example.com/a", "https://example.com/b"]
+
+
+def test_collect_sitemap_ignores_index_lastmod():
+    index = b"""<?xml version='1.0'?><sitemapindex>
+      <sitemap><loc>https://example.com/child.xml</loc><lastmod>2020-01-01</lastmod></sitemap>
+    </sitemapindex>"""
+    child = b"""<?xml version='1.0'?><urlset>
+      <url><loc>https://example.com/a</loc><lastmod>2024-05-01</lastmod></url>
+      <url><loc>https://example.com/b</loc><lastmod>2024-06-01</lastmod></url>
+    </urlset>"""
+
+    def fetch(url):
+        if url.endswith("child.xml"):
+            return _raw(200, child, "application/xml")
+        return _raw(200, index, "application/xml")
+
+    entries, err = sc.collect_sitemap("https://example.com/sitemap.xml", fetch, SITE)
+    assert err is None
+    assert entries == [
+        {"loc": "https://example.com/a", "lastmod": "2024-05-01"},
+        {"loc": "https://example.com/b", "lastmod": "2024-06-01"},
+    ]
+
+
+def test_sitemap_lastmod_uniform_only_when_every_value_matches():
+    urls = [f"https://example.com/p{i}" for i in range(6)]
+    same = ["2026-01-01T00:00:00Z"] * 6
+    issues = sc.compute_issues({}, urls, QUIET_ROBOTS, QUIET_LLMS, SITE, same)
+    hits = _codes(issues, "sitemap_lastmod_uniform")
+    assert len(hits) == 1
+    assert hits[0]["url"] == SITE
+    assert hits[0]["severity"] == "low"
+    assert hits[0]["detail"] == "All 6 URLs share lastmod 2026-01-01T00:00:00Z"
+
+    varied = same[:]
+    varied[-1] = "2026-02-01T00:00:00Z"
+    assert _codes(sc.compute_issues({}, urls, QUIET_ROBOTS, QUIET_LLMS, SITE, varied), "sitemap_lastmod_uniform") == []
+    assert _codes(sc.compute_issues({}, urls[:5], QUIET_ROBOTS, QUIET_LLMS, SITE, same[:5]), "sitemap_lastmod_uniform") == []
+    missing = same[:]
+    missing[2] = None
+    assert _codes(sc.compute_issues({}, urls, QUIET_ROBOTS, QUIET_LLMS, SITE, missing), "sitemap_lastmod_uniform") == []
+
+
+def test_jsonld_org_props_walks_nested_and_type_list():
+    blob = """
+    {"@context":"https://schema.org","@graph":[
+      {"@type":"WebPage","@id":"https://example.com/#page",
+       "publisher":{"@type":"Organization","name":"Acme","url":"https://example.com/",
+                    "logo":"https://example.com/logo.png","sameAs":["https://example.com/social"],
+                    "founder":{"@type":"Person","name":"Ada"}}},
+      {"@type":["ProfessionalService","LocalBusiness"],"@id":"https://example.com/#office","url":"https://example.com/office"},
+      {"@type":"https://schema.org/AccountingService","name":"Acme Books"},
+      {"@type":"Corporation","name":"Partner","url":"https://partner.example/"}
+    ]}
+    """
+    nodes, errors = sc.parse_jsonld_nodes(blob)
+    assert errors == []
+    orgs = [node for node in nodes if "org_props" in node]
+    assert [node["type"] for node in orgs] == [
+        "Organization",
+        "ProfessionalService, LocalBusiness",
+        "https://schema.org/AccountingService",
+        "Corporation",
+    ]
+    assert orgs[0]["id"] is None
+    assert orgs[0]["org_props"] == ["url", "logo", "sameAs", "founder", "name"]
+    assert orgs[0]["url"] == "https://example.com/"
+    assert orgs[1]["org_props"] == ["url"]
+    assert orgs[2]["org_props"] == ["name"]
+    assert "org_props" not in nodes[0]  # WebPage
+    assert any(node["type"] == "Person" for node in nodes)
+
+
+def test_jsonld_entity_no_id_is_per_page_and_skips_foreign_orgs():
+    home = "https://example.com/"
+    about = "https://example.com/about"
+    pages = {
+        home: _page(home, in_sitemap=False, json_ld=[
+            {"type": "Organization", "id": None, "org_props": ["name", "url"], "url": "https://example.com/"},
+            {"type": "LocalBusiness", "id": None, "org_props": ["name"]},
+            {"type": "Corporation", "id": None, "org_props": ["name", "url"], "url": "https://client.example/"},
+        ]),
+        about: _page(about, in_sitemap=False, json_ld=[
+            {"type": "Organization", "id": "https://example.com/#org", "org_props": ["url", "logo", "sameAs"], "url": "https://example.com/"},
+        ]),
+    }
+    issues = sc.compute_issues(pages, [], QUIET_ROBOTS, QUIET_LLMS, SITE)
+    hits = _codes(issues, "jsonld_entity_no_id")
+    assert len(hits) == 1
+    assert hits[0]["url"] == home
+    assert hits[0]["severity"] == "medium"
+    assert hits[0]["detail"] == "No @id on Organization, LocalBusiness"
+
+
+def test_jsonld_entity_ids_differ_is_one_site_issue():
+    home = "https://example.com/"
+    about = "https://example.com/about"
+    www = "https://www.example.com/contact"
+    pages = {
+        home: _page(home, in_sitemap=False, json_ld=[{
+            "type": "Organization", "id": "https://example.com/#org",
+            "url": "https://example.com/", "org_props": ["url", "logo", "sameAs"],
+        }]),
+        about: _page(about, in_sitemap=False, json_ld=[{
+            "type": "LocalBusiness", "id": "https://example.com/#office",
+            "url": "https://example.com/office", "org_props": ["url", "logo", "sameAs"],
+        }]),
+        www: _page(www, in_sitemap=False, json_ld=[{
+            "type": "Organization", "id": "https://www.example.com/#org",
+            "url": "https://www.example.com/", "org_props": ["url", "logo", "sameAs"],
+        }]),
+    }
+    issues = sc.compute_issues(pages, [], QUIET_ROBOTS, QUIET_LLMS, SITE)
+    hits = _codes(issues, "jsonld_entity_ids_differ")
+    assert len(hits) == 1
+    assert hits[0]["url"] == SITE
+    assert hits[0]["severity"] == "medium"
+    assert hits[0]["detail"] == (
+        "Distinct @id values: https://example.com/#office, https://example.com/#org"
+    )
+
+    pages.pop(about)
+    issues = sc.compute_issues(pages, [], QUIET_ROBOTS, QUIET_LLMS, SITE)
+    assert _codes(issues, "jsonld_entity_ids_differ") == []
+
+
+def test_jsonld_org_incomplete_uses_most_common_id():
+    common = "https://example.com/#org"
+    rare = "https://example.com/#other"
+    full = ["url", "logo", "sameAs", "name"]
+    pages = {
+        "https://example.com/": _page("https://example.com/", in_sitemap=False, json_ld=[{
+            "type": "Organization", "id": common, "url": "https://example.com/", "org_props": ["url", "name"],
+        }]),
+        "https://example.com/about": _page("https://example.com/about", in_sitemap=False, json_ld=[{
+            "type": "Organization", "id": common, "url": "https://example.com/", "org_props": ["url", "name"],
+        }]),
+        "https://example.com/contact": _page("https://example.com/contact", in_sitemap=False, json_ld=[{
+            "type": "Organization", "id": rare, "url": "https://example.com/", "org_props": full,
+        }]),
+    }
+    issues = sc.compute_issues(pages, [], QUIET_ROBOTS, QUIET_LLMS, SITE)
+    hits = _codes(issues, "jsonld_org_incomplete")
+    assert len(hits) == 1
+    assert hits[0]["url"] == SITE
+    assert hits[0]["severity"] == "low"
+    assert hits[0]["detail"] == f"{common} lacks logo, sameAs"
+
+    # Props can be split across pages. The entity has them if any node with that @id does.
+    merged = {
+        "https://example.com/": _page("https://example.com/", in_sitemap=False, json_ld=[{
+            "type": "Organization", "id": common, "url": "https://example.com/", "org_props": ["url", "name"],
+        }]),
+        "https://example.com/about": _page("https://example.com/about", in_sitemap=False, json_ld=[{
+            "type": "Organization", "id": common, "url": "https://example.com/", "org_props": ["logo", "sameAs"],
+        }]),
+    }
+    assert _codes(sc.compute_issues(merged, [], QUIET_ROBOTS, QUIET_LLMS, SITE), "jsonld_org_incomplete") == []
+
+
+def test_crawl_records_link_header_lastmod_and_non_html(tmp_path):
+    locs = "".join(
+        f"<url><loc>https://example.com/p{i}</loc><lastmod>2026-01-01</lastmod></url>" for i in range(6)
+    )
+    locs += "<url><loc>https://example.com/post.md</loc><lastmod>2026-01-01</lastmod></url>"
+    sitemap = f"<?xml version='1.0'?><urlset>{locs}</urlset>".encode()
+
+    def fake(url):
+        path = urlparse(url).path
+        if path == "/robots.txt":
+            return _raw(200, b"User-agent: *\nAllow: /\n", "text/plain")
+        if path == "/llms.txt":
+            return _raw(200, b"hi", "text/plain")
+        if path == "/sitemap.xml":
+            return _raw(200, sitemap, "application/xml")
+        if path == "/post.md":
+            raw = _raw(200, b"# post", "text/markdown")
+            raw["headers"]["link"] = ['<https://example.com/llms.txt>; rel="describedby"']
+            return raw
+        body = f"<html><head><title>{path}</title><link rel='canonical' href='{url}'></head><body><h1>x</h1></body></html>".encode()
+        raw = _raw(200, body)
+        raw["headers"]["link"] = [f'<{url}>; rel="canonical"']
+        return raw
+
+    report = sc.crawl(
+        {"site": SITE, "sitemap": "https://example.com/sitemap.xml", "max_pages": 20},
+        fetch=fake,
+        delay=0,
+    )
+    assert report["pages"]["https://example.com/post.md"]["link_header"] == (
+        '<https://example.com/llms.txt>; rel="describedby"'
+    )
+    assert report["pages"]["https://example.com/p0"]["link_header"] == '<https://example.com/p0>; rel="canonical"'
+    non_html = _codes(report["issues"], "sitemap_non_html")
+    assert [item["url"] for item in non_html] == ["https://example.com/post.md"]
+    assert non_html[0]["detail"] == "text/markdown"
+    lastmod = _codes(report["issues"], "sitemap_lastmod_uniform")
+    assert len(lastmod) == 1
+    assert "All 7 URLs share lastmod 2026-01-01" == lastmod[0]["detail"]
