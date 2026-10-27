@@ -1,0 +1,26 @@
+# Buyer-question battery. Copy into the client repo and rewrite for that market.
+# kind is one of: branded, category, comparison, cost
+- id: branded-who
+  text: Who is Acme Corp?
+  kind: branded
+- id: branded-fit
+  text: Is Acme Corp a good fit for a small widget project?
+  kind: branded
+- id: category-best
+  text: Who are the best widget makers for a small business?
+  kind: category
+- id: category-choose
+  text: How should a buyer choose a widget maker?
+  kind: category
+- id: comparison-vs
+  text: Acme Corp vs Competitor A, which is the better widget maker?
+  kind: comparison
+- id: comparison-alt
+  text: What are alternatives to Competitor A for widget work?
+  kind: comparison
+- id: cost-typical
+  text: How much does a typical widget project cost?
+  kind: cost
+- id: cost-brand
+  text: How much does Acme Corp charge for a widget project?
+  kind: cost

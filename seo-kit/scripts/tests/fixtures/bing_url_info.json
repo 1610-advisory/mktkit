@@ -1,0 +1,13 @@
+{
+  "d": {
+    "__type": "UrlInfo:#Microsoft.Bing.Webmaster.Api",
+    "AnchorCount": 50,
+    "DiscoveryDate": "/Date(1315349995266-0700)/",
+    "DocumentSize": 0,
+    "HttpStatus": 200,
+    "IsPage": true,
+    "LastCrawledDate": "/Date(1316213995266-0700)/",
+    "TotalChildUrlCount": 100,
+    "Url": "https://example.com/widgets"
+  }
+}

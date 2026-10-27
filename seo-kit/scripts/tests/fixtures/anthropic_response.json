@@ -1,0 +1,46 @@
+{
+  "id": "msg_test",
+  "type": "message",
+  "role": "assistant",
+  "model": "test-model",
+  "content": [
+    {
+      "type": "server_tool_use",
+      "id": "srvtoolu_test",
+      "name": "web_search",
+      "input": {"query": "Acme Corp widget cost"}
+    },
+    {
+      "type": "web_search_tool_result",
+      "tool_use_id": "srvtoolu_test",
+      "content": [
+        {
+          "type": "web_search_result",
+          "url": "https://example.com/pricing",
+          "title": "Pricing"
+        },
+        {
+          "type": "web_search_result",
+          "url": "https://news.example/acme",
+          "title": "News"
+        }
+      ]
+    },
+    {
+      "type": "text",
+      "text": "Acme Corp lists a starting price on its site.",
+      "citations": [
+        {
+          "type": "web_search_result_location",
+          "url": "https://example.com/pricing",
+          "title": "Pricing",
+          "cited_text": "starting price"
+        }
+      ]
+    }
+  ],
+  "usage": {
+    "input_tokens": 80,
+    "output_tokens": 36
+  }
+}

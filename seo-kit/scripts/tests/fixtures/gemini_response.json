@@ -1,0 +1,26 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "role": "model",
+        "parts": [
+          {"text": "Buyers comparing widget makers often start with Acme."},
+          {"text": " Competitor A publishes a rate card."}
+        ]
+      },
+      "groundingMetadata": {
+        "webSearchQueries": ["widget makers"],
+        "groundingChunks": [
+          {"web": {"uri": "https://blog.example.com/guide", "title": "Guide"}},
+          {"web": {"title": "missing uri"}},
+          {"retrievedContext": {"uri": "https://ignored.example/ctx"}}
+        ]
+      }
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 22,
+    "candidatesTokenCount": 19,
+    "totalTokenCount": 41
+  }
+}

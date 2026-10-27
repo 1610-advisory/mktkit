@@ -1,0 +1,39 @@
+{
+  "rows": [
+    {
+      "keys": ["acme widgets", "https://example.com/widgets"],
+      "clicks": 12,
+      "impressions": 80,
+      "ctr": 0.15,
+      "position": 9.2
+    },
+    {
+      "keys": ["widget cost", "https://example.com/pricing"],
+      "clicks": 4,
+      "impressions": 40,
+      "ctr": 0.1,
+      "position": 14.4
+    },
+    {
+      "keys": ["acme brand", "https://example.com/"],
+      "clicks": 30,
+      "impressions": 19,
+      "ctr": 0.5,
+      "position": 3.1
+    },
+    {
+      "keys": ["page two edge", "https://example.com/edge"],
+      "clicks": 1,
+      "impressions": 20,
+      "ctr": 0.05,
+      "position": 8.0
+    },
+    {
+      "keys": ["too deep", "https://example.com/deep"],
+      "clicks": 1,
+      "impressions": 50,
+      "ctr": 0.02,
+      "position": 20.1
+    }
+  ]
+}

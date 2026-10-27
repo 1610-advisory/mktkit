@@ -1,0 +1,11 @@
+{
+  "d": [
+    {
+      "__type": "UrlWithCrawlIssues:#Microsoft.Bing.Webmaster.Api",
+      "HttpCode": 404,
+      "Issues": 32,
+      "Url": "https://example.com/missing",
+      "InLinks": 2
+    }
+  ]
+}

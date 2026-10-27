@@ -1,0 +1,42 @@
+{
+  "id": "resp_test",
+  "object": "response",
+  "status": "completed",
+  "model": "test-model",
+  "output": [
+    {
+      "id": "ws_test",
+      "type": "web_search_call",
+      "status": "completed"
+    },
+    {
+      "id": "msg_test",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "output_text",
+          "text": "Acme Corp is a widget maker. Competitor A is also mentioned.",
+          "annotations": [
+            {
+              "type": "url_citation",
+              "start_index": 0,
+              "end_index": 9,
+              "title": "Acme Corp",
+              "url": "https://www.example.com/about"
+            },
+            {
+              "type": "file_citation",
+              "url": "https://ignored.example/file"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "usage": {
+    "input_tokens": 120,
+    "output_tokens": 40,
+    "total_tokens": 160
+  }
+}
