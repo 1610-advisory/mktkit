@@ -59,6 +59,7 @@ SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"]
 INSPECT_LIMIT = 200
 INSPECT_DELAY_S = 0.2
 ANALYTICS_ROW_LIMIT = 1000
+ANALYTICS_ROW_CAP = 25000
 WINDOW_DAYS = 28
 WINDOW_LAG_DAYS = 3
 USER_AGENT = "seo-kit/0.1"
@@ -163,12 +164,13 @@ def build_analytics_body(
     end: str,
     dimensions: list[str] | None,
     row_limit: int,
+    start_row: int = 0,
 ) -> dict:
     body: dict = {
         "startDate": start,
         "endDate": end,
         "rowLimit": row_limit,
-        "startRow": 0,
+        "startRow": start_row,
     }
     if dimensions:
         body["dimensions"] = dimensions
@@ -178,8 +180,8 @@ def build_analytics_body(
 def parse_inspection(url: str, payload: dict) -> dict:
     """Pull the index-status fields the weekly report keeps."""
     idx = (payload.get("inspectionResult") or {}).get("indexStatusResult") or {}
-    google = idx.get("googleCanonical")
-    user = idx.get("userCanonical")
+    google = idx.get("googleCanonical") or None
+    user = idx.get("userCanonical") or None
     return {
         "url": url,
         "verdict": idx.get("verdict"),
@@ -190,7 +192,8 @@ def parse_inspection(url: str, payload: dict) -> dict:
         "lastCrawlTime": idx.get("lastCrawlTime"),
         "googleCanonical": google,
         "userCanonical": user,
-        "canonical_mismatch": google != user,
+        # Missing on one side is unknown, not a mismatch.
+        "canonical_mismatch": bool(google) and bool(user) and google != user,
         "error": None,
     }
 
@@ -294,6 +297,18 @@ def build_gsc_summary(totals: dict, inspections: list[dict]) -> dict:
     }
 
 
+def write_token(path: Path, text: str) -> None:
+    """Write an OAuth token as mode 0600. Parent directory is 0700."""
+    parent = path.parent
+    parent.mkdir(parents=True, exist_ok=True)
+    os.chmod(parent, 0o700)
+    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        os.write(fd, text.encode("utf-8"))
+    finally:
+        os.close(fd)
+
+
 def _cached_credentials():
     if not TOKEN_PATH.exists():
         return None
@@ -307,7 +322,7 @@ def _cached_credentials():
             from google.auth.transport.requests import Request
 
             creds.refresh(Request())
-            TOKEN_PATH.write_text(creds.to_json())
+            write_token(TOKEN_PATH, creds.to_json())
             return creds
     except Exception:
         return None
@@ -358,8 +373,7 @@ def get_credentials(oauth_client_path: str | None = None):
 
     flow = InstalledAppFlow.from_client_secrets_file(client_file, SCOPES)
     creds = flow.run_local_server(port=0)
-    TOKEN_PATH.parent.mkdir(parents=True, exist_ok=True)
-    TOKEN_PATH.write_text(creds.to_json())
+    write_token(TOKEN_PATH, creds.to_json())
     print(f"Token cached at {TOKEN_PATH}", file=sys.stderr)
     return creds
 
@@ -378,20 +392,43 @@ def make_inspect_fn(service):
     return inspect_fn
 
 
+def paginate_analytics(
+    query_fn,
+    start: str,
+    end: str,
+    dimensions: list[str] | None,
+    row_limit: int = ANALYTICS_ROW_LIMIT,
+    cap: int = ANALYTICS_ROW_CAP,
+) -> list[dict]:
+    """Pull Search Analytics pages until a short page or the row cap.
+
+    query_fn(body) -> raw API payload. startRow advances by the page size.
+    """
+    rows: list[dict] = []
+    start_row = 0
+    while start_row < cap:
+        limit = min(row_limit, cap - start_row)
+        payload = query_fn(build_analytics_body(start, end, dimensions, limit, start_row))
+        page = parse_analytics_rows(payload)
+        rows.extend(page)
+        if len(page) < limit:
+            break
+        start_row += limit
+    return rows[:cap]
+
+
 def fetch_analytics(service, site_url: str, today: date | None = None) -> tuple[list[dict], dict, tuple[str, str]]:
     start, end = analytics_window(today)
+
+    def query(body: dict) -> dict:
+        return service.searchanalytics().query(siteUrl=site_url, body=body).execute()
+
     try:
-        detail = service.searchanalytics().query(
-            siteUrl=site_url,
-            body=build_analytics_body(start, end, ["query", "page"], ANALYTICS_ROW_LIMIT),
-        ).execute()
-        totals_raw = service.searchanalytics().query(
-            siteUrl=site_url,
-            body=build_analytics_body(start, end, None, 1),
-        ).execute()
+        rows = paginate_analytics(query, start, end, ["query", "page"])
+        totals_raw = query(build_analytics_body(start, end, None, 1))
     except Exception as exc:
         raise RuntimeError(f"Search Analytics request failed: {type(exc).__name__}") from exc
-    return parse_analytics_rows(detail), parse_totals(totals_raw), (start, end)
+    return rows, parse_totals(totals_raw), (start, end)
 
 
 def sitemap_urls(config: dict) -> list[str]:

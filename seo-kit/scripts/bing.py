@@ -20,9 +20,11 @@ Endpoints (JSON):
     https://ssl.bing.com/webmaster/api.svc/json/GetCrawlIssues
     https://ssl.bing.com/webmaster/api.svc/json/GetUrlInfo
 
-siteUrl comes from config key site. Bing dates like /Date(1700000000000)/
-are converted to UTC ISO timestamps. The number is UTC milliseconds; the
-optional timezone suffix is not applied again.
+siteUrl comes from config key site, with a trailing slash added (Bing
+properties are usually registered that way). Pass --site-url to override
+the value exactly. Bing dates like /Date(1700000000000)/ are converted to
+UTC ISO timestamps. The number is UTC milliseconds; the optional timezone
+suffix is not applied again. A failing GetUrlInfo is recorded and skipped.
 
 Commands:
     all     Write bing.json with summary, queries, pages, and crawl_issues
@@ -186,12 +188,21 @@ def attach_url_info(pages: list[dict], infos: list[dict]) -> list[dict]:
         if url:
             by_url[_norm(url)] = info
     attached = []
+    matched = set()
     for page in pages:
         item = dict(page)
-        info = by_url.get(_norm(page.get("page") or ""))
+        key = _norm(page.get("page") or "")
+        info = by_url.get(key)
         if info:
             item["url_info"] = info
+            matched.add(key)
         attached.append(item)
+    # A failed lookup that matches no page row still has to land in the report.
+    for info in infos:
+        url = info.get("url") or ""
+        if info.get("error") and _norm(url) not in matched:
+            attached.append({"page": url, "url_info": info})
+            matched.add(_norm(url))
     return attached
 
 
@@ -220,6 +231,16 @@ def fetch_json(url: str, timeout: float = 60) -> dict:
         return resp.json()
     except json.JSONDecodeError as exc:
         raise RuntimeError("response was not JSON") from exc
+
+
+def site_url_for_api(site: str, override: str | None = None) -> str:
+    """Default siteUrl has a trailing slash. --site-url replaces it exactly."""
+    if override and override.strip():
+        return override.strip()
+    site = (site or "").strip()
+    if site and not site.endswith("/"):
+        site += "/"
+    return site
 
 
 def urls_for_info(site: str, pages: list[dict], cap: int = URL_INFO_CAP) -> list[str]:
@@ -258,8 +279,9 @@ def pull_all(site: str, api_key: str, get_json=fetch_json) -> dict:
         try:
             infos.append(parse_url_info(get_json(url)))
         except Exception as exc:
+            # One bad URL must not drop the rest of the weekly report.
             message = redact(str(exc), api_key)
-            raise RuntimeError(f"GetUrlInfo failed: {message}") from exc
+            infos.append({"url": page_url, "error": message})
     return assemble_report(queries, attach_url_info(pages, infos), issues, utc_now())
 
 
@@ -283,6 +305,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     all_cmd = sub.add_parser("all", help="Write bing.json from the Webmaster API")
     all_cmd.add_argument("--config", required=True, help="Path to tracking/seo/config.yaml")
     all_cmd.add_argument("--out", required=True, help="JSON output path")
+    all_cmd.add_argument("--site-url", help="Override the siteUrl sent to Bing (default: config site with a trailing slash)")
     return parser.parse_args(argv)
 
 
@@ -294,7 +317,7 @@ def main(argv: list[str] | None = None) -> int:
     if not api_key:
         return 1
     config = load_client(args.config)
-    site = (config.get("site") or "").strip()
+    site = site_url_for_api(config.get("site") or "", getattr(args, "site_url", None))
     if not site:
         print("Error: config site is empty.", file=sys.stderr)
         return 1

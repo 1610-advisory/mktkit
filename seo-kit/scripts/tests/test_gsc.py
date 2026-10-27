@@ -157,3 +157,71 @@ def test_totals_and_summary_indexed_is_pass_only():
     assert summary["not_indexed"] == 3
     assert summary["clicks"] == 100
     assert set(summary) == {"clicks", "impressions", "ctr", "position", "indexed", "not_indexed"}
+
+
+def test_write_token_is_mode_0600_and_parent_0700(tmp_path):
+    path = tmp_path / "google" / "seo-kit-token.json"
+    gsc.write_token(path, '{"token": "x"}\n')
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert path.parent.stat().st_mode & 0o777 == 0o700
+    assert path.read_text(encoding="utf-8").startswith("{")
+    source = Path(gsc.__file__).read_text(encoding="utf-8")
+    assert source.count("write_token(") >= 3
+    assert "TOKEN_PATH.write_text" not in source
+
+
+def test_canonical_mismatch_requires_both_and_pagination(tmp_path):
+    only_google = gsc.parse_inspection(
+        "https://example.com/a",
+        {"inspectionResult": {"indexStatusResult": {"googleCanonical": "https://example.com/a"}}},
+    )
+    only_user = gsc.parse_inspection(
+        "https://example.com/a",
+        {"inspectionResult": {"indexStatusResult": {"userCanonical": "https://example.com/a/"}}},
+    )
+    assert only_google["canonical_mismatch"] is False
+    assert only_user["canonical_mismatch"] is False
+    assert gsc.ANALYTICS_ROW_CAP == 25000
+    calls = []
+
+    def query(body):
+        calls.append(body["startRow"])
+        count = 1000 if body["startRow"] < 2000 else 4
+        return {
+            "rows": [
+                {
+                    "keys": ["q", "https://example.com/"],
+                    "clicks": 1,
+                    "impressions": 2,
+                    "ctr": 0.5,
+                    "position": 3,
+                }
+                for _ in range(count)
+            ]
+        }
+
+    rows = gsc.paginate_analytics(query, "2026-09-27", "2026-10-24", ["query", "page"])
+    assert calls == [0, 1000, 2000]
+    assert len(rows) == 2004
+    capped = []
+
+    def always_full(body):
+        capped.append((body["startRow"], body["rowLimit"]))
+        return {
+            "rows": [
+                {
+                    "keys": ["q", "https://example.com/"],
+                    "clicks": 0,
+                    "impressions": 0,
+                    "ctr": 0,
+                    "position": 1,
+                }
+                for _ in range(body["rowLimit"])
+            ]
+        }
+
+    limited = gsc.paginate_analytics(
+        always_full, "2026-09-27", "2026-10-24", ["query", "page"], row_limit=1000, cap=2500
+    )
+    assert capped == [(0, 1000), (1000, 1000), (2000, 500)]
+    assert len(limited) == 2500

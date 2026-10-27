@@ -651,3 +651,72 @@ def test_lastmod_mixed_dates_not_flagged():
     urls = [f"https://example.com/p{i}" for i in range(8)]
     stamps = [f"2026-01-0{i + 1}" for i in range(8)]
     assert sc._sitemap_lastmod_issue(urls, stamps, "https://example.com") is None
+
+
+def test_redirect_exact_url_fetches_slash_target_and_www():
+    about_html = b"<html><head><title>About</title></head><body><h1>About</h1></body></html>"
+    www_home = b'<html><head><title>Home</title></head><body><h1>Home</h1><a href="/pricing">Pricing</a></body></html>'
+    pricing = b"<html><head><title>Pricing</title></head><body><h1>Pricing</h1></body></html>"
+    sitemap_slash = b'<?xml version="1.0"?><urlset><url><loc>https://example.com/about/</loc></url></urlset>'
+    sitemap_apex = b'<?xml version="1.0"?><urlset><url><loc>https://example.com/</loc></url></urlset>'
+
+    def fake_slash(url):
+        path = urlparse(url).path
+        if path == "/robots.txt":
+            return _raw(200, b"User-agent: *\nAllow: /\n", "text/plain")
+        if path == "/llms.txt":
+            return _raw(404, b"", "text/plain")
+        if path == "/sitemap.xml":
+            return _raw(200, sitemap_slash, "application/xml")
+        if url == "https://example.com/about/":
+            return _raw(308, b"", "text/html", location="https://example.com/about")
+        if url == "https://example.com/about":
+            return _raw(200, about_html)
+        return _raw(404, b"missing", "text/html")
+
+    config = {"site": SITE, "sitemap": "https://example.com/sitemap.xml", "max_pages": 20}
+    report = sc.crawl(config, fetch=fake_slash, delay=0, sleep=lambda _s: None)
+    assert "https://example.com/about" in report["pages"]
+    page = sc.find_page("https://example.com/about", report["pages"])
+    assert page["status"] == 200
+    assert page["title"] == "About"
+
+    def fake_www(url):
+        parsed = urlparse(url)
+        if parsed.path == "/robots.txt":
+            return _raw(200, b"User-agent: *\nAllow: /\n", "text/plain")
+        if parsed.path == "/llms.txt":
+            return _raw(404, b"", "text/plain")
+        if parsed.path == "/sitemap.xml":
+            return _raw(200, sitemap_apex, "application/xml")
+        if url == "https://example.com/":
+            return _raw(308, b"", "text/html", location="https://www.example.com/")
+        if parsed.hostname == "www.example.com" and parsed.path == "/":
+            return _raw(200, www_home)
+        if parsed.hostname == "www.example.com" and parsed.path == "/pricing":
+            return _raw(200, pricing)
+        return _raw(404, b"missing", "text/html")
+
+    report = sc.crawl(config, fetch=fake_www, delay=0, sleep=lambda _s: None)
+    assert report["pages"]["https://www.example.com/"]["status"] == 200
+    assert report["pages"]["https://www.example.com/pricing"]["title"] == "Pricing"
+    final = sc.find_page("https://www.example.com/", report["pages"])
+    assert final["title"] == "Home"
+
+
+def test_title_first_only_ignores_svg_and_robots_tokens():
+    html = """<html><head>
+    <svg><title>Icon label</title></svg>
+    <title>First title</title>
+    <title>Second title</title>
+    <meta name="robots" content="max-image-preview:none, index">
+    <meta name="googlebot" content="googlebot: noindex">
+    </head><body><p>Words here.</p></body></html>"""
+    parsed = sc.parse_html(html, "https://example.com/", SITE)
+    assert parsed["title"] == "First title"
+    assert parsed["meta_googlebot"] == "googlebot: noindex"
+    assert sc.robots_value_is_noindex("max-image-preview:none") is False
+    assert sc.has_noindex({"meta_robots": "max-image-preview:none", "x_robots_tag": None}) is False
+    assert sc.has_noindex(parsed) is True
+    assert sc.robots_value_is_noindex("none") is True
+    assert sc.robots_value_is_noindex("noindex, nofollow") is True

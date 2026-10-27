@@ -44,14 +44,22 @@ GSC_LABELS = {
 }
 
 
-def load_snapshot(path: Path) -> dict:
+def load_snapshot(path: Path, notes: list[str] | None = None) -> dict:
     found = {}
     if not path.is_dir():
         return found
     for name in SNAPSHOT_FILES:
         file_path = path / name
-        if file_path.is_file():
+        if not file_path.is_file():
+            continue
+        try:
             found[name] = json.loads(file_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            line = f"{name} is not valid JSON and was skipped."
+            if notes is not None:
+                notes.append(line)
+            else:
+                print(line, file=sys.stderr)
     return found
 
 
@@ -101,8 +109,24 @@ def _slash_key(url: str) -> str:
     return f"{parsed.scheme.lower()}://{parsed.hostname.lower()}{path}{query}"
 
 
+def _issue_url_key(url: str) -> str:
+    """Match issues across weeks. Ignore a trailing slash and a leading www."""
+    parsed = urlparse((url or "").strip())
+    if not parsed.scheme or not parsed.hostname:
+        return (url or "").strip()
+    host = parsed.hostname.lower()
+    if host.startswith("www."):
+        host = host[4:]
+    path = parsed.path or "/"
+    if len(path) > 1 and path.endswith("/"):
+        path = path.rstrip("/")
+    query = f"?{parsed.query}" if parsed.query else ""
+    frag = f"#{parsed.fragment}" if parsed.fragment else ""
+    return f"{parsed.scheme.lower()}://{host}{path}{query}{frag}"
+
+
 def _issue_key(issue: dict) -> tuple:
-    return (issue.get("code") or "", issue.get("url") or "")
+    return (issue.get("code") or "", _issue_url_key(issue.get("url") or ""))
 
 
 def _issues(crawl: dict | None) -> list[dict]:
@@ -326,9 +350,17 @@ def _headline(prev: dict, curr: dict, *, baseline: bool) -> list[str]:
     return ordered[:5]
 
 
-def _issue_section(prev: dict, curr: dict, *, baseline: bool, kind: str) -> list[str]:
+def _file_note(notes: list[str] | None, name: str) -> str | None:
+    prefix = f"{name} "
+    for note in notes or []:
+        if note.startswith(prefix):
+            return note
+    return None
+
+
+def _issue_section(prev: dict, curr: dict, *, baseline: bool, kind: str, notes: list[str] | None = None) -> list[str]:
     if "crawl.json" not in curr:
-        return ["crawl.json is missing from the current snapshot."]
+        return [_file_note(notes, "crawl.json") or "crawl.json is missing from the current snapshot."]
     if baseline:
         if kind == "new":
             lines = ["First baseline. These are the current issues, not changes from last week."]
@@ -339,7 +371,7 @@ def _issue_section(prev: dict, curr: dict, *, baseline: bool, kind: str) -> list
             return lines
         return ["No previous snapshot, so nothing to resolve."]
     if "crawl.json" not in prev:
-        return ["crawl.json is missing from the previous snapshot."]
+        return [_file_note(notes, "crawl.json") or "crawl.json is missing from the previous snapshot."]
     new, resolved = _diff_issues(_issues(prev.get("crawl.json")), _issues(curr.get("crawl.json")))
     items = new if kind == "new" else resolved
     if not items:
@@ -347,11 +379,11 @@ def _issue_section(prev: dict, curr: dict, *, baseline: bool, kind: str) -> list
     return [_format_issue(item) for item in items]
 
 
-def _speed_section(prev: dict, curr: dict, *, baseline: bool) -> list[str]:
+def _speed_section(prev: dict, curr: dict, *, baseline: bool, notes: list[str] | None = None) -> list[str]:
     if "lighthouse.json" not in curr:
-        return ["lighthouse.json is missing from the current snapshot."]
+        return [_file_note(notes, "lighthouse.json") or "lighthouse.json is missing from the current snapshot."]
     if not baseline and "lighthouse.json" not in prev:
-        note = ["lighthouse.json is missing from the previous snapshot."]
+        note = [_file_note(notes, "lighthouse.json") or "lighthouse.json is missing from the previous snapshot."]
     else:
         note = []
     rows = _speed_rows(None if baseline else prev.get("lighthouse.json"), curr.get("lighthouse.json"))
@@ -379,15 +411,15 @@ def _speed_section(prev: dict, curr: dict, *, baseline: bool) -> list[str]:
     return lines
 
 
-def _search_section(prev: dict, curr: dict, *, baseline: bool) -> list[str]:
+def _search_section(prev: dict, curr: dict, *, baseline: bool, notes: list[str] | None = None) -> list[str]:
     if "gsc.json" not in curr:
-        return ["gsc.json is missing from the current snapshot."]
+        return [_file_note(notes, "gsc.json") or "gsc.json is missing from the current snapshot."]
     curr_summary = _gsc_summary(curr.get("gsc.json"))
     if not curr_summary:
         return ["gsc.json has no summary."]
     prev_summary = {} if baseline else _gsc_summary(prev.get("gsc.json"))
     if not baseline and "gsc.json" not in prev:
-        lines = ["gsc.json is missing from the previous snapshot."]
+        lines = [_file_note(notes, "gsc.json") or "gsc.json is missing from the previous snapshot."]
         prev_summary = {}
     else:
         lines = []
@@ -402,14 +434,14 @@ def _search_section(prev: dict, curr: dict, *, baseline: bool) -> list[str]:
     return lines or ["gsc.json summary has none of the expected keys."]
 
 
-def _ai_section(prev: dict, curr: dict, *, baseline: bool) -> list[str]:
+def _ai_section(prev: dict, curr: dict, *, baseline: bool, notes: list[str] | None = None) -> list[str]:
     if "ai.json" not in curr:
-        return ["ai.json is missing from the current snapshot."]
+        return [_file_note(notes, "ai.json") or "ai.json is missing from the current snapshot."]
     curr_summary = _ai_summary(curr.get("ai.json"))
     if not curr_summary:
         return ["ai.json has no summary."]
     if not baseline and "ai.json" not in prev:
-        lines = ["ai.json is missing from the previous snapshot."]
+        lines = [_file_note(notes, "ai.json") or "ai.json is missing from the previous snapshot."]
         prev_summary = {}
     else:
         lines = []
@@ -427,7 +459,19 @@ def _ai_section(prev: dict, curr: dict, *, baseline: bool) -> list[str]:
     return lines
 
 
-def render_diff(prev: dict, curr: dict, *, baseline: bool, prev_label: str, curr_label: str) -> str:
+def _hyphenate(text: str) -> str:
+    return text.replace("\u2014", "-").replace("\u2013", "-")
+
+
+def render_diff(
+    prev: dict,
+    curr: dict,
+    *,
+    baseline: bool,
+    prev_label: str,
+    curr_label: str,
+    notes: list[str] | None = None,
+) -> str:
     """Build the markdown report. prev may be empty when baseline is true."""
     headline = _headline(prev, curr, baseline=baseline)
     sections = [
@@ -442,26 +486,26 @@ def render_diff(prev: dict, curr: dict, *, baseline: bool, prev_label: str, curr
         "",
         "## New issues",
         "",
-        *_issue_section(prev, curr, baseline=baseline, kind="new"),
+        *_issue_section(prev, curr, baseline=baseline, kind="new", notes=notes),
         "",
         "## Resolved issues",
         "",
-        *_issue_section(prev, curr, baseline=baseline, kind="resolved"),
+        *_issue_section(prev, curr, baseline=baseline, kind="resolved", notes=notes),
         "",
         "## Speed",
         "",
-        *_speed_section(prev, curr, baseline=baseline),
+        *_speed_section(prev, curr, baseline=baseline, notes=notes),
         "",
         "## Search",
         "",
-        *_search_section(prev, curr, baseline=baseline),
+        *_search_section(prev, curr, baseline=baseline, notes=notes),
         "",
         "## AI answers",
         "",
-        *_ai_section(prev, curr, baseline=baseline),
+        *_ai_section(prev, curr, baseline=baseline, notes=notes),
         "",
     ]
-    return "\n".join(sections)
+    return _hyphenate("\n".join(sections))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -476,22 +520,22 @@ def main(argv: list[str] | None = None) -> int:
     if not curr_path.is_dir():
         print(f"Error: current snapshot not found: {curr_path}", file=sys.stderr)
         return 1
-    curr = load_snapshot(curr_path)
+    curr_notes: list[str] = []
+    curr = load_snapshot(curr_path, curr_notes)
     if not curr:
         print("Error: current snapshot has no crawl.json, lighthouse.json, gsc.json, or ai.json", file=sys.stderr)
         return 1
-    baseline = prev_path is None or is_baseline(prev_path)
-    prev = {} if baseline else load_snapshot(prev_path)
+    prev_notes: list[str] = []
+    prev = load_snapshot(prev_path, prev_notes) if prev_path is not None else {}
+    baseline = prev_path is None or not prev
     text = render_diff(
         prev,
         curr,
         baseline=baseline,
         prev_label=prev_path.name if prev_path else "none",
         curr_label=curr_path.name,
+        notes=curr_notes + prev_notes,
     )
-    if "\u2014" in text or "\u2013" in text:
-        print("Error: diff renderer produced a dash that is not a hyphen", file=sys.stderr)
-        return 1
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")

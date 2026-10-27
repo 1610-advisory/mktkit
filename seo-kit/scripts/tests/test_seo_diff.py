@@ -127,3 +127,26 @@ def test_main_without_prev_writes_baseline(tmp_path):
     out = tmp_path / "diff.md"
     assert seo_diff.main(["--curr", str(curr), "--out", str(out)]) == 0
     assert "Previous snapshot: none" in out.read_text()
+
+
+def test_issue_urls_ignore_www_and_slash_and_bad_json(tmp_path):
+    prev_items = [{"code": "missing_title", "url": "https://example.com/about/", "severity": "high"}]
+    curr_items = [{"code": "missing_title", "url": "https://www.example.com/about", "severity": "high"}]
+    new, resolved = seo_diff._diff_issues(prev_items, curr_items)
+    assert new == []
+    assert resolved == []
+
+    curr = tmp_path / "curr"
+    curr.mkdir()
+    (curr / "crawl.json").write_text(
+        '{"issues": [{"code": "x", "url": "https://example.com/a", "severity": "low", "detail": "wait \u2014 now and \u2013 then"}], "counts": {"pages": 1, "html_pages": 1}}',
+        encoding="utf-8",
+    )
+    (curr / "lighthouse.json").write_text("{", encoding="utf-8")
+    out = tmp_path / "diff.md"
+    assert seo_diff.main(["--curr", str(curr), "--out", str(out)]) == 0
+    text = out.read_text(encoding="utf-8")
+    assert "\u2014" not in text
+    assert "\u2013" not in text
+    assert "wait - now and - then" in text
+    assert "lighthouse.json is not valid JSON and was skipped." in text

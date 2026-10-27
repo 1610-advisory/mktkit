@@ -126,6 +126,21 @@ def normalize_url(url: str) -> str:
     return f"{parsed.scheme.lower()}://{bare_host(parsed.hostname)}{path}{query}"
 
 
+def exact_url(url: str) -> str:
+    """Fetch identity: scheme, host including www, path including trailing slash, and query."""
+    parsed = urlparse(strip_fragment(url.strip()))
+    if not parsed.scheme or not parsed.hostname:
+        return strip_fragment(url.strip())
+    path = parsed.path or "/"
+    query = f"?{parsed.query}" if parsed.query else ""
+    host = parsed.hostname.lower()
+    if parsed.port and not (
+        (parsed.scheme == "https" and parsed.port == 443) or (parsed.scheme == "http" and parsed.port == 80)
+    ):
+        host = f"{host}:{parsed.port}"
+    return f"{parsed.scheme.lower()}://{host}{path}{query}"
+
+
 def slash_key(url: str) -> str:
     """Compare canonical to final URL. Ignore trailing slash only, keep www."""
     parsed = urlparse(strip_fragment(url.strip()))
@@ -619,7 +634,10 @@ class PageParser(HTMLParser):
         self.text_parts: list[str] = []
         self.meta_description = None
         self.meta_robots = None
+        self.meta_googlebot = None
         self.canonical = None
+        self.svg_depth = 0
+        self.saw_title = False
         self.og_title = None
         self.og_image = None
         self.hrefs: list[str] = []
@@ -631,6 +649,8 @@ class PageParser(HTMLParser):
     def handle_starttag(self, tag: str, attrs) -> None:
         tag = tag.lower()
         attr = {key.lower(): (value if value is not None else "") for key, value in attrs}
+        if tag == "svg":
+            self.svg_depth += 1
         if tag == "script" and attr.get("type", "").lower() == "application/ld+json":
             self.in_jsonld = True
             self._jsonld_buf = []
@@ -641,7 +661,8 @@ class PageParser(HTMLParser):
             return
         if tag == "base" and attr.get("href"):
             self.base = attr["href"]
-        elif tag == "title":
+        elif tag == "title" and self.svg_depth == 0 and not self.saw_title:
+            # First document title only. <title> inside <svg> is an icon label.
             self.in_title = True
             self.title_parts = []
         elif tag == "h1":
@@ -665,6 +686,8 @@ class PageParser(HTMLParser):
                 self.meta_description = content or ""
             elif name == "robots" and self.meta_robots is None:
                 self.meta_robots = content or ""
+            elif name == "googlebot" and self.meta_googlebot is None:
+                self.meta_googlebot = content or ""
             elif prop == "og:title" and self.og_title is None:
                 self.og_title = content or ""
             elif prop == "og:image" and self.og_image is None:
@@ -672,6 +695,8 @@ class PageParser(HTMLParser):
 
     def handle_endtag(self, tag: str) -> None:
         tag = tag.lower()
+        if tag == "svg" and self.svg_depth:
+            self.svg_depth -= 1
         if tag == "script" and self.in_jsonld:
             self.json_ld_raw.append("".join(self._jsonld_buf))
             self.in_jsonld = False
@@ -683,6 +708,7 @@ class PageParser(HTMLParser):
             return
         if tag == "title" and self.in_title:
             self.in_title = False
+            self.saw_title = True
         elif tag == "h1" and self.in_h1:
             self.h1.append(_collapse("".join(self.h1_parts)))
             self.in_h1 = False
@@ -759,6 +785,7 @@ def parse_html(html: str, page_url: str, site: str) -> dict:
         "title": title,
         "meta_description": description,
         "meta_robots": parser.meta_robots,
+        "meta_googlebot": parser.meta_googlebot,
         "canonical": canonical,
         "og_title": parser.og_title,
         "og_image": parser.og_image,
@@ -817,9 +844,21 @@ def index_pages(pages: dict) -> dict:
 def find_page(url: str, pages: dict, by_norm: dict | None = None) -> dict | None:
     if url in pages:
         return pages[url]
+    ident = exact_url(url)
+    for page_url, record in pages.items():
+        if exact_url(page_url) == ident:
+            return record
     key = normalize_url(url)
     if by_norm is not None and key in by_norm:
-        return by_norm[key]
+        candidate = by_norm[key]
+        if candidate.get("status") in REDIRECT_STATUSES:
+            for page_url, record in pages.items():
+                if normalize_url(page_url) == key and record.get("status") not in REDIRECT_STATUSES:
+                    return record
+        return candidate
+    for page_url, record in pages.items():
+        if normalize_url(page_url) == key and record.get("status") not in REDIRECT_STATUSES:
+            return record
     for page_url, record in pages.items():
         if normalize_url(page_url) == key:
             return record
@@ -864,9 +903,42 @@ def final_record(url: str, pages: dict, by_norm: dict) -> dict | None:
     return last
 
 
+_ROBOTS_VALUE_DIRECTIVES = {
+    "max-image-preview",
+    "max-snippet",
+    "max-video-preview",
+    "unavailable_after",
+}
+
+
+def _robots_directive(token: str) -> str:
+    """Directive name after an optional botname: prefix. Valued directives stay named."""
+    token = token.strip().lower()
+    if ":" not in token:
+        return token
+    left, right = token.split(":", 1)
+    left = left.strip()
+    right = right.strip()
+    if left in _ROBOTS_VALUE_DIRECTIVES:
+        return left
+    return right or left
+
+
+def robots_value_is_noindex(value: str | None) -> bool:
+    """True when a comma-separated robots value has a noindex or none directive."""
+    if not value:
+        return False
+    for part in value.split(","):
+        if _robots_directive(part) in {"noindex", "none"}:
+            return True
+    return False
+
+
 def has_noindex(record: dict) -> bool:
-    blob = " ".join(filter(None, [record.get("meta_robots"), record.get("x_robots_tag")])).lower()
-    return "noindex" in blob or re.search(r"\bnone\b", blob) is not None
+    for field in ("meta_robots", "meta_googlebot", "x_robots_tag"):
+        if robots_value_is_noindex(record.get(field)):
+            return True
+    return False
 
 
 def is_html_200(record: dict) -> bool:
@@ -1289,6 +1361,7 @@ def crawl(config: dict, *, fetch=None, delay: float = 0.3, max_pages: int | None
     sitemap_norm = {normalize_url(url) for url in sitemap_urls}
     pages: dict[str, dict] = {}
     by_norm: dict[str, dict] = {}
+    fetched_exact: set[str] = set()
     queued: set[str] = set()
     queue: deque[str] = deque()
 
@@ -1307,21 +1380,29 @@ def crawl(config: dict, *, fetch=None, delay: float = 0.3, max_pages: int | None
 
     while queue and len(pages) < limit:
         start = queue.popleft()
-        if normalize_url(start) in by_norm:
+        if exact_url(start) in fetched_exact:
             continue
         current = start
         hops = 0
         while current and len(pages) < limit:
-            key = normalize_url(current)
-            if key in by_norm:
+            ident = exact_url(current)
+            # /about/ and /about are different fetches. www is not the apex.
+            if ident in fetched_exact:
                 break
             if should_skip(current, skip) or not same_site(current, site):
                 break
-            queued.add(key)
+            queued.add(normalize_url(current))
             raw = polite(current)
-            record = record_from_fetch(current, raw, site, key in sitemap_norm)
+            in_sitemap = normalize_url(current) in sitemap_norm
+            record = record_from_fetch(current, raw, site, in_sitemap)
             pages[current] = record
-            by_norm[key] = record
+            fetched_exact.add(ident)
+            norm = normalize_url(current)
+            prior = by_norm.get(norm)
+            if prior is None or (
+                prior.get("status") in REDIRECT_STATUSES and record.get("status") not in REDIRECT_STATUSES
+            ):
+                by_norm[norm] = record
             status = record["status"]
             loc = record.get("redirect_location")
             if status in REDIRECT_STATUSES and loc and hops < MAX_HOPS and same_site(loc, site) and not should_skip(loc, skip):

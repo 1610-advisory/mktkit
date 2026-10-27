@@ -143,10 +143,21 @@ def top_opportunities(audits: dict, limit: int = 3) -> list[dict]:
         if not isinstance(audit, dict):
             continue
         details = audit.get("details") or {}
-        if details.get("type") != "opportunity":
-            continue
-        score = audit.get("score")
-        if score is None or score >= 1:
+        audit_key = str(audit.get("id") or audit_id)
+        # Lighthouse 13 insight audits keep savings on metricSavings and use
+        # details.type table/list/checklist, not "opportunity".
+        insight = audit_key.endswith("-insight")
+        if details.get("type") == "opportunity":
+            score = audit.get("score")
+            if score is None or score >= 1:
+                continue
+        elif insight:
+            score = audit.get("score")
+            if score is not None and score >= 1:
+                continue
+            if estimated_savings_ms(audit) <= 0:
+                continue
+        else:
             continue
         items.append(
             {
@@ -203,6 +214,11 @@ def pick_median(reports: list[dict]) -> dict:
 
 
 def run_once(url: str, form_factor: str, output_path: Path, timeout: int) -> dict:
+    # A leftover report from the previous page would be parsed as this run.
+    try:
+        output_path.unlink()
+    except FileNotFoundError:
+        pass
     cmd = lighthouse_argv(url, form_factor, output_path)
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
@@ -253,20 +269,24 @@ def collect(
         for page in pages:
             url = page_url(config["site"], page)
             for form_factor in form_factors:
-                reports = []
-                for run_index in range(runs):
-                    out = tmp_path / f"report-{run_index}.json"
-                    reports.append(run_once(url, form_factor, out, timeout))
-                chosen = pick_median(reports)
-                tool_version = tool_version or chosen.get("lighthouseVersion")
-                row = {
-                    "url": url,
-                    "page": page,
-                    "form_factor": form_factor,
-                    "runs": runs,
-                }
-                row.update(extract_report(chosen))
-                results.append(row)
+                try:
+                    reports = []
+                    for run_index in range(runs):
+                        out = tmp_path / f"report-{run_index}.json"
+                        reports.append(run_once(url, form_factor, out, timeout))
+                    chosen = pick_median(reports)
+                    tool_version = tool_version or chosen.get("lighthouseVersion")
+                    row = {
+                        "url": url,
+                        "page": page,
+                        "form_factor": form_factor,
+                        "runs": runs,
+                    }
+                    row.update(extract_report(chosen))
+                    results.append(row)
+                except LighthouseError as exc:
+                    # One page or form factor must not drop the rest of the run.
+                    results.append({"page": page, "form_factor": form_factor, "error": str(exc)})
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "tool_version": tool_version or "unknown",
@@ -310,12 +330,17 @@ def main(argv: list[str] | None = None) -> int:
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    failed = 0
     for row in report["results"]:
+        if row.get("error"):
+            failed += 1
+            print(f"{row.get('form_factor')} {row.get('page')}: {row['error']}", file=sys.stderr)
+            continue
         perf = row["scores"]["performance"]
         lcp = row["metrics"]["lcp_ms"]
         print(f"{row['form_factor']} {row['page']}: perf {perf}, LCP {lcp} ms", file=sys.stderr)
     print(f"Wrote {out}", file=sys.stderr)
-    return 0
+    return 2 if failed else 0
 
 
 if __name__ == "__main__":

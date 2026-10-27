@@ -30,6 +30,9 @@ def test_parse_perplexity_fixture():
     assert parsed["cited_urls"] == [
         "https://example.com/pricing",
         "https://other.example/roundup",
+    ]
+    assert parsed["retrieved_urls"] == [
+        "https://example.com/pricing",
         "https://blog.other.example/widgets",
     ]
     assert parsed["usage"]["total_tokens"] == 48
@@ -47,7 +50,8 @@ def test_parse_gemini_fixture():
 def test_parse_anthropic_fixture():
     parsed = ai_visibility.parse_anthropic_response(load("anthropic_response.json"))
     assert parsed["answer"] == "Acme Corp lists a starting price on its site."
-    assert parsed["cited_urls"] == [
+    assert parsed["cited_urls"] == ["https://example.com/pricing"]
+    assert parsed["retrieved_urls"] == [
         "https://example.com/pricing",
         "https://news.example/acme",
     ]
@@ -304,3 +308,271 @@ def test_error_text_keeps_vendor_reason():
     assert ai_visibility._error_text(429, body) == "HTTP 429 credit_balance_exhausted: No credits."
     assert ai_visibility._error_text(500, {"_raw": "oops"}) == "HTTP 500"
     assert ai_visibility._error_text(400, {"error": "bad model"}) == "HTTP 400: bad model"
+
+
+def test_api_key_stripped_and_redact_covers_repr():
+    env = {"OPENAI_API_KEY": "  test-key  \n"}
+    assert ai_visibility.read_api_key(env, "openai") == "test-key"
+    config = {
+        "ai_engines": {"openai": {"model": "custom-model", "enabled": True}},
+    }
+    prompts = [{"id": "q", "text": "Who is Acme Corp?", "kind": "branded"}]
+    plan = ai_visibility.plan_calls(config, prompts, ["openai"], 1, env, 10)
+    assert plan["would_run"][0]["engine"] == "openai"
+    request = ai_visibility.build_openai_request("custom-model", "q", ai_visibility.read_api_key(env, "openai"))
+    assert request["headers"]["Authorization"] == "Bearer test-key"
+
+    class Resp:
+        status_code = 200
+        text = ""
+
+        def json(self):
+            return {
+                "status": "completed",
+                "output": [{"type": "message", "content": [{"type": "output_text", "text": "Acme Corp"}]}],
+                "usage": {"input_tokens": 1},
+            }
+
+    seen = {}
+
+    class Client:
+        def request(self, method, url, headers=None, json=None, timeout=None):
+            seen["authorization"] = headers["Authorization"]
+            return Resp()
+
+    parsed = ai_visibility._live_call(
+        {"engine": "openai", "model": "custom-model"},
+        "q",
+        env,
+        Client(),
+        lambda *_args: None,
+    )
+    assert seen["authorization"] == "Bearer test-key"
+    assert parsed["error"] is None
+    secret = "ab\\cd"
+    escaped = repr(secret)[1:-1]
+    assert escaped != secret
+    redacted = ai_visibility.redact(f"raw {secret} escaped {escaped}", [secret])
+    assert secret not in redacted
+    assert escaped not in redacted
+    auth = {"error": {"code": "invalid_api_key", "message": "Incorrect API key sk-test****abcd"}}
+    assert ai_visibility._error_text(401, auth) == "HTTP 401 invalid_api_key"
+    assert "sk-test" not in ai_visibility._error_text(403, auth)
+    assert "Incorrect" not in ai_visibility._error_text(403, auth)
+
+
+def test_gemini_proxy_uri_uses_title_host():
+    payload = {
+        "candidates": [
+            {
+                "content": {"parts": [{"text": "Acme is listed."}]},
+                "groundingMetadata": {
+                    "groundingChunks": [
+                        {
+                            "web": {
+                                "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc",
+                                "title": "blog.example.com",
+                            }
+                        },
+                        {
+                            "web": {
+                                "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/def",
+                                "title": "A guide page",
+                            }
+                        },
+                    ]
+                },
+            }
+        ]
+    }
+    parsed = ai_visibility.parse_gemini_response(payload)
+    assert parsed["cited_urls"][0] == "https://blog.example.com"
+    assert "vertexaisearch.cloud.google.com" in parsed["cited_urls"][1]
+    assert "vertexaisearch.cloud.google.com" not in ai_visibility.cited_domains(parsed["cited_urls"])
+    analysis = ai_visibility.analyze(parsed["answer"], parsed["cited_urls"], CONFIG, "")
+    assert analysis["our_url_cited"] is True
+    assert "vertexaisearch.cloud.google.com" not in analysis["cited_domains"]
+
+
+def test_cited_urls_exclude_retrieved_and_analysis_splits_them():
+    perplexity = ai_visibility.parse_perplexity_response(load("perplexity_response.json"))
+    assert "https://blog.other.example/widgets" not in perplexity["cited_urls"]
+    assert "https://blog.other.example/widgets" in perplexity["retrieved_urls"]
+    anthropic = ai_visibility.parse_anthropic_response(load("anthropic_response.json"))
+    assert anthropic["cited_urls"] == ["https://example.com/pricing"]
+    assert "https://news.example/acme" in anthropic["retrieved_urls"]
+    assert "https://news.example/acme" not in anthropic["cited_urls"]
+    analysis = ai_visibility.analyze(
+        "Acme Corp is here.",
+        ["https://other.example/roundup"],
+        CONFIG,
+        "",
+        retrieved_urls=["https://example.com/pricing"],
+    )
+    assert analysis["our_url_cited"] is False
+    assert analysis["our_url_retrieved"] is True
+    assert analysis["cited_domains"] == ["other.example"]
+
+
+def test_incomplete_200_sets_error_and_summary_counts_failed():
+    assert ai_visibility.ANTHROPIC_MAX_TOKENS == 4096
+    assert ai_visibility.response_error("openai", {"status": "incomplete"}, {"answer": "partial"}) == "openai status incomplete"
+    assert ai_visibility.response_error("openai", {"status": "completed"}, {"answer": "Acme"}) is None
+    assert ai_visibility.response_error("anthropic", {"stop_reason": "pause_turn"}, {"answer": "partial"})
+    assert ai_visibility.response_error("anthropic", {"stop_reason": "max_tokens"}, {"answer": "partial"})
+    assert ai_visibility.response_error("gemini", {"promptFeedback": {"blockReason": "SAFETY"}, "candidates": [{}]}, {"answer": "x"})
+    assert ai_visibility.response_error("gemini", {"candidates": []}, {"answer": ""}) == "gemini no candidates"
+    assert ai_visibility.response_error("perplexity", {}, {"answer": "  "}) == "empty answer"
+    records = [
+        {
+            "engine": "openai",
+            "prompt_id": "a",
+            "kind": "branded",
+            "run": 1,
+            "error": "empty answer",
+            "brand_mentioned": True,
+            "our_url_cited": True,
+            "brand_position": 1,
+            "cited_domains": ["example.com"],
+            "unverified_figures": [],
+        },
+        {
+            "engine": "openai",
+            "prompt_id": "a",
+            "kind": "branded",
+            "run": 2,
+            "error": None,
+            "brand_mentioned": False,
+            "our_url_cited": False,
+            "brand_position": None,
+            "cited_domains": [],
+            "unverified_figures": [],
+        },
+    ]
+    summary = ai_visibility.build_summary(records, prompts=1, runs=2, generated_at="2026-10-27T00:00:00Z", skipped=[])
+    assert summary["summary"]["openai"]["failed"] == 1
+    assert summary["summary"]["openai"]["calls"] == 2
+    assert summary["summary"]["openai"]["mention_rate"] == 0.0
+    assert summary["summary"]["openai"]["citation_rate"] == 0.0
+
+
+def test_jsonl_flushes_each_row_and_analyze_error_continues(tmp_path, monkeypatch):
+    log_path = tmp_path / "ai.jsonl"
+    prompts = [
+        {"id": "one", "text": "Who is Acme Corp?", "kind": "branded"},
+        {"id": "two", "text": "How much?", "kind": "cost"},
+    ]
+    engines = [{"engine": "openai", "model": "custom-model"}]
+    seen = []
+
+    def call_fn(engine, prompt):
+        if seen:
+            text = log_path.read_text(encoding="utf-8")
+            assert seen[0] in text
+        seen.append(prompt)
+        return {"answer": "Acme Corp", "cited_urls": [], "retrieved_urls": [], "usage": None, "error": None}
+
+    records = ai_visibility.run_battery(
+        prompts,
+        engines,
+        runs=1,
+        call_fn=call_fn,
+        max_calls=10,
+        facts="",
+        config=CONFIG,
+        clock=lambda: "2026-10-27T00:00:00Z",
+        log_path=str(log_path),
+    )
+    assert len(records) == 2
+    assert log_path.read_text(encoding="utf-8").count("\n") == 2
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("bad answer")
+
+    monkeypatch.setattr(ai_visibility, "analyze", boom)
+    survived = ai_visibility.run_battery(
+        prompts,
+        engines,
+        runs=1,
+        call_fn=lambda _engine, _prompt: {"answer": "x", "cited_urls": [], "error": None},
+        max_calls=10,
+        facts="",
+        config=CONFIG,
+        clock=lambda: "2026-10-27T00:00:00Z",
+    )
+    assert len(survived) == 2
+    assert all(row["error"] == "analyze failed: RuntimeError" for row in survived)
+    odd = {**CONFIG, "competitors": [1], "brand_aliases": [2], "domains": [3]}
+    monkeypatch.undo()
+    analysis = ai_visibility.analyze("Acme Corp versus 1", [], odd, "")
+    assert analysis["brand_mentioned"] is True
+    assert analysis["competitors_mentioned"] == ["1"]
+
+
+def test_max_calls_counts_retries_and_round_robin():
+    prompts = [
+        {"id": "one", "text": "Who is Acme Corp?", "kind": "branded"},
+        {"id": "two", "text": "How much?", "kind": "cost"},
+    ]
+    engines = [
+        {"engine": "openai", "model": "custom-model"},
+        {"engine": "perplexity", "model": "custom-model"},
+    ]
+    seen = []
+
+    def call_fn(engine, prompt):
+        seen.append((engine["engine"], prompt))
+        return {"answer": "Acme Corp", "cited_urls": [], "error": None}
+
+    records = ai_visibility.run_battery(
+        prompts,
+        engines,
+        runs=2,
+        call_fn=call_fn,
+        max_calls=2,
+        facts="",
+        config=CONFIG,
+        clock=lambda: "2026-10-27T00:00:00Z",
+    )
+    assert [(row["engine"], row["prompt_id"], row["run"]) for row in records] == [
+        ("openai", "one", 1),
+        ("perplexity", "one", 1),
+    ]
+
+    class Resp:
+        def __init__(self, status):
+            self.status_code = status
+            self.text = "{}"
+
+        def json(self):
+            return {"status": "completed", "output": [], "usage": {}}
+
+    class Client:
+        def __init__(self):
+            self.calls = 0
+
+        def request(self, method, url, headers=None, json=None, timeout=None):
+            self.calls += 1
+            return Resp(500)
+
+    budget = ai_visibility.call_budget(2)
+    client = Client()
+    request = ai_visibility.build_openai_request("custom-model", "q", "test-key")
+    _status, _body, error = ai_visibility.perform_request(
+        request, client, sleep_fn=lambda *_args: None, secrets=["test-key"], budget=budget
+    )
+    assert client.calls == 2
+    assert budget["made"] == 2
+    assert error
+    again = Client()
+    status, _body, blocked = ai_visibility.perform_request(
+        request, again, sleep_fn=lambda *_args: None, secrets=["test-key"], budget=budget
+    )
+    assert again.calls == 0
+    assert blocked == "max-calls reached"
+    assert budget["capped"] is True
+    summary = ai_visibility.build_summary(
+        records, prompts=2, runs=2, generated_at="2026-10-27T00:00:00Z", skipped=[], capped=True, calls_made=2
+    )
+    assert summary["capped"] is True
+    assert summary["calls_made"] == 2

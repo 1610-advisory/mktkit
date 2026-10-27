@@ -104,3 +104,58 @@ def test_main_rejects_empty_pages(tmp_path, capsys):
     code = lh.main(["--config", str(config), "--out", str(tmp_path / "lighthouse.json")])
     assert code == 1
     assert "lighthouse.pages" in capsys.readouterr().err
+
+
+def test_run_once_deletes_stale_report(tmp_path, monkeypatch):
+    stale = tmp_path / "report.json"
+    stale.write_text('{"stale": true}', encoding="utf-8")
+
+    def fake_run(cmd, **kwargs):
+        assert not stale.exists()
+        stale.write_text('{"categories": {}}', encoding="utf-8")
+
+        class Proc:
+            returncode = 0
+            stderr = ""
+            stdout = ""
+
+        return Proc()
+
+    monkeypatch.setattr(lh.subprocess, "run", fake_run)
+    assert lh.run_once("https://example.com/", "mobile", stale, 30) == {"categories": {}}
+
+
+def test_collect_records_page_failure_and_insight_savings(monkeypatch):
+    def fake_run_once(url, form_factor, output_path, timeout):
+        if url.endswith("/bad"):
+            raise lh.LighthouseError("chrome crashed")
+        return {"lighthouseVersion": "13.5.0", "categories": {"performance": {"score": 0.9}}, "audits": {}}
+
+    monkeypatch.setattr(lh, "run_once", fake_run_once)
+    report = lh.collect(
+        {
+            "site": "https://example.com",
+            "lighthouse": {"pages": ["/bad", "/ok"], "form_factors": ["mobile", "desktop"], "runs": 1},
+        }
+    )
+    assert report["results"][0] == {"page": "/bad", "form_factor": "mobile", "error": "chrome crashed"}
+    assert any(row.get("page") == "/ok" and row.get("form_factor") == "desktop" and "scores" in row for row in report["results"])
+    items = lh.top_opportunities(
+        {
+            "legacy-javascript-insight": {
+                "id": "legacy-javascript-insight",
+                "title": "Legacy JavaScript",
+                "score": 0,
+                "metricSavings": {"FCP": 0, "LCP": 150},
+                "details": {"type": "table", "items": []},
+            },
+            "cache-insight": {
+                "id": "cache-insight",
+                "title": "Cache",
+                "score": 0.5,
+                "metricSavings": {"FCP": 0, "LCP": 0},
+                "details": {"type": "table"},
+            },
+        }
+    )
+    assert items == [{"id": "legacy-javascript-insight", "title": "Legacy JavaScript", "savings_ms": 150}]

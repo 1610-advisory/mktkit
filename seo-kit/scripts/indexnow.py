@@ -21,8 +21,10 @@ or POST. --send fetches the key file, checks the body equals the key
 (the key is the file name stem), then POSTs to
 https://api.indexnow.org/indexnow.
 
-Every URL must be on the config site host (www and the bare host match).
-At most 10000 URLs. No API key environment variable; the key is the file stem.
+Every URL hostname must equal the payload host exactly. www is a different
+host and is rejected, including on a dry run. At most 10000 URLs. No API key
+environment variable; the key is the file stem. The key-file fetch does not
+follow a redirect onto another host.
 
 Exit 0 on a dry run or a 200/202 submit. Exit 1 on usage or a key mismatch.
 Exit 2 on a network failure or a 400/403/422/429 from IndexNow.
@@ -34,7 +36,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import httpx
 
@@ -79,19 +81,11 @@ def configured_host(site: str) -> str:
     return host.lower().rstrip(".")
 
 
-def _bare_host(url: str) -> str:
-    host = urlparse(url).hostname or ""
-    host = host.lower().rstrip(".")
-    if host.startswith("www."):
-        return host[4:]
-    return host
-
-
 def url_on_site(url: str, site: str) -> bool:
-    """True when the URL host is the config site host. www and the bare host match."""
-    site_host = _bare_host(site if "://" in site else f"https://{site}")
-    url_host = _bare_host(url)
-    return bool(site_host) and url_host == site_host
+    """True when the URL hostname equals the payload host. www is not folded."""
+    site_ref = site if "://" in site else f"https://{site}"
+    site_host = configured_host(site_ref)
+    return bool(site_host) and configured_host(url) == site_host
 
 
 def key_from_key_file_url(url: str) -> str:
@@ -149,10 +143,39 @@ def interpret_status(status: int) -> tuple[bool, str]:
     return status in (200, 202), message
 
 
+def fetch_key_body(url: str, get, hops: int = 5) -> tuple[int, str]:
+    """Fetch a key file. get(url) -> (status, headers, text).
+
+    Same-host redirects are followed. A redirect to another host is an error
+    and is not followed.
+    """
+    current = url
+    origin = configured_host(url)
+    for _ in range(hops):
+        status, headers, text = get(current)
+        if status in (301, 302, 303, 307, 308):
+            location = ""
+            if headers is not None:
+                location = headers.get("location") or headers.get("Location") or ""
+            if not location:
+                return status, text
+            nxt = urljoin(current, location)
+            if configured_host(nxt) != origin:
+                raise RuntimeError("key file redirect left the host")
+            current = nxt
+            continue
+        return status, text
+    raise RuntimeError("too many key file redirects")
+
+
 def fetch_text(url: str, timeout: float = 30) -> tuple[int, str]:
-    with httpx.Client(timeout=timeout, follow_redirects=True) as client:
-        resp = client.get(url)
-    return resp.status_code, resp.text
+    with httpx.Client(timeout=timeout, follow_redirects=False) as client:
+
+        def get(current: str):
+            resp = client.get(current)
+            return resp.status_code, resp.headers, resp.text
+
+        return fetch_key_body(url, get)
 
 
 def post_payload(payload: dict, timeout: float = 60) -> tuple[int, str]:

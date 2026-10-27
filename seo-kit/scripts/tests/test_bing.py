@@ -118,3 +118,45 @@ def test_pull_all_uses_injected_fetcher_only():
     assert "GetUrlInfo" in seen
     assert report["summary"]["clicks"] == 18
     assert all("test-key" not in item for item in seen)
+
+
+def test_url_info_failure_continues_and_site_url_slash(monkeypatch, tmp_path, capsys):
+    fixtures = {
+        "GetQueryStats": load("bing_query_stats.json"),
+        "GetPageStats": load("bing_page_stats.json"),
+        "GetCrawlIssues": load("bing_crawl_issues.json"),
+        "GetUrlInfo": load("bing_url_info.json"),
+    }
+    calls = []
+
+    def get_json(url):
+        name = url.split("?")[0].rsplit("/", 1)[-1]
+        calls.append(name)
+        if name == "GetUrlInfo" and calls.count("GetUrlInfo") == 1:
+            raise RuntimeError("HTTP 500 secret-key")
+        return fixtures[name]
+
+    report = bing.pull_all("https://example.com/", "secret-key", get_json=get_json)
+    assert calls.count("GetUrlInfo") >= 2
+    assert report["summary"]["clicks"] == 18
+    blob = json.dumps(report)
+    assert "HTTP 500" in blob
+    assert "secret-key" not in blob
+    assert "[redacted]" in blob
+    assert bing.site_url_for_api("https://example.com") == "https://example.com/"
+    assert bing.site_url_for_api("https://example.com/", "https://example.com") == "https://example.com"
+
+    monkeypatch.setenv("BING_WEBMASTER_API_KEY", "test-key")
+    seen = []
+
+    def fake_pull(site, api_key):
+        seen.append(site)
+        return {"summary": {"clicks": 0, "impressions": 0}, "queries": [], "pages": [], "crawl_issues": []}
+
+    monkeypatch.setattr(bing, "pull_all", fake_pull)
+    monkeypatch.setattr(bing, "load_client", lambda _path: {"site": "https://example.com"})
+    out = tmp_path / "bing.json"
+    assert bing.main(["all", "--config", "c.yaml", "--out", str(out)]) == 0
+    assert bing.main(["all", "--config", "c.yaml", "--out", str(out), "--site-url", "https://example.com"]) == 0
+    assert seen == ["https://example.com/", "https://example.com"]
+    assert "test-key" not in capsys.readouterr().err

@@ -6,8 +6,8 @@ import indexnow
 def test_key_and_host_and_payload():
     assert indexnow.key_from_key_file_url("https://example.com/abc123.txt") == "abc123"
     assert indexnow.key_from_key_file_url("https://www.example.com/path/my-key.txt") == "my-key"
-    assert indexnow.url_on_site("https://www.example.com/widgets", "https://example.com")
-    assert indexnow.url_on_site("https://example.com/widgets", "https://www.example.com")
+    assert not indexnow.url_on_site("https://www.example.com/widgets", "https://example.com")
+    assert not indexnow.url_on_site("https://example.com/widgets", "https://www.example.com")
     assert not indexnow.url_on_site("https://blog.example.com/widgets", "https://example.com")
     assert not indexnow.url_on_site("https://other.example/widgets", "https://example.com")
     payload = indexnow.build_payload(
@@ -70,7 +70,7 @@ def test_dry_run_prints_payload_and_does_not_send(monkeypatch, capsys, tmp_path)
     code = indexnow.main([
         "--config", "cfg.yaml",
         "--key-file-url", "https://example.com/abc123.txt",
-        "--urls", "https://example.com/widgets", "https://www.example.com/about",
+        "--urls", "https://example.com/widgets", "https://example.com/about",
     ])
     assert code == 0
     captured = capsys.readouterr()
@@ -79,7 +79,7 @@ def test_dry_run_prints_payload_and_does_not_send(monkeypatch, capsys, tmp_path)
     assert payload["key"] == "abc123"
     assert payload["urlList"] == [
         "https://example.com/widgets",
-        "https://www.example.com/about",
+        "https://example.com/about",
     ]
     assert "not sent" in captured.err
     assert "api.indexnow.org" not in captured.out
@@ -121,3 +121,44 @@ def test_urls_file_skips_comments(tmp_path):
         "https://example.com/a",
         "https://example.com/b",
     ]
+
+
+def test_exact_host_mismatch_errors_on_dry_run_and_redirect(monkeypatch, capsys):
+    monkeypatch.setattr(indexnow, "load_client", lambda _path: {"site": "https://example.com"})
+
+    def boom(*_args, **_kwargs):
+        raise AssertionError("network was called")
+
+    monkeypatch.setattr(indexnow, "fetch_text", boom)
+    code = indexnow.main([
+        "--config", "cfg.yaml",
+        "--key-file-url", "https://www.example.com/abc123.txt",
+        "--urls", "https://www.example.com/about",
+    ])
+    assert code == 1
+    err = capsys.readouterr().err
+    assert "not on the config site host" in err
+
+    calls = []
+
+    def get_off(url):
+        calls.append(url)
+        return 302, {"location": "https://evil.example/abc123.txt"}, ""
+
+    try:
+        indexnow.fetch_key_body("https://example.com/abc123.txt", get_off)
+        raised = False
+    except RuntimeError as exc:
+        raised = True
+        assert "left the host" in str(exc)
+    assert raised
+    assert calls == ["https://example.com/abc123.txt"]
+
+    def get_same(url):
+        if url.endswith("/abc123.txt") and url.count("/") == 3:
+            return 302, {"Location": "/keys/abc123.txt"}, ""
+        return 200, {}, "abc123"
+
+    status, body = indexnow.fetch_key_body("https://example.com/abc123.txt", get_same)
+    assert status == 200
+    assert body == "abc123"

@@ -62,7 +62,8 @@ TIMEOUT_S = 90
 RETRY_BACKOFF_S = 2.0
 NEAR_BRAND_CHARS = 300
 # Anthropic requires max_tokens. This is a length cap, not a model id.
-ANTHROPIC_MAX_TOKENS = 2048
+ANTHROPIC_MAX_TOKENS = 4096
+VERTEX_HOST = "vertexaisearch.cloud.google.com"
 MONEY_RE = re.compile(r"\$\s?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?")
 
 
@@ -149,7 +150,7 @@ def plan_calls(
             refused.append({"engine": name, "reason": f"refusing to run {name}: tool type is empty"})
             continue
         key_name = KEY_ENV[name]
-        if not str(env.get(key_name) or "").strip():
+        if not read_api_key(env, name):
             skipped.append({"engine": name, "reason": f"missing {key_name}"})
             continue
         item = {"engine": name, "model": model}
@@ -188,6 +189,15 @@ def format_plan(plan: dict) -> str:
     if plan["capped_calls"] < plan["total_calls"]:
         lines.append(f"max-calls would stop at {plan['capped_calls']}")
     return "\n".join(lines)
+
+
+def read_api_key(env: dict, engine: str) -> str:
+    """Strip the key once at the read. Callers must use this value, not the raw env string."""
+    return str(env.get(KEY_ENV[engine]) or "").strip()
+
+
+def call_budget(limit: int) -> dict:
+    return {"limit": limit, "made": 0, "capped": False}
 
 
 def build_openai_request(model: str, prompt: str, api_key: str) -> dict:
@@ -284,23 +294,49 @@ def parse_openai_response(payload: dict) -> dict:
             for note in part.get("annotations") or []:
                 if isinstance(note, dict) and note.get("type") == "url_citation" and note.get("url"):
                     urls.append(note["url"])
-    return {"answer": "\n".join(texts), "cited_urls": _dedupe(urls), "usage": payload.get("usage")}
+    return {
+        "answer": "\n".join(texts),
+        "cited_urls": _dedupe(urls),
+        "retrieved_urls": [],
+        "usage": payload.get("usage"),
+    }
 
 
 def parse_perplexity_response(payload: dict) -> dict:
     choices = payload.get("choices") or []
     message = (choices[0].get("message") if choices else {}) or {}
     answer = message.get("content") or ""
-    urls = []
+    cited = []
     for cite in payload.get("citations") or []:
         if isinstance(cite, str):
-            urls.append(cite)
+            cited.append(cite)
         elif isinstance(cite, dict) and cite.get("url"):
-            urls.append(cite["url"])
+            cited.append(cite["url"])
+    retrieved = []
     for result in payload.get("search_results") or []:
         if isinstance(result, dict) and result.get("url"):
-            urls.append(result["url"])
-    return {"answer": answer, "cited_urls": _dedupe(urls), "usage": payload.get("usage")}
+            retrieved.append(result["url"])
+    return {
+        "answer": answer,
+        "cited_urls": _dedupe(cited),
+        "retrieved_urls": _dedupe(retrieved),
+        "usage": payload.get("usage"),
+    }
+
+
+def _gemini_chunk_url(web: dict) -> str | None:
+    """Grounding proxy URIs hide the real host in web.title."""
+    uri = str(web.get("uri") or "").strip()
+    title = str(web.get("title") or "").strip()
+    host = (urlparse(uri).hostname or "").lower()
+    proxy = host == VERTEX_HOST or "grounding-api-redirect" in uri
+    if not proxy:
+        return uri or None
+    if title and "." in title and " " not in title:
+        if title.startswith(("http://", "https://")):
+            return title
+        return "https://" + title
+    return uri or None
 
 
 def parse_gemini_response(payload: dict) -> dict:
@@ -314,11 +350,15 @@ def parse_gemini_response(payload: dict) -> dict:
     grounding = candidate.get("groundingMetadata") or {}
     for chunk in grounding.get("groundingChunks") or []:
         web = chunk.get("web") if isinstance(chunk, dict) else None
-        if isinstance(web, dict) and web.get("uri"):
-            urls.append(web["uri"])
+        if not isinstance(web, dict):
+            continue
+        cited = _gemini_chunk_url(web)
+        if cited:
+            urls.append(cited)
     return {
         "answer": "\n".join(texts),
         "cited_urls": _dedupe(urls),
+        "retrieved_urls": [],
         "usage": payload.get("usageMetadata"),
     }
 
@@ -334,7 +374,8 @@ def _anthropic_result_urls(content) -> list[str]:
 
 def parse_anthropic_response(payload: dict) -> dict:
     texts = []
-    urls = []
+    cited = []
+    retrieved = []
     for block in payload.get("content") or []:
         if not isinstance(block, dict):
             continue
@@ -343,10 +384,15 @@ def parse_anthropic_response(payload: dict) -> dict:
                 texts.append(block["text"])
             for cite in block.get("citations") or []:
                 if isinstance(cite, dict) and cite.get("url"):
-                    urls.append(cite["url"])
+                    cited.append(cite["url"])
         elif block.get("type") == "web_search_tool_result":
-            urls.extend(_anthropic_result_urls(block.get("content")))
-    return {"answer": "\n".join(texts), "cited_urls": _dedupe(urls), "usage": payload.get("usage")}
+            retrieved.extend(_anthropic_result_urls(block.get("content")))
+    return {
+        "answer": "\n".join(texts),
+        "cited_urls": _dedupe(cited),
+        "retrieved_urls": _dedupe(retrieved),
+        "usage": payload.get("usage"),
+    }
 
 
 PARSERS = {
@@ -458,7 +504,7 @@ def cited_domains(urls: list[str]) -> list[str]:
     out = []
     for url in urls or []:
         host = host_of(url)
-        if not host or host in seen:
+        if not host or host in seen or host == VERTEX_HOST:
             continue
         seen.add(host)
         out.append(host)
@@ -538,17 +584,33 @@ def unverified_figures(
     return found
 
 
-def analyze(text: str, cited_urls: list[str], config: dict, facts: str) -> dict:
+def _string_list(value) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    try:
+        return [str(item) for item in value]
+    except TypeError:
+        return [str(value)]
+
+
+def analyze(
+    text: str,
+    cited_urls: list[str],
+    config: dict,
+    facts: str,
+    retrieved_urls: list[str] | None = None,
+) -> dict:
     brand = config.get("brand") or ""
-    aliases = config.get("brand_aliases") or []
-    if isinstance(aliases, str):
-        aliases = [aliases]
-    competitors = config.get("competitors") or []
-    domains = config.get("domains") or []
+    aliases = _string_list(config.get("brand_aliases"))
+    competitors = _string_list(config.get("competitors"))
+    domains = _string_list(config.get("domains"))
     return {
         "brand_mentioned": brand_mentioned(text, brand, aliases),
         "brand_position": brand_position(text, brand, aliases, competitors),
         "our_url_cited": our_url_cited(cited_urls, domains),
+        "our_url_retrieved": our_url_cited(retrieved_urls or [], domains),
         "cited_domains": cited_domains(cited_urls),
         "competitors_mentioned": competitors_mentioned(text, competitors),
         "money_figures": money_figures(text),
@@ -559,19 +621,41 @@ def analyze(text: str, cited_urls: list[str], config: dict, facts: str) -> dict:
 def redact(text: str, secrets: list[str]) -> str:
     out = text
     for secret in secrets:
-        if secret:
-            out = out.replace(secret, "[redacted]")
+        if not secret:
+            continue
+        out = out.replace(secret, "[redacted]")
+        # Exception text often contains repr(secret) without the surrounding quotes.
+        escaped = repr(secret)[1:-1]
+        if escaped and escaped != secret:
+            out = out.replace(escaped, "[redacted]")
     return out
 
 
-def request_with_retry(do_request, sleep_fn=time.sleep, retries: int = 1, backoff: float = RETRY_BACKOFF_S):
-    """One retry on 429/5xx or a transport error. do_request() -> (status, body, error)."""
+def request_with_retry(
+    do_request,
+    sleep_fn=time.sleep,
+    retries: int = 1,
+    backoff: float = RETRY_BACKOFF_S,
+    budget: dict | None = None,
+):
+    """One retry on 429/5xx or a transport error. do_request() -> (status, body, error).
+
+    Each HTTP attempt, including the retry, counts against budget when one is passed.
+    """
+    if budget is not None and budget["made"] >= budget["limit"]:
+        budget["capped"] = True
+        return None, None, "max-calls reached"
     last = (None, None, "no attempt")
     for attempt in range(retries + 1):
+        if budget is not None and budget["made"] >= budget["limit"]:
+            budget["capped"] = True
+            break
+        if budget is not None:
+            budget["made"] += 1
         status, body, error = do_request()
         last = (status, body, error)
         # Transport errors have no status. 400-class responses are not retried.
-        retryable = status is None or status == 429 or status >= 500
+        retryable = status is None or status == 429 or (isinstance(status, int) and status >= 500)
         if retryable and attempt < retries:
             sleep_fn(backoff * (2 ** attempt))
             continue
@@ -579,7 +663,7 @@ def request_with_retry(do_request, sleep_fn=time.sleep, retries: int = 1, backof
     return last
 
 
-def perform_request(request: dict, client, sleep_fn=time.sleep, secrets: list[str] | None = None):
+def perform_request(request: dict, client, sleep_fn=time.sleep, secrets: list[str] | None = None, budget: dict | None = None):
     secrets = secrets or []
 
     def once():
@@ -601,12 +685,20 @@ def perform_request(request: dict, client, sleep_fn=time.sleep, secrets: list[st
             return resp.status_code, body, redact(_error_text(resp.status_code, body), secrets)
         return resp.status_code, body, None
 
-    return request_with_retry(once, sleep_fn=sleep_fn)
+    return request_with_retry(once, sleep_fn=sleep_fn, budget=budget)
 
 
 def _error_text(status: int, body) -> str:
     # Keep the vendor's reason: a 429 can mean "out of credits", not just "slow down".
+    # 401/403 messages can echo a masked key, so keep only the status and error code.
     err = body.get("error") if isinstance(body, dict) else None
+    if status in (401, 403):
+        code = ""
+        if isinstance(err, dict):
+            code = str(err.get("code") or err.get("type") or err.get("status") or "").strip()
+        if code:
+            return f"HTTP {status} {code}"
+        return f"HTTP {status}"
     if isinstance(err, dict):
         detail = err.get("code") or err.get("type") or err.get("status") or ""
         message = str(err.get("message") or "")[:160]
@@ -614,6 +706,40 @@ def _error_text(status: int, body) -> str:
     if isinstance(err, str):
         return f"HTTP {status}: {err[:160]}"
     return f"HTTP {status}"
+
+
+def response_error(engine: str, payload: dict, parsed: dict) -> str | None:
+    """A 200 can still be a failed answer. Return a short error, or None."""
+    if engine == "openai":
+        status = payload.get("status")
+        if status is not None and status != "completed":
+            return f"openai status {status}"
+    if engine == "anthropic":
+        stop = payload.get("stop_reason")
+        if stop in ("pause_turn", "max_tokens"):
+            return f"anthropic stop_reason {stop}"
+    if engine == "gemini":
+        feedback = payload.get("promptFeedback") or {}
+        if isinstance(feedback, dict) and feedback.get("blockReason"):
+            return f"gemini blockReason {feedback.get('blockReason')}"
+        if not payload.get("candidates"):
+            return "gemini no candidates"
+    if not str(parsed.get("answer") or "").strip():
+        return "empty answer"
+    return None
+
+
+def empty_analysis() -> dict:
+    return {
+        "brand_mentioned": False,
+        "brand_position": None,
+        "our_url_cited": False,
+        "our_url_retrieved": False,
+        "cited_domains": [],
+        "competitors_mentioned": [],
+        "money_figures": [],
+        "unverified_figures": [],
+    }
 
 
 def read_facts(config: dict) -> str:
@@ -632,6 +758,17 @@ def read_facts(config: dict) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
 
 
+def _open_jsonl(path: str):
+    out = Path(path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    return out.open("a", encoding="utf-8")
+
+
+def _write_jsonl_row(handle, row: dict) -> None:
+    handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+    handle.flush()
+
+
 def run_battery(
     prompts: list[dict],
     engines: list[dict],
@@ -641,43 +778,78 @@ def run_battery(
     facts: str,
     config: dict,
     clock=utc_now,
+    *,
+    log_path: str | None = None,
+    budget: dict | None = None,
 ) -> list[dict]:
-    """call_fn(engine_item, prompt_text) -> {answer, cited_urls, usage, error}."""
+    """call_fn(engine_item, prompt_text) -> {answer, cited_urls, usage, error}.
+
+    Order is prompt, run, engine so a call cap does not starve later engines.
+    When budget is set, HTTP attempts (including retries) count against it.
+    Otherwise each scheduled call counts as one against max_calls.
+    """
     records = []
-    made = 0
+    scheduled = 0
     stopped = False
-    for engine in engines:
-        if stopped:
-            break
+    handle = _open_jsonl(log_path) if log_path else None
+    try:
         for prompt in prompts:
             if stopped:
                 break
             for run in range(1, runs + 1):
-                if made >= max_calls:
-                    stopped = True
+                if stopped:
                     break
-                made += 1
-                try:
-                    result = call_fn(engine, prompt["text"])
-                except Exception as exc:
-                    result = {"answer": "", "cited_urls": [], "usage": None, "error": type(exc).__name__}
-                answer = result.get("answer") or ""
-                cited = result.get("cited_urls") or []
-                error = result.get("error")
-                row = {
-                    "ts": clock(),
-                    "engine": engine["engine"],
-                    "model": engine["model"],
-                    "prompt_id": prompt["id"],
-                    "kind": prompt["kind"],
-                    "run": run,
-                    "answer": answer,
-                    "cited_urls": cited,
-                    **analyze(answer, cited, config, facts),
-                    "usage": result.get("usage"),
-                    "error": error,
-                }
-                records.append(row)
+                for engine in engines:
+                    if budget is not None:
+                        if budget["made"] >= budget["limit"]:
+                            budget["capped"] = True
+                            stopped = True
+                            break
+                    elif scheduled >= max_calls:
+                        stopped = True
+                        break
+                    if budget is None:
+                        scheduled += 1
+                    try:
+                        result = call_fn(engine, prompt["text"])
+                    except Exception as exc:
+                        result = {
+                            "answer": "",
+                            "cited_urls": [],
+                            "retrieved_urls": [],
+                            "usage": None,
+                            "error": type(exc).__name__,
+                        }
+                    answer = result.get("answer") or ""
+                    cited = result.get("cited_urls") or []
+                    retrieved = result.get("retrieved_urls") or []
+                    error = result.get("error")
+                    try:
+                        analysis = analyze(answer, cited, config, facts, retrieved)
+                    except Exception as exc:
+                        analysis = empty_analysis()
+                        if not error:
+                            error = f"analyze failed: {type(exc).__name__}"
+                    row = {
+                        "ts": clock(),
+                        "engine": engine["engine"],
+                        "model": engine["model"],
+                        "prompt_id": prompt["id"],
+                        "kind": prompt["kind"],
+                        "run": run,
+                        "answer": answer,
+                        "cited_urls": cited,
+                        "retrieved_urls": retrieved,
+                        **analysis,
+                        "usage": result.get("usage"),
+                        "error": error,
+                    }
+                    records.append(row)
+                    if handle is not None:
+                        _write_jsonl_row(handle, row)
+    finally:
+        if handle is not None:
+            handle.close()
     return records
 
 
@@ -693,7 +865,16 @@ def _avg(values: list[float]):
     return round(sum(values) / len(values), 2)
 
 
-def build_summary(records: list[dict], prompts: int, runs: int, generated_at: str, skipped: list[dict]) -> dict:
+def build_summary(
+    records: list[dict],
+    prompts: int,
+    runs: int,
+    generated_at: str,
+    skipped: list[dict],
+    *,
+    capped: bool = False,
+    calls_made: int | None = None,
+) -> dict:
     by_engine: dict[str, dict] = {}
     for row in records:
         bucket = by_engine.setdefault(
@@ -714,6 +895,7 @@ def build_summary(records: list[dict], prompts: int, runs: int, generated_at: st
     for engine, bucket in by_engine.items():
         summary[engine] = {
             "calls": bucket["calls"],
+            "failed": bucket["calls"] - bucket["ok"],
             "mention_rate": _rate(bucket["mentions"], bucket["ok"]),
             "citation_rate": _rate(bucket["citations"], bucket["ok"]),
             "avg_position": _avg(bucket["positions"]),
@@ -777,6 +959,8 @@ def build_summary(records: list[dict], prompts: int, runs: int, generated_at: st
         "top_cited_domains": [[domain, count] for domain, count in top_cited],
         "unverified_figures": unverified,
         "skipped": skipped,
+        "capped": bool(capped),
+        "calls_made": len(records) if calls_made is None else calls_made,
     }
 
 
@@ -810,14 +994,21 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _live_call(engine: dict, prompt: str, env: dict, client, sleep_fn):
-    key = env[KEY_ENV[engine["engine"]]]
+def _live_call(engine: dict, prompt: str, env: dict, client, sleep_fn, budget: dict | None = None):
+    key = read_api_key(env, engine["engine"])
     request = build_request(engine["engine"], engine["model"], prompt, key, engine.get("tool", ""))
-    status, body, error = perform_request(request, client, sleep_fn=sleep_fn, secrets=[key])
+    status, body, error = perform_request(request, client, sleep_fn=sleep_fn, secrets=[key], budget=budget)
     if error or not isinstance(body, dict):
-        return {"answer": "", "cited_urls": [], "usage": None, "error": error or f"HTTP {status}"}
+        return {
+            "answer": "",
+            "cited_urls": [],
+            "retrieved_urls": [],
+            "usage": None,
+            "error": error or f"HTTP {status}",
+        }
     parsed = PARSERS[engine["engine"]](body)
-    parsed["error"] = None
+    parsed.setdefault("retrieved_urls", [])
+    parsed["error"] = response_error(engine["engine"], body, parsed)
     return parsed
 
 
@@ -858,10 +1049,11 @@ def main(argv: list[str] | None = None) -> int:
     for item in plan["skipped"]:
         print(f"skipped {item['engine']}: {item['reason']}", file=sys.stderr)
     facts = read_facts(config)
+    budget = call_budget(args.max_calls)
 
     def call_fn(engine, prompt):
         with httpx.Client() as client:
-            return _live_call(engine, prompt, os.environ, client, time.sleep)
+            return _live_call(engine, prompt, os.environ, client, time.sleep, budget=budget)
 
     records = run_battery(
         prompts,
@@ -871,9 +1063,18 @@ def main(argv: list[str] | None = None) -> int:
         args.max_calls,
         facts,
         config,
+        log_path=args.log,
+        budget=budget,
     )
-    append_jsonl(args.log, records)
-    summary = build_summary(records, len(prompts), args.runs, utc_now(), plan["skipped"] + plan["refused"])
+    summary = build_summary(
+        records,
+        len(prompts),
+        args.runs,
+        utc_now(),
+        plan["skipped"] + plan["refused"],
+        capped=bool(budget["capped"]),
+        calls_made=budget["made"],
+    )
     write_json(args.out, summary)
     failed = sum(1 for row in records if row.get("error"))
     print(
