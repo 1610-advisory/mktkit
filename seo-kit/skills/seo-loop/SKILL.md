@@ -23,7 +23,7 @@ Copy these into the session checklist. Keep a skipped step listed with `skip: <r
 2. **Snapshot dir.** `S=<biz>/tracking/seo/snapshots/$(date +%F)`. `P` = the newest older dir in `snapshots/` (may be none).
 3. **Crawl.** `uv run <kit>/scripts/site_crawl.py --config <biz>/tracking/seo/config.yaml --out $S/crawl.json`
 4. **Links (optional, fast).** `npx --yes linkinator <site> --recurse --skip "<each skip_links entry>" --format json > $S/links.json`. Only if `linkinator` is wanted; the crawl already catches broken internal links.
-5. **Speed.** `uv run <kit>/scripts/lighthouse_run.py --config ... --out $S/lighthouse.json`. Lab numbers. Needs Chrome.
+5. **Speed.** `uv run <kit>/scripts/lighthouse_run.py --config ... --out $S/lighthouse.json`. Lab numbers. Needs Chrome. Keep `lighthouse.runs: 3` (median): on an unchanged site, single runs moved mobile LCP by 2 to 3 s between days. Treat an LCP change under 1 s as noise.
 6. **Search Console.** If a token or service account exists: `uv run <kit>/scripts/gsc.py all --config ... --out $S/gsc.json`. Else `skip: no Search Console access` and add "grant Search Console" to `needs_a_person`.
 7. **Bing.** If `BING_WEBMASTER_API_KEY` is set: `uv run <kit>/scripts/bing.py all --config ... --out $S/bing.json`. Else skip with the reason.
 8. **AI answers.** If `tracking/seo/prompts.yaml` exists and at least one engine is enabled with a key: load the `ai-visibility` skill and run it into `$S/ai.json`. First run of the month or no budget note: run `--dry-run` first and show the call count.

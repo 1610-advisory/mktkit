@@ -13,7 +13,7 @@ indexnow_key_url: ""                 # e.g. https://example.com/<key>.txt once t
 lighthouse:
   pages: [/, /about]
   form_factors: [mobile]
-  runs: 1
+  runs: 3                            # median of 3; one lab run swings LCP by seconds
 ai_engines:                          # model ids change; check vendor docs before first run
   openai:     {model: "", enabled: false}
   perplexity: {model: "", enabled: false}
