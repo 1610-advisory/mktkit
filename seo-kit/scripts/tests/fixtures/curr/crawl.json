@@ -1,0 +1,23 @@
+{
+  "generated_at": "2026-10-27T00:00:00+00:00",
+  "site": "https://example.com",
+  "issues": [
+    {
+      "code": "title_too_long",
+      "severity": "medium",
+      "url": "https://example.com/",
+      "detail": "72 characters"
+    },
+    {
+      "code": "broken_internal_link",
+      "severity": "high",
+      "url": "https://example.com/missing",
+      "detail": "Status 404. Linked from https://example.com/about"
+    }
+  ],
+  "counts": {
+    "pages": 4,
+    "html_pages": 3,
+    "issues_by_severity": {"high": 1, "medium": 1, "low": 0}
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "generated_at": "2026-10-20T00:00:00+00:00",
+  "site": "https://example.com",
+  "issues": [
+    {
+      "code": "missing_description",
+      "severity": "medium",
+      "url": "https://example.com/about",
+      "detail": "No meta description"
+    },
+    {
+      "code": "title_too_long",
+      "severity": "medium",
+      "url": "https://example.com/",
+      "detail": "72 characters"
+    }
+  ],
+  "counts": {
+    "pages": 3,
+    "html_pages": 3,
+    "issues_by_severity": {"high": 0, "medium": 2, "low": 0}
+  }
+}
