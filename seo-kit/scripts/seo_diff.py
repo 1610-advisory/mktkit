@@ -466,13 +466,13 @@ def render_diff(prev: dict, curr: dict, *, baseline: bool, prev_label: str, curr
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Write a markdown diff of two SEO snapshots.")
-    parser.add_argument("--prev", required=True, help="Previous snapshot directory (may be missing)")
+    parser.add_argument("--prev", default="", help="Previous snapshot directory (omit on the first run)")
     parser.add_argument("--curr", required=True, help="Current snapshot directory")
     parser.add_argument("--out", required=True, help="Output markdown path")
     args = parser.parse_args(argv)
 
     curr_path = Path(args.curr)
-    prev_path = Path(args.prev)
+    prev_path = Path(args.prev) if args.prev else None
     if not curr_path.is_dir():
         print(f"Error: current snapshot not found: {curr_path}", file=sys.stderr)
         return 1
@@ -480,13 +480,13 @@ def main(argv: list[str] | None = None) -> int:
     if not curr:
         print("Error: current snapshot has no crawl.json, lighthouse.json, gsc.json, or ai.json", file=sys.stderr)
         return 1
-    baseline = is_baseline(prev_path)
+    baseline = prev_path is None or is_baseline(prev_path)
     prev = {} if baseline else load_snapshot(prev_path)
     text = render_diff(
         prev,
         curr,
         baseline=baseline,
-        prev_label=prev_path.name,
+        prev_label=prev_path.name if prev_path else "none",
         curr_label=curr_path.name,
     )
     if "\u2014" in text or "\u2013" in text:

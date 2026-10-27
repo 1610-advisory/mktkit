@@ -118,3 +118,12 @@ def test_missing_file_is_one_line(tmp_path):
 
 def test_main_missing_curr(tmp_path):
     assert seo_diff.main(["--prev", str(tmp_path), "--curr", str(tmp_path / "nope"), "--out", str(tmp_path / "x.md")]) == 1
+
+
+def test_main_without_prev_writes_baseline(tmp_path):
+    curr = tmp_path / "2026-01-08"
+    curr.mkdir()
+    (curr / "crawl.json").write_text('{"pages": {}, "issues": [], "counts": {"pages": 0, "html_pages": 0}}')
+    out = tmp_path / "diff.md"
+    assert seo_diff.main(["--curr", str(curr), "--out", str(out)]) == 0
+    assert "Previous snapshot: none" in out.read_text()
