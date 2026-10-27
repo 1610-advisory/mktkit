@@ -373,8 +373,8 @@ property created after the fact answers nothing about the period before it.
 ## Related Skills
 
 - **ai-cmo**: For overall content strategy, performance tracking, and revenue attribution
-- **seo-audit**: For organic traffic analysis and technical SEO
-- **ai-visibility-audit**: Answer-engine visibility — assistants are an increasingly large slice of
+- **seo-kit** (`seo-kit/references/seo-audit.md`, the `seo-loop` skill): For organic traffic analysis and technical SEO
+- **seo-kit `ai-visibility`**: Answer-engine visibility — assistants are an increasingly large slice of
   "direct" traffic and are not measurable through conventional attribution
 - **content-strategy**: For content planning informed by analytics data
 - **email-sequence**: For email performance measurement and optimization

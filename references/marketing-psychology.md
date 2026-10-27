@@ -453,5 +453,5 @@ When facing a marketing challenge, consider:
 - **ai-cmo**: For overall content strategy and planning that applies these principles
 - **content-strategy**: For long-form content planning informed by psychology
 - **email-sequence**: For email copy and sequence design using psychological triggers
-- **seo-audit**: For on-page optimization applying persuasion principles
+- **seo-kit `seo-fix`**: For on-page optimization applying persuasion principles
 - **analytics-tracking**: For measuring the impact of psychological approaches

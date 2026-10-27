@@ -222,7 +222,7 @@ At ~5,000 units per active client per month (1 monthly plan + 2 biweekly briefs)
 ## Workflow Integration Points
 
 ### When Running an SEO Audit
-Read `references/seo-audit.md` — the "Authority & Links (Ahrefs-Powered)" section:
+Read `seo-kit/references/seo-audit.md` — the "Authority & Links (Ahrefs-Powered)" section:
 1. Domain overview (DR, referring domains, organic traffic baseline)
 2. Backlink profile (top referring domains by DR)
 3. Organic keyword portfolio (position distribution, quick wins)
