@@ -576,3 +576,269 @@ def test_max_calls_counts_retries_and_round_robin():
     )
     assert summary["capped"] is True
     assert summary["calls_made"] == 2
+
+
+def test_parse_openrouter_fixture():
+    parsed = ai_visibility.parse_openrouter_response(load("openrouter_response.json"))
+    assert parsed["answer"].startswith("Acme Corp")
+    assert parsed["cited_urls"] == [
+        "https://example.com/about",
+        "https://other.example/roundup",
+        "https://example.com/pricing",
+        "https://news.example/acme",
+    ]
+    assert "https://ignored.example/file" not in parsed["cited_urls"]
+    assert parsed["usage"]["cost"] == 0.00125
+    assert parsed["usage"]["total_tokens"] == 62
+
+
+def test_openrouter_request_search_native_exa_or_omitted():
+    native = ai_visibility.build_openrouter_request("perplexity/sonar", "Who is Acme Corp?", "test-key", "native")
+    assert native["method"] == "POST"
+    assert native["url"] == "https://openrouter.ai/api/v1/chat/completions"
+    assert native["headers"]["Authorization"] == "Bearer test-key"
+    assert native["headers"]["Content-Type"] == "application/json"
+    assert native["headers"]["HTTP-Referer"] == "https://github.com/1610-advisory/mktkit"
+    assert native["headers"]["X-Title"] == "seo-kit"
+    assert native["json"]["model"] == "perplexity/sonar"
+    assert native["json"]["messages"] == [{"role": "user", "content": "Who is Acme Corp?"}]
+    assert native["json"]["plugins"] == [{"id": "web", "engine": "native"}]
+    assert native["json"]["usage"] == {"include": True}
+    assert native["timeout"] == 90
+    exa = ai_visibility.build_openrouter_request("perplexity/sonar", "q", "test-key", "exa")
+    assert exa["json"]["plugins"] == [{"id": "web", "engine": "exa"}]
+    omitted = ai_visibility.build_openrouter_request("perplexity/sonar", "q", "test-key", "")
+    assert omitted["json"]["plugins"] == [{"id": "web"}]
+    assert "engine" not in omitted["json"]["plugins"][0]
+
+
+def test_plan_openrouter_two_models():
+    config = {
+        "ai_engines": {
+            "openai": {"model": "custom-model", "enabled": False},
+            "openrouter": {
+                "enabled": True,
+                "models": ["openai/gpt-5.4-mini", "perplexity/sonar", "perplexity/sonar"],
+                "search": "native",
+            },
+        }
+    }
+    prompts = [{"id": "q", "text": "Who is Acme Corp?", "kind": "branded"}]
+    plan = ai_visibility.plan_calls(config, prompts, None, 3, {"OPENROUTER_API_KEY": "present"}, 100)
+    assert [item["engine"] for item in plan["would_run"]] == [
+        "openrouter:openai/gpt-5.4-mini",
+        "openrouter:perplexity/sonar",
+    ]
+    assert [item["model"] for item in plan["would_run"]] == [
+        "openai/gpt-5.4-mini",
+        "perplexity/sonar",
+    ]
+    assert all(item["search"] == "native" for item in plan["would_run"])
+    assert all(item["calls"] == 3 for item in plan["would_run"])
+    assert plan["total_calls"] == 6
+    text = ai_visibility.format_plan(plan)
+    assert "openrouter:openai/gpt-5.4-mini" in text
+    assert "openrouter:perplexity/sonar" in text
+    assert "calls=3" in text
+    assert "present" not in text
+    one = ai_visibility.plan_calls(
+        config, prompts, ["openrouter:perplexity/sonar"], 2, {"OPENROUTER_API_KEY": "present"}, 100
+    )
+    assert [item["engine"] for item in one["would_run"]] == ["openrouter:perplexity/sonar"]
+    assert one["total_calls"] == 2
+    assert one["would_run"][0]["calls"] == 2
+    missing = ai_visibility.plan_calls(config, prompts, None, 1, {}, 100)
+    reasons = {item["engine"]: item["reason"] for item in missing["skipped"] + missing["refused"]}
+    assert reasons["openrouter:openai/gpt-5.4-mini"] == "missing OPENROUTER_API_KEY"
+    assert reasons["openrouter:perplexity/sonar"] == "missing OPENROUTER_API_KEY"
+    assert missing["would_run"] == []
+
+
+def test_openrouter_dry_run_lists_each_model_with_call_count(monkeypatch, capsys, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("site: https://example.com\n", encoding="utf-8")
+    prompts = tmp_path / "prompts.yaml"
+    prompts.write_text(
+        "- id: branded-who\n  text: Who is Acme Corp?\n  kind: branded\n"
+        "- id: cost-how\n  text: How much does Acme Corp charge?\n  kind: cost\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(ai_visibility, "load_client", lambda _path: {
+        "site": "https://example.com",
+        "brand": "Acme Corp",
+        "domains": ["example.com"],
+        "ai_engines": {
+            "openai": {"model": "", "enabled": False},
+            "openrouter": {
+                "enabled": True,
+                "models": ["openai/gpt-5.4-mini", "perplexity/sonar"],
+                "search": "native",
+            },
+        },
+    })
+
+    def boom(*_args, **_kwargs):
+        raise AssertionError("request was made")
+
+    monkeypatch.setattr(ai_visibility, "perform_request", boom)
+    monkeypatch.setattr(ai_visibility.httpx, "Client", boom)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "present")
+    code = ai_visibility.main([
+        "--config", str(config_path),
+        "--prompts", str(prompts),
+        "--log", str(tmp_path / "log.jsonl"),
+        "--out", str(tmp_path / "ai.json"),
+        "--dry-run",
+        "--runs", "2",
+    ])
+    assert code == 0
+    captured = capsys.readouterr()
+    assert "openrouter:openai/gpt-5.4-mini model=openai/gpt-5.4-mini search=native calls=4" in captured.out
+    assert "openrouter:perplexity/sonar model=perplexity/sonar search=native calls=4" in captured.out
+    assert "total calls: 8" in captured.out
+    assert "present" not in captured.out
+    assert "no request" in captured.err
+    assert not (tmp_path / "log.jsonl").exists()
+    assert not (tmp_path / "ai.json").exists()
+
+
+def test_openrouter_cost_summed_per_engine():
+    prompts = [{"id": "q", "text": "Who is Acme Corp?", "kind": "branded"}]
+    engines = [
+        {"engine": "openrouter:perplexity/sonar", "model": "perplexity/sonar", "provider": "openrouter"},
+        {"engine": "openrouter:openai/gpt-5.4-mini", "model": "openai/gpt-5.4-mini", "provider": "openrouter"},
+    ]
+
+    def call_fn(engine, prompt):
+        cost = 0.01 if engine["model"] == "perplexity/sonar" else 0.02
+        return {
+            "answer": "Acme Corp makes widgets.",
+            "cited_urls": ["https://example.com/about"],
+            "usage": {"prompt_tokens": 4, "completion_tokens": 6, "cost": cost},
+            "error": None,
+        }
+
+    records = ai_visibility.run_battery(
+        prompts,
+        engines,
+        runs=2,
+        call_fn=call_fn,
+        max_calls=10,
+        facts="",
+        config=CONFIG,
+        clock=lambda: "2026-10-27T00:00:00Z",
+    )
+    assert [row["engine"] for row in records] == [
+        "openrouter:perplexity/sonar",
+        "openrouter:openai/gpt-5.4-mini",
+        "openrouter:perplexity/sonar",
+        "openrouter:openai/gpt-5.4-mini",
+    ]
+    assert [row["cost_usd"] for row in records] == [0.01, 0.02, 0.01, 0.02]
+    bare = ai_visibility.run_battery(
+        prompts,
+        [{"engine": "openai", "model": "custom-model"}],
+        runs=1,
+        call_fn=lambda _engine, _prompt: {
+            "answer": "Acme Corp",
+            "cited_urls": [],
+            "usage": {"input_tokens": 1},
+            "error": None,
+        },
+        max_calls=5,
+        facts="",
+        config=CONFIG,
+        clock=lambda: "2026-10-27T00:00:00Z",
+    )
+    assert "cost_usd" not in bare[0]
+    failed = {
+        "engine": "openrouter:perplexity/sonar",
+        "prompt_id": "q",
+        "kind": "branded",
+        "run": 3,
+        "error": "empty answer",
+        "brand_mentioned": False,
+        "our_url_cited": False,
+        "brand_position": None,
+        "cited_domains": [],
+        "unverified_figures": [],
+        "cost_usd": 0.01,
+    }
+    summary = ai_visibility.build_summary(
+        records + bare + [failed],
+        prompts=1,
+        runs=2,
+        generated_at="2026-10-27T00:00:00Z",
+        skipped=[],
+    )
+    assert summary["summary"]["openrouter:perplexity/sonar"]["cost_usd"] == 0.03
+    assert summary["summary"]["openrouter:perplexity/sonar"]["calls"] == 3
+    assert summary["summary"]["openrouter:perplexity/sonar"]["failed"] == 1
+    assert summary["summary"]["openrouter:openai/gpt-5.4-mini"]["cost_usd"] == 0.04
+    assert summary["summary"]["openai"]["cost_usd"] == 0
+
+
+def test_openrouter_failed_200_and_live_call_parses_fixture():
+    assert ai_visibility.response_error("openrouter", {"choices": []}, {"answer": ""}) == "openrouter no choices"
+    assert ai_visibility.response_error(
+        "openrouter",
+        {"choices": [{"message": {"content": ""}}]},
+        {"answer": ""},
+    ) == "empty answer"
+    assert ai_visibility.response_error(
+        "openrouter",
+        {"error": {"code": "model_not_found", "message": "No such model."}},
+        {"answer": ""},
+    ) == "model_not_found: No such model."
+    leaked = ai_visibility.response_error(
+        "openrouter",
+        {"error": {"code": 401, "message": "Invalid key test-key-do-not-log"}},
+        {"answer": ""},
+    )
+    assert leaked == "401"
+    assert "test-key" not in leaked
+    assert ai_visibility.response_error(
+        "openrouter",
+        {"error": {"code": "403", "message": "forbidden detail"}},
+        {"answer": ""},
+    ) == "403"
+
+    payload = load("openrouter_response.json")
+    seen = {}
+
+    class Resp:
+        status_code = 200
+        text = ""
+
+        def json(self):
+            return payload
+
+    class Client:
+        def request(self, method, url, headers=None, json=None, timeout=None):
+            seen["method"] = method
+            seen["url"] = url
+            seen["headers"] = headers
+            seen["json"] = json
+            return Resp()
+
+    parsed = ai_visibility._live_call(
+        {
+            "engine": "openrouter:perplexity/sonar",
+            "model": "perplexity/sonar",
+            "provider": "openrouter",
+            "search": "native",
+        },
+        "Who is Acme Corp?",
+        {"OPENROUTER_API_KEY": "  test-key  "},
+        Client(),
+        lambda *_args: None,
+    )
+    assert seen["method"] == "POST"
+    assert seen["url"] == "https://openrouter.ai/api/v1/chat/completions"
+    assert seen["headers"]["Authorization"] == "Bearer test-key"
+    assert seen["headers"]["HTTP-Referer"] == "https://github.com/1610-advisory/mktkit"
+    assert seen["json"]["model"] == "perplexity/sonar"
+    assert seen["json"]["plugins"] == [{"id": "web", "engine": "native"}]
+    assert parsed["error"] is None
+    assert parsed["cited_urls"][0] == "https://example.com/about"
+    assert parsed["usage"]["cost"] == 0.00125

@@ -17,7 +17,7 @@ It pairs with the **ai-cmo** plugin in this repo: the CMO decides what the busin
 | Speed (lab): Lighthouse scores, LCP, CLS, TBT per page | `scripts/lighthouse_run.py` | Chrome, Node |
 | Index state, queries, page-2 list | `scripts/gsc.py` (Search Console API, read-only) | Search Console access |
 | Bing queries, pages, crawl issues | `scripts/bing.py` | Bing Webmaster API key |
-| AI answers: is the business named, where, which sites are cited, which dollar figures to check | `scripts/ai_visibility.py` | API key for each engine you enable |
+| AI answers: is the business named, where, which sites are cited, which dollar figures to check | `scripts/ai_visibility.py` | an OpenRouter key, or a key per engine |
 | Week-over-week report | `scripts/seo_diff.py` | Last week's snapshot |
 | Tell Bing and others about changed URLs | `scripts/indexnow.py` (dry run unless `--send`) | A key file on the site |
 

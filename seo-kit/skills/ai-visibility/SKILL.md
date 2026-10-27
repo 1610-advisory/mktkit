@@ -19,6 +19,7 @@ Script: `<kit>/scripts/ai_visibility.py`. Business files: `tracking/seo/prompts.
 
 1. Copy `<kit>/templates/prompts.yaml` to `<biz>/tracking/seo/prompts.yaml`. Rewrite the questions from the pack: what each persona would really ask an assistant (who to hire, what it costs, X vs Y, how to do the job). 15 to 25 questions. Mix: about a quarter branded ("what is <brand>"), the rest category, cost and comparison. Show them to the person before the first paid run.
 2. In `config.yaml` → `ai_engines`, enable the engines that have a key in the environment, and set each `model` from the vendor's current docs. Never guess a model id.
+   One OpenRouter key can stand in for all four vendor keys; set `models` and keep `search: native` so each model uses its own provider's web search.
 3. `--dry-run` first: it prints the engines, skipped engines and the call count. Calls = prompts × engines × runs.
 
 ## Run

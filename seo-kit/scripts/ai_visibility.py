@@ -15,15 +15,22 @@ Usage:
         --prompts tracking/seo/prompts.yaml \\
         --log tracking/seo/ai-visibility.jsonl \\
         --out tracking/seo/snapshots/2026-10-27/ai.json \\
-        [--engines openai,perplexity] [--runs 3] [--dry-run] [--max-calls 100]
+        [--engines openai,perplexity,openrouter] [--runs 3] [--dry-run] [--max-calls 100]
 
 --dry-run prints the plan (engines that would run, engines skipped and why,
-total calls) and makes no request.
+total calls) and makes no request. Each openrouter:<model> is listed with its
+own call count.
 
 Engines come from config ai_engines. The model id is read from config and is
 never defaulted. An enabled engine with an empty model is refused. Keys come
-from OPENAI_API_KEY, PERPLEXITY_API_KEY, GEMINI_API_KEY, ANTHROPIC_API_KEY.
-A missing key skips that engine with a note. Keys are never printed.
+from OPENAI_API_KEY, PERPLEXITY_API_KEY, GEMINI_API_KEY, ANTHROPIC_API_KEY,
+and OPENROUTER_API_KEY. A missing key skips that engine with a note. Keys are
+never printed.
+
+OpenRouter is one key for several models. Each models entry is its own engine,
+named openrouter:<model>, in the plan, the log and the summary. search is
+native (the provider's own web search) or exa; an empty search omits the
+plugin engine. usage.cost is stored as cost_usd and summed per engine.
 
 Each engine has a request builder and a parser that returns
 {answer, cited_urls, usage}. usage token counts are stored as the API returned
@@ -56,7 +63,12 @@ KEY_ENV = {
     "perplexity": "PERPLEXITY_API_KEY",
     "gemini": "GEMINI_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
+    "openrouter": "OPENROUTER_API_KEY",
 }
+# OpenRouter asks for these so the app is identifiable. They are not secrets.
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+OPENROUTER_REFERER = "https://github.com/1610-advisory/mktkit"
+OPENROUTER_TITLE = "seo-kit"
 KINDS = {"branded", "category", "comparison", "cost"}
 TIMEOUT_S = 90
 RETRY_BACKOFF_S = 2.0
@@ -121,6 +133,87 @@ def _engine_spec(config: dict, name: str) -> dict:
     return spec
 
 
+def _canon_engine_name(name: str) -> str:
+    """Vendor names are case-insensitive. The model id after openrouter: is not."""
+    raw = str(name or "").strip()
+    lower = raw.lower()
+    if lower == "openrouter":
+        return "openrouter"
+    if lower.startswith("openrouter:"):
+        return "openrouter:" + raw.split(":", 1)[1].strip()
+    return lower
+
+
+def _openrouter_search(spec: dict) -> str:
+    # Missing means the provider's own search. Empty string means omit engine.
+    if "search" not in spec or spec.get("search") is None:
+        return "native"
+    value = spec.get("search")
+    if not isinstance(value, str):
+        return "native"
+    return value.strip()
+
+
+def _openrouter_models(spec: dict) -> list[str] | str:
+    """A deduped model list, or an error reason if the field is unusable."""
+    raw = spec.get("models")
+    if raw is None:
+        raw = []
+    if not isinstance(raw, list):
+        return "models must be a list"
+    models = []
+    for item in raw:
+        model = str(item).strip()
+        if model and model not in models:
+            models.append(model)
+    return models
+
+
+def _plan_openrouter(name, config, env, would_run, skipped, refused, planned) -> None:
+    spec = _engine_spec(config, "openrouter")
+    specific = name.startswith("openrouter:")
+    wanted = name.split(":", 1)[1].strip() if specific else ""
+    label = name if specific else "openrouter"
+    if not spec.get("enabled"):
+        skipped.append({"engine": label, "reason": "disabled in config"})
+        return
+    if specific and not wanted:
+        refused.append({"engine": name, "reason": "refusing to run openrouter: model is empty"})
+        return
+    models = _openrouter_models(spec)
+    if isinstance(models, str):
+        refused.append({"engine": label, "reason": f"refusing to run openrouter: {models}"})
+        return
+    if specific:
+        if wanted not in models:
+            refused.append({"engine": name, "reason": f"refusing to run {name}: model is not in openrouter.models"})
+            return
+        models = [wanted]
+    elif not models:
+        refused.append({"engine": "openrouter", "reason": "refusing to run openrouter: models is empty"})
+        return
+    if not read_api_key(env, "openrouter"):
+        for model in models:
+            engine_name = f"openrouter:{model}"
+            if engine_name in planned:
+                continue
+            planned.add(engine_name)
+            skipped.append({"engine": engine_name, "reason": "missing OPENROUTER_API_KEY"})
+        return
+    search = _openrouter_search(spec)
+    for model in models:
+        engine_name = f"openrouter:{model}"
+        if engine_name in planned:
+            continue
+        planned.add(engine_name)
+        would_run.append({
+            "engine": engine_name,
+            "model": model,
+            "provider": "openrouter",
+            "search": search,
+        })
+
+
 def plan_calls(
     config: dict,
     prompts: list[dict],
@@ -130,11 +223,28 @@ def plan_calls(
     max_calls: int,
 ) -> dict:
     """Decide which engines would run. Does not read the network."""
-    selected = list(ENGINES if not engines else engines)
+    if engines:
+        selected = []
+        for name in engines:
+            canon = _canon_engine_name(name)
+            if canon:
+                selected.append(canon)
+    else:
+        selected = list(ENGINES)
+        if "openrouter" in (config.get("ai_engines") or {}):
+            selected.append("openrouter")
     would_run = []
     skipped = []
     refused = []
+    seen = set()
+    planned = set()
     for name in selected:
+        if name in seen:
+            continue
+        seen.add(name)
+        if name == "openrouter" or name.startswith("openrouter:"):
+            _plan_openrouter(name, config, env, would_run, skipped, refused, planned)
+            continue
         if name not in ENGINES:
             refused.append({"engine": name, "reason": f"unknown engine {name}"})
             continue
@@ -157,7 +267,10 @@ def plan_calls(
         if name == "anthropic":
             item["tool"] = str(spec.get("tool")).strip()
         would_run.append(item)
-    total = len(prompts) * runs * len(would_run)
+    per_engine_calls = len(prompts) * runs
+    for item in would_run:
+        item["calls"] = per_engine_calls
+    total = per_engine_calls * len(would_run)
     return {
         "would_run": would_run,
         "skipped": skipped,
@@ -175,6 +288,11 @@ def format_plan(plan: dict) -> str:
     if plan["would_run"]:
         for item in plan["would_run"]:
             extra = f" tool={item['tool']}" if item.get("tool") else ""
+            if "search" in item:
+                shown = item["search"] if item["search"] else "(omitted)"
+                extra += f" search={shown}"
+            if item.get("calls") is not None:
+                extra += f" calls={item['calls']}"
             lines.append(f"- {item['engine']} model={item['model']}{extra}")
     else:
         lines.append("- (none)")
@@ -253,7 +371,31 @@ def build_anthropic_request(model: str, prompt: str, api_key: str, tool: str) ->
     }
 
 
-def build_request(engine: str, model: str, prompt: str, api_key: str, tool: str = "") -> dict:
+def build_openrouter_request(model: str, prompt: str, api_key: str, search: str = "native") -> dict:
+    plugin = {"id": "web"}
+    # Empty search means "do not pin an engine"; the key is omitted, not sent blank.
+    if search:
+        plugin["engine"] = search
+    return {
+        "method": "POST",
+        "url": OPENROUTER_URL,
+        "headers": {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": OPENROUTER_REFERER,
+            "X-Title": OPENROUTER_TITLE,
+        },
+        "json": {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "plugins": [plugin],
+            "usage": {"include": True},
+        },
+        "timeout": TIMEOUT_S,
+    }
+
+
+def build_request(engine: str, model: str, prompt: str, api_key: str, tool: str = "", search: str = "native") -> dict:
     if engine == "openai":
         return build_openai_request(model, prompt, api_key)
     if engine == "perplexity":
@@ -262,6 +404,8 @@ def build_request(engine: str, model: str, prompt: str, api_key: str, tool: str 
         return build_gemini_request(model, prompt, api_key)
     if engine == "anthropic":
         return build_anthropic_request(model, prompt, api_key, tool)
+    if engine == "openrouter":
+        return build_openrouter_request(model, prompt, api_key, search)
     raise ValueError(f"unknown engine {engine}")
 
 
@@ -395,11 +539,56 @@ def parse_anthropic_response(payload: dict) -> dict:
     }
 
 
+def _message_text(content) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for part in content:
+            if isinstance(part, str):
+                parts.append(part)
+            elif isinstance(part, dict) and part.get("text"):
+                parts.append(str(part["text"]))
+        return "\n".join(parts)
+    return ""
+
+
+def parse_openrouter_response(payload: dict) -> dict:
+    """OpenRouter nests citation URLs under annotations[].url_citation.url.
+
+    Perplexity models may also return a top-level citations list. Both count.
+    """
+    choices = payload.get("choices") or []
+    first = choices[0] if choices and isinstance(choices[0], dict) else {}
+    message = first.get("message") or {}
+    if not isinstance(message, dict):
+        message = {}
+    urls = []
+    for note in message.get("annotations") or []:
+        if not isinstance(note, dict) or note.get("type") != "url_citation":
+            continue
+        citation = note.get("url_citation") or {}
+        if isinstance(citation, dict) and citation.get("url"):
+            urls.append(citation["url"])
+    for cite in payload.get("citations") or []:
+        if isinstance(cite, str):
+            urls.append(cite)
+        elif isinstance(cite, dict) and cite.get("url"):
+            urls.append(cite["url"])
+    return {
+        "answer": _message_text(message.get("content")),
+        "cited_urls": _dedupe(urls),
+        "retrieved_urls": [],
+        "usage": payload.get("usage"),
+    }
+
+
 PARSERS = {
     "openai": parse_openai_response,
     "perplexity": parse_perplexity_response,
     "gemini": parse_gemini_response,
     "anthropic": parse_anthropic_response,
+    "openrouter": parse_openrouter_response,
 }
 
 
@@ -708,8 +897,34 @@ def _error_text(status: int, body) -> str:
     return f"HTTP {status}"
 
 
+def _openrouter_error_text(err) -> str:
+    """Body error object: code plus a short message. 401/403 keep the code only."""
+    if isinstance(err, str):
+        return err.replace("\n", " ").strip()[:160] or "error"
+    if not isinstance(err, dict):
+        return "error"
+    raw_code = err.get("code")
+    if raw_code is None:
+        raw_code = err.get("type") or err.get("status") or ""
+    code = str(raw_code).strip()
+    message = str(err.get("message") or "").replace("\n", " ").strip()[:160]
+    if code in ("401", "403"):
+        return code
+    if code and message:
+        return f"{code}: {message}"
+    return code or message or "error"
+
+
 def response_error(engine: str, payload: dict, parsed: dict) -> str | None:
     """A 200 can still be a failed answer. Return a short error, or None."""
+    if engine == "openrouter" or str(engine).startswith("openrouter:"):
+        if not isinstance(payload, dict):
+            return "openrouter no choices"
+        err = payload.get("error")
+        if err:
+            return _openrouter_error_text(err)
+        if not payload.get("choices"):
+            return "openrouter no choices"
     if engine == "openai":
         status = payload.get("status")
         if status is not None and status != "completed":
@@ -769,6 +984,44 @@ def _write_jsonl_row(handle, row: dict) -> None:
     handle.flush()
 
 
+def _parse_cost(value) -> Decimal | None:
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, Decimal):
+        parsed = value
+    elif isinstance(value, (int, float, str)):
+        try:
+            parsed = Decimal(str(value))
+        except InvalidOperation:
+            return None
+    else:
+        return None
+    if not parsed.is_finite():
+        return None
+    return parsed
+
+
+def _json_cost(value: Decimal) -> int | float:
+    text = format(value, "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    if text in ("", "-", "-0"):
+        return 0
+    if "." not in text:
+        return int(text)
+    return float(text)
+
+
+def cost_usd_of(usage) -> int | float | None:
+    """usage.cost when the API returned one. Absent means do not record cost_usd."""
+    if not isinstance(usage, dict) or "cost" not in usage:
+        return None
+    parsed = _parse_cost(usage.get("cost"))
+    if parsed is None:
+        return None
+    return _json_cost(parsed)
+
+
 def run_battery(
     prompts: list[dict],
     engines: list[dict],
@@ -824,6 +1077,7 @@ def run_battery(
                     cited = result.get("cited_urls") or []
                     retrieved = result.get("retrieved_urls") or []
                     error = result.get("error")
+                    usage = result.get("usage")
                     try:
                         analysis = analyze(answer, cited, config, facts, retrieved)
                     except Exception as exc:
@@ -841,9 +1095,13 @@ def run_battery(
                         "cited_urls": cited,
                         "retrieved_urls": retrieved,
                         **analysis,
-                        "usage": result.get("usage"),
+                        "usage": usage,
                         "error": error,
                     }
+                    # Charged failures still cost money, so record cost even when error is set.
+                    cost = cost_usd_of(usage)
+                    if cost is not None:
+                        row["cost_usd"] = cost
                     records.append(row)
                     if handle is not None:
                         _write_jsonl_row(handle, row)
@@ -879,9 +1137,12 @@ def build_summary(
     for row in records:
         bucket = by_engine.setdefault(
             row["engine"],
-            {"calls": 0, "ok": 0, "mentions": 0, "citations": 0, "positions": []},
+            {"calls": 0, "ok": 0, "mentions": 0, "citations": 0, "positions": [], "cost": None},
         )
         bucket["calls"] += 1
+        cost = _parse_cost(row.get("cost_usd"))
+        if cost is not None:
+            bucket["cost"] = cost if bucket["cost"] is None else bucket["cost"] + cost
         if row.get("error"):
             continue
         bucket["ok"] += 1
@@ -899,6 +1160,7 @@ def build_summary(
             "mention_rate": _rate(bucket["mentions"], bucket["ok"]),
             "citation_rate": _rate(bucket["citations"], bucket["ok"]),
             "avg_position": _avg(bucket["positions"]),
+            "cost_usd": 0 if bucket["cost"] is None else _json_cost(bucket["cost"]),
         }
 
     by_prompt_acc: dict[str, dict] = {}
@@ -987,16 +1249,37 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--prompts", required=True)
     parser.add_argument("--log", required=True, help="JSONL log, appended")
     parser.add_argument("--out", required=True, help="Summary JSON path")
-    parser.add_argument("--engines", help="Comma-separated subset: openai,perplexity,gemini,anthropic")
+    parser.add_argument(
+        "--engines",
+        help="Comma-separated subset: openai,perplexity,gemini,anthropic,openrouter or openrouter:<model>",
+    )
     parser.add_argument("--runs", type=int, default=1)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--max-calls", type=int, default=100)
     return parser
 
 
+def _provider(engine: dict) -> str:
+    provider = str(engine.get("provider") or "").strip()
+    if provider:
+        return provider
+    name = str(engine.get("engine") or "")
+    if name.startswith("openrouter:"):
+        return "openrouter"
+    return name
+
+
 def _live_call(engine: dict, prompt: str, env: dict, client, sleep_fn, budget: dict | None = None):
-    key = read_api_key(env, engine["engine"])
-    request = build_request(engine["engine"], engine["model"], prompt, key, engine.get("tool", ""))
+    provider = _provider(engine)
+    key = read_api_key(env, provider)
+    request = build_request(
+        provider,
+        engine["model"],
+        prompt,
+        key,
+        engine.get("tool", ""),
+        engine.get("search", "native"),
+    )
     status, body, error = perform_request(request, client, sleep_fn=sleep_fn, secrets=[key], budget=budget)
     if error or not isinstance(body, dict):
         return {
@@ -1006,9 +1289,12 @@ def _live_call(engine: dict, prompt: str, env: dict, client, sleep_fn, budget: d
             "usage": None,
             "error": error or f"HTTP {status}",
         }
-    parsed = PARSERS[engine["engine"]](body)
+    parsed = PARSERS[provider](body)
     parsed.setdefault("retrieved_urls", [])
-    parsed["error"] = response_error(engine["engine"], body, parsed)
+    err = response_error(provider, body, parsed)
+    if err:
+        err = redact(err, [key])
+    parsed["error"] = err
     return parsed
 
 
@@ -1028,7 +1314,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     requested = None
     if args.engines:
-        requested = [part.strip().lower() for part in args.engines.split(",") if part.strip()]
+        requested = [_canon_engine_name(part) for part in args.engines.split(",") if part.strip()]
     plan = plan_calls(config, prompts, requested, args.runs, os.environ, args.max_calls)
     if args.dry_run:
         print(format_plan(plan))

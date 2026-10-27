@@ -19,3 +19,4 @@ ai_engines:                          # model ids change; check vendor docs befor
   perplexity: {model: "", enabled: false}
   gemini:     {model: "", enabled: false}
   anthropic:  {model: "", enabled: false, tool: "web_search_20250305"}
+  openrouter: {enabled: false, models: [], search: "native"}   # e.g. models: [openai/gpt-5.4-mini, perplexity/sonar, google/gemini-flash-latest, anthropic/claude-haiku-latest]
