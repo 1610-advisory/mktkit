@@ -62,8 +62,16 @@ uses PyYAML if installed). It holds no brand values.
 python3 <toolkit>/scripts/design_md.py check  knowledge/DESIGN.md
 python3 <toolkit>/scripts/design_md.py render knowledge/DESIGN.md -o <out>.html [--logo <file> ...]
 python3 <toolkit>/scripts/design_md.py ds     knowledge/DESIGN.md -o <scratch dir> \
-        [--asset Logos=<folder or file>] [--by "<owner name>"]
+        [--asset Logos=<folder or file>] [--by "<owner name>"] \
+        [--name-logo <logo for light>.svg --name-logo dark=<logo for dark>.svg]
 ```
+
+- `--name-logo` (render and ds): the logo file that stands for the name
+  in a header (the view's title, the page's cover), one per theme. **When
+  the business has a logo, always pass it.** A header shows the real logo
+  file, never the name typed in a font: a font cannot match a mark that was
+  drawn or kerned by hand. The name stays as plain text everywhere else
+  (prose, notes, labels).
 
 - `check`: errors (exit 1) for no frontmatter, a placeholder name, no colors
   or type, a component reference that does not resolve. Warnings for non-hex
@@ -115,8 +123,9 @@ keeping every other key.
 
 - The page is generated. Do not edit its tokens, README or previews on the
   page or by hand. A change goes into DESIGN.md first.
-- The cover is a picture made only from tokens. You may redraw it when the
-  owner asks ("more green"), with tokens only, no new facts.
+- The cover is a picture made only from tokens, plus the logo file in place
+  of the name (`--name-logo`). You may redraw it when the owner asks ("more
+  green"), with tokens only, no new facts.
 - Sharing the page needs the owner's yes. You cannot share it; the owner
   uses the page's Share menu. When the owner shares it, the audience is the
   people with access to the business's marketing repo, no one wider. Until

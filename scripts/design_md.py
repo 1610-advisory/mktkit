@@ -12,8 +12,9 @@ here: every color, face and word comes from the file it reads.
 
 Usage:
   python3 scripts/design_md.py check  knowledge/DESIGN.md
-  python3 scripts/design_md.py render knowledge/DESIGN.md -o brand/design-md.html
+  python3 scripts/design_md.py render knowledge/DESIGN.md -o brand/design-md.html [--name-logo logo.svg]
   python3 scripts/design_md.py ds     knowledge/DESIGN.md -o <dir> [--asset Logos=brand/logos/svg]
+          [--name-logo logo-light.svg --name-logo dark=logo-dark.svg]
 
 Detail: references/design-md.md
 """
@@ -787,12 +788,58 @@ def _visual_for(doc, title, logos=()):
     return None, ""
 
 
+def name_logo_html(doc, marks):
+    """The logo, inline, standing in for the name in a header. marks: {theme: svg path}; "light" is the default.
+
+    One copy per theme, each shown only in its theme ([data-theme] on <html>, or the system setting when no
+    theme is picked), so a header shows the real logo file and never the name retyped in a font."""
+    if not marks:
+        return "", ""
+    themes = theme_ids(doc)
+    base = "light" if "light" in marks else next(iter(marks))
+    parts, css = [], [".mark,.mark svg{display:block}"]
+    for t, path in marks.items():
+        svg = Path(path).read_text(encoding="utf-8")
+        svg = re.sub(r"<\?xml[^>]*>\s*", "", svg).strip()
+        if re.search(r"<script|\son[a-z]+\s*=", svg, re.I) or not svg.startswith("<svg"):
+            raise ValueError(f"{path}: not a plain SVG logo")
+        svg = re.sub(r"^<svg\b([^>]*)>", lambda m: "<svg" + re.sub(r'\s(width|height|preserveAspectRatio)="[^"]*"', "", m.group(1))
+                     + ' preserveAspectRatio="xMinYMax meet" aria-hidden="true" focusable="false">', svg, count=1)
+        parts.append(f'<span class="mark mark-{slug(t)}">{svg}</span>')
+        if t != base:
+            css.append(f".mark-{slug(t)}{{display:none}}")
+            css.append(f':root[data-theme="{t}"] .mark-{slug(t)}{{display:block}}'
+                       f':root[data-theme="{t}"] .mark-{slug(base)}{{display:none}}')
+            if t == "dark" and t in themes:
+                css.append(f"@media (prefers-color-scheme:dark){{:root:not([data-theme]) .mark-dark{{display:block}}"
+                           f":root:not([data-theme]) .mark-{slug(base)}{{display:none}}}}")
+    sr = f'<span class="sr">{html.escape(doc["name"] or "Design")}</span>'
+    css.append(".sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}")
+    return "".join(parts) + sr, "\n".join(css)
+
+
+def parse_name_logo(doc, specs):
+    """--name-logo FILE (every theme) or THEME=FILE. Returns {theme: path}."""
+    marks = {}
+    for spec in specs:
+        theme, sep, path = spec.partition("=")
+        if not sep:
+            theme, path = "light", spec
+        if theme not in theme_ids(doc):
+            raise ValueError(f"--name-logo: no theme {theme!r} in DESIGN.md (themes: {', '.join(theme_ids(doc))})")
+        if not Path(path).is_file() or Path(path).suffix.lower() != ".svg":
+            raise ValueError(f"--name-logo: {path} is not an .svg file")
+        marks[theme] = path
+    return marks
+
+
 def slug(s):
     return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-") or "section"
 
 
-def render_html(doc, logos=()):
-    """One self-contained page. logos: image files shown as tiles in the Logo section (or a section of their own)."""
+def render_html(doc, logos=(), name_logo=None):
+    """One self-contained page. logos: image files shown as tiles in the Logo section (or a section of their own).
+    name_logo: {theme: svg} shown in the header in place of the typed name (see name_logo_html)."""
     sections, done = [], set()
     for title, text in doc["sections"]:
         key, visual = _visual_for(doc, title, logos)
@@ -808,6 +855,7 @@ def render_html(doc, logos=()):
     at = 1 if sections and sections[0][0].lower() == "overview" else 0
     sections[at:at] = missing
 
+    mark, mark_css = name_logo_html(doc, name_logo)
     nav = "".join(f'<a href="#{slug(t)}">{html.escape(t)}</a>' for t, _, _ in sections)
     body = "".join(f'<section id="{slug(t)}"><h2>{html.escape(t)}</h2>{v}<div class="prose">{p}</div></section>'
                    for t, v, p in sections)
@@ -837,7 +885,7 @@ def render_html(doc, logos=()):
         name=html.escape(name), toggle=toggle, intro=md_to_html(doc["intro"]) if doc["intro"] else
         (f"<p>{html.escape(doc['description'])}</p>" if doc["description"] else ""),
         nav=nav, sections=body, src=html.escape(Path(doc["path"]).name),
-        script=THEME_JS if toggle else "")
+        script=THEME_JS if toggle else "", hero_name=mark or html.escape(name), mark_css=mark_css)
     return page
 
 
@@ -861,6 +909,8 @@ header.top{{display:flex;justify-content:space-between;align-items:center;gap:16
 .hero{{padding:48px 0 16px;max-width:760px}}
 .hero h1{{font:400 clamp(40px,6vw,68px)/.95 var(--display);letter-spacing:-.02em;margin:10px 0 16px;text-wrap:balance}}
 .hero .prose p{{font-size:18px;color:var(--muted)}}
+.hero h1 .mark svg{{width:min(100%,480px);height:auto;max-height:120px}}
+{mark_css}
 .layout{{display:grid;grid-template-columns:200px minmax(0,1fr);gap:48px;margin-top:24px}}
 nav.idx{{position:sticky;top:20px;align-self:start;display:flex;flex-direction:column;border-left:1px solid var(--rule)}}
 nav.idx a{{color:var(--muted);text-decoration:none;font-size:14px;padding:6px 0 6px 14px}}
@@ -910,7 +960,7 @@ a:focus-visible,button:focus-visible{{outline:2px solid var(--accent);outline-of
 </style></head>
 <body><div class="wrap">
 <header class="top"><span class="kicker">{name} · rendered from {src}</span>{toggle}</header>
-<div class="hero"><h1>{name}</h1><div class="prose">{intro}</div></div>
+<div class="hero"><h1>{hero_name}</h1><div class="prose">{intro}</div></div>
 <div class="layout"><nav class="idx" aria-label="Sections">{nav}</nav><main>{sections}</main></div>
 <footer class="src">This page is generated from {src}. The file is the source; if they disagree, the file wins. Edit the file and render again.</footer>
 </div>{script}</body></html>
@@ -1135,7 +1185,8 @@ def _visible(doc, name, ground, floor=1.25):
     return True
 
 
-def cover_html(doc):
+def cover_html(doc, name_logo=None):
+    """The cover. name_logo: {theme: svg}; when given, the logo stands where the name would be typed."""
     r = roles(doc)
     g = r["ground"]
     text_roles = {r["ink"], r["muted"]}
@@ -1191,6 +1242,10 @@ def cover_html(doc):
     ground = f"var(--{g})" if g else "#ffffff"
     ink = f"var(--{r['ink']})" if r["ink"] else "#111111"
     muted = f"var(--{r['muted']})" if r["muted"] else ink
+    mark, mark_css = name_logo_html(doc, name_logo)
+    if mark:
+        mark_css += "\n.name .mark svg{width:440px;max-width:100%;height:auto;max-height:150px}"
+        derivation += "\n  name        the logo file (--name-logo), not the name typed in a font"
     return f"""<!-- @dsCard height=288 -->
 <!doctype html>
 <html lang="en">
@@ -1206,6 +1261,7 @@ body{{background:{ground};color:{ink};overflow:hidden}}
 {chr(10).join(css)}
 .words{{position:absolute;left:32px;bottom:32px;max-width:440px}}
 .name{{margin:0;{feature_css(doc["typography"].get(tr["display"]) or {})}font-family:{fam_var};font-size:{size}px;line-height:{'.95' if lines > 1 else '.92'};font-weight:400;color:{ink}}}
+{mark_css}
 .tag{{margin:10px 0 0 2px;font-family:{tag_var};font-size:14px;line-height:20px;color:{muted}}}
 </style>
 </head>
@@ -1220,7 +1276,7 @@ body{{background:{ground};color:{ink};overflow:hidden}}
 {pattern}
 </svg>
 </div>
-<div class="words"><h1 class="name">{html.escape(name)}</h1><p class="tag">{html.escape(tagline)}</p></div>
+<div class="words"><h1 class="name">{mark or html.escape(name)}</h1><p class="tag">{html.escape(tagline)}</p></div>
 </div>
 </body>
 </html>
@@ -1239,7 +1295,7 @@ def ds_index(doc, now, by="Claude", via="Claude Code"):
 UPLOAD_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".mp4", ".webm", ".pdf"}
 
 
-def build_ds(doc, out_dir, assets=(), now=None, by="Claude"):
+def build_ds(doc, out_dir, assets=(), now=None, by="Claude", name_logo=None):
     """Write <out_dir>/project/... and <out_dir>/publish.json. Returns the publish plan."""
     now = now or dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     out = Path(out_dir)
@@ -1261,7 +1317,7 @@ def build_ds(doc, out_dir, assets=(), now=None, by="Claude"):
         comp = pascal(base)
         put(f"components/{comp}/preview.html", preview_html(doc, base, states))
         put(f"components/{comp}/README.md", component_readme(doc, base, states))
-    put("components/Cover/preview.html", cover_html(doc))
+    put("components/Cover/preview.html", cover_html(doc, name_logo))
 
     uploads = []
     for group, src in assets:
@@ -1313,12 +1369,18 @@ def main(argv=None):
     r.add_argument("-o", "--out", help="output .html (default: DESIGN.html beside the file)")
     r.add_argument("--logo", action="append", default=[], metavar="FILE",
                    help="a logo file (svg/png) to show in the Logo section. Repeatable.")
+    r.add_argument("--name-logo", action="append", default=[], metavar="[THEME=]FILE.svg",
+                   help="the logo that stands for the name in headers (the view's title, the cover), "
+                        "per theme: dark=FILE for dark mode. Repeatable.")
     d = sub.add_parser("ds", help="write the files for a claude.ai Design System page")
     d.add_argument("design")
     d.add_argument("-o", "--out", required=True, help="output folder (gets project/ and publish.json)")
     d.add_argument("--asset", action="append", default=[], metavar="GROUP=PATH",
                    help="copy a file or folder into assets/GROUP (logos, icons). Repeatable.")
     d.add_argument("--by", default="Claude", help="the person this is built for (index lastChange.by)")
+    d.add_argument("--name-logo", action="append", default=[], metavar="[THEME=]FILE.svg",
+                   help="the logo that stands for the name in headers (the view's title, the cover), "
+                        "per theme: dark=FILE for dark mode. Repeatable.")
     a = ap.parse_args(argv)
 
     doc = load(a.design)
@@ -1333,9 +1395,14 @@ def main(argv=None):
         for m in errors:
             print(f"error: {m}", file=sys.stderr)
         return 1
+    try:
+        marks = parse_name_logo(doc, a.name_logo)
+    except ValueError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 2
     if a.cmd == "render":
         out = Path(a.out) if a.out else Path(a.design).with_name("DESIGN.html")
-        out.write_text(render_html(doc, a.logo), encoding="utf-8")
+        out.write_text(render_html(doc, a.logo, marks), encoding="utf-8")
         print("wrote", out)
         return 0
     assets = []
@@ -1345,7 +1412,7 @@ def main(argv=None):
             print(f"error: --asset wants GROUP=PATH, got {spec!r}", file=sys.stderr)
             return 2
         assets.append((group, path))
-    plan = build_ds(doc, a.out, assets, by=a.by)
+    plan = build_ds(doc, a.out, assets, by=a.by, name_logo=marks)
     print(f"wrote {len(plan['files']) + 1} files under {Path(a.out) / 'project'}; "
           f"{len(plan['uploads'])} upload(s); plan: {Path(a.out) / 'publish.json'}")
     return 0

@@ -314,6 +314,49 @@ class FeatureAndRuleTest(unittest.TestCase):
         self.assertIn("height:1px;\"></div><figcaption>", prev)
 
 
+class NameLogoTest(unittest.TestCase):
+    """Where the name stands as a header, the logo file shows, never the name typed in a font."""
+
+    def setUp(self):
+        self.doc = dm.load(write(SAMPLE))
+        d = Path(tempfile.mkdtemp())
+        self.light, self.dark = d / "mark-light.svg", d / "mark-dark.svg"
+        self.light.write_text('<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 10" width="40" height="10"><path fill="#111" d="M0 0h40v10H0z"/></svg>')
+        self.dark.write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 10"><path fill="#eee" d="M0 0h40v10H0z"/></svg>')
+        self.marks = dm.parse_name_logo(self.doc, [str(self.light), f"dark={self.dark}"])
+
+    def test_cover_shows_logo_not_typed_name(self):
+        cover = dm.cover_html(self.doc, self.marks)
+        self.assertNotIn('<h1 class="name">Acme Bakery</h1>', cover)
+        self.assertIn('<span class="mark mark-light"><svg', cover)
+        self.assertIn('<span class="mark mark-dark"><svg', cover)
+        self.assertIn('<span class="sr">Acme Bakery</span>', cover)
+        self.assertIn(':root[data-theme="dark"] .mark-dark{display:block}', cover)
+        self.assertNotIn('viewBox="0 0 40 10" width=', cover)
+        self.assertNotIn("<?xml", cover)
+        self.assertIn('<h1 class="name">Acme Bakery</h1>', dm.cover_html(self.doc))
+
+    def test_render_header_shows_logo(self):
+        page = dm.render_html(self.doc, name_logo=self.marks)
+        self.assertIn('<div class="hero"><h1><span class="mark mark-light">', page)
+        self.assertIn("@media (prefers-color-scheme:dark){:root:not([data-theme]) .mark-dark{display:block}", page)
+
+    def test_bad_specs(self):
+        with self.assertRaises(ValueError):
+            dm.parse_name_logo(self.doc, [f"sepia={self.dark}"])
+        bad = self.light.with_name("bad.svg")
+        bad.write_text('<svg onload="x()"></svg>')
+        with self.assertRaises(ValueError):
+            dm.name_logo_html(self.doc, {"light": str(bad)})
+
+    def test_ds_cli(self):
+        out = Path(tempfile.mkdtemp())
+        self.assertEqual(dm.main(["ds", str(write(SAMPLE)), "-o", str(out), "--name-logo", str(self.light),
+                                  "--name-logo", f"dark={self.dark}"]), 0)
+        self.assertIn('class="mark mark-dark"', (out / "project/components/Cover/preview.html").read_text())
+        self.assertEqual(dm.main(["ds", str(write(SAMPLE)), "-o", str(out), "--name-logo", "nope.png"]), 2)
+
+
 class CliTest(unittest.TestCase):
     def test_check_exit_codes(self):
         self.assertEqual(dm.main(["check", str(write(SAMPLE))]), 0)
