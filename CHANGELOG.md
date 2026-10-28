@@ -2,6 +2,10 @@
 
 Plain-language history of the 1610 Marketing Toolkit. Newest first.
 
+## 2026-10-28
+- Added a take check that reads each raw talking take before anyone edits it. It names the best take of each piece and the part to cut, and it flags takes to shoot again.
+- Made the shoot organizer run the take check right after it names the clips, so the shoot summary lists the best takes and the reshoots.
+
 ## 2026-10-27
 - Gave the toolkit its own home page on the 1610 website, with this changelog right under it.
 - Added an SEO engineer (the new seo-kit plugin) that checks your website every week, ranks what to fix, and makes the fixes as a reviewable change.
