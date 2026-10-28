@@ -3,6 +3,7 @@
 Plain-language history of the 1610 Marketing Toolkit. Newest first.
 
 ## 2026-10-27
+- Gave the toolkit its own home page on the 1610 website, with this changelog right under it.
 - Added an SEO engineer (the new seo-kit plugin) that checks your website every week, ranks what to fix, and makes the fixes as a reviewable change.
 - Added tracking for whether AI assistants name and cite your business, with one OpenRouter key or a key per engine.
 - Added weekly site snapshots, speed tests that take the middle of three runs, and search engine pings after a change goes live.

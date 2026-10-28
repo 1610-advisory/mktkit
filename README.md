@@ -2,6 +2,8 @@
 
 Your AI marketing strategist. Clone it, open it in Claude Code, start talking.
 
+Home page: [1610advisory.com/tools/marketing-toolkit](https://1610advisory.com/tools/marketing-toolkit) · Every change: [changelog](https://1610advisory.com/tools/marketing-toolkit/changelog) ([`CHANGELOG.md`](CHANGELOG.md))
+
 The 1610 Marketing Toolkit is a strategic marketing advisor that acts as an AI Chief Marketing Officer for your clients — managing content strategy, planning, and performance tracking across all of them. It directs strategy — it doesn't create final content. You get data-driven content plans, brand voice guidelines, performance tracking, and an operational memory that gets smarter over time.
 
 ## Quick Start
