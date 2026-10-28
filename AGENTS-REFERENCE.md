@@ -429,7 +429,7 @@ When you build a new workflow or integration for a specific client, follow this 
    - **Client config** → stays in the client's `knowledge/` folder (only the values: IDs, URLs, keys)
 3. **Update the command routing table** if the new workflow should be triggered by natural language.
 4. **Proactively suggest** genericizing workflows that could benefit other clients.
-5. **Log it in `CHANGELOG.md`.** Any change a user would notice gets one dated, plain-language line (newest date first, past-tense verb, no jargon, no client names). The public changelog page at 1610advisory.com/toolkits/marketing/changelog reads this file within the hour.
+5. **Log it in `CHANGELOG.md`.** Any change a user would notice gets one dated, plain-language line (newest date first, past-tense verb, no jargon, no client names). The public changelog page at 1610advisory.com/tools/marketing-toolkit/changelog reads this file within the hour.
 6. **Offer it upstream.** Once a toolkit-level change works, run the `kit-contribute` skill: it offers once to share an anonymized version as a pull request, and respects "never ask again".
 
 ### Naming convention
