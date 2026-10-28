@@ -12,3 +12,6 @@ google-auth>=2.0
 google-auth-oauthlib>=1.0
 #
 # meta_pull.py / meta_setup.py are stdlib-only (urllib) — nothing to install.
+#
+# design_md.py (DESIGN.md check / HTML view / Design System files) is stdlib-only;
+# it uses PyYAML when installed. Nothing to install.

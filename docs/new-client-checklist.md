@@ -57,6 +57,13 @@ This command will:
 
 ## Phase 2: Brand & Voice
 
+### Visual system (DESIGN.md, required)
+
+- [ ] **`knowledge/DESIGN.md` filled** from the live site's CSS or a brand guide (start: `templates/DESIGN.md`; never guess a value)
+- [ ] **`python3 <toolkit>/scripts/design_md.py check knowledge/DESIGN.md`** passes with no errors
+- [ ] **Claude sessions:** private claude.ai Design System page built from it; `design_system_url:` recorded in DESIGN.md (`references/design-md.md`)
+- [ ] **HTML view committed** in the marketing repo (`design_md.py render -o brand/design-system.html`, or the business's own renderer), so everyone with the repo sees it
+
 ### Voice Discovery
 
 - [ ] **Brand personality defined**

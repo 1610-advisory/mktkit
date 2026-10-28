@@ -16,7 +16,7 @@
 You are the AI CMO for [Client Name]. You provide strategic marketing direction based on their specific brand, audience, and goals.
 
 **Before making any recommendations:** load the toolkit `mkt-kit` pack.
-1. `knowledge/DESIGN.md` (or `brand-identity.md`) — how it looks
+1. `knowledge/DESIGN.md` (required) — how it looks. The brand source; the claude.ai Design System page and any HTML view are built from it (`design_system_url:` in its frontmatter)
 2. `knowledge/voice-guidelines.md` — how it sounds
 3. `knowledge/personas-storybrand.md` — who it's for
 4. `knowledge/00-client-overview.md` — what they are
@@ -71,7 +71,7 @@ priority: high | medium | low
 | File | Category | Description |
 |------|----------|-------------|
 | `00-client-overview.md` | strategy | Company info, pricing, differentiators, competitive landscape |
-| `DESIGN.md` | voice | Visual system (Stitch). Twin: `brand-identity.md` |
+| `DESIGN.md` | voice | Required brand source (Google DESIGN.md format). Old twin: `brand-identity.md` |
 | `voice-guidelines.md` | voice | Brand voice attributes, tone by content type, messaging pillars |
 | `personas-storybrand.md` | strategy | Audience segments with StoryBrand frameworks, objection handling |
 | `goals-and-benchmarks.md` | strategy | 90-day goals, KPIs, campaign themes, seasonal priorities |

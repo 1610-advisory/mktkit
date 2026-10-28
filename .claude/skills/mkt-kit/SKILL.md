@@ -8,7 +8,7 @@ description: >
   the AI CMO", "mkt kit", or any toolkit skill is about to run (film-board,
   cut-video, carousel, captions, brief, branded report).
 metadata:
-  version: 1.0.0
+  version: 1.1.0
 ---
 
 # Mkt kit
@@ -23,7 +23,7 @@ From the current client's `knowledge/`:
 
 | File | Job |
 |---|---|
-| `DESIGN.md` | Visual system (Stitch). Fallback: `brand-identity.md` |
+| `DESIGN.md` | **Required.** Visual system, Google DESIGN.md format. The brand source; views are built from it. Old twin: `brand-identity.md` |
 | `voice-guidelines.md` | How we sound. Run copy through humanizer after |
 | `personas-storybrand.md` | Who it's for |
 | `00-client-overview.md` | What they are |
@@ -32,6 +32,17 @@ From the current client's `knowledge/`:
 | `offer.md` | What's for sale, if they sell |
 
 Optional if present: `copywriting-principles.md`, `corpus-voice.md`, `corpus-numbers.md`. Questions per missing file: `REFERENCE.md`.
+
+## DESIGN.md is required
+
+Every marketing repo has `knowledge/DESIGN.md`. Missing: copy the toolkit's `templates/DESIGN.md` there, ask the owner the DESIGN.md questions (`REFERENCE.md`), log them, and never invent a brand fact. Check it with `python3 <toolkit>/scripts/design_md.py check knowledge/DESIGN.md`.
+
+Views are built from it, never edited as the source; if a view and the file disagree, the file wins. Always read the file itself:
+
+- **Claude sessions:** build or refresh the business's private claude.ai Design System page from it (`design_md.py ds` + the Artifact tool). Its URL goes in DESIGN.md as `design_system_url:`. Only Claude sessions on the owner's account can read that page; other agents and the business's team cannot. Sharing it needs the owner's yes.
+- **Any agent:** `design_md.py render` makes one HTML view. Commit it in this marketing repo (default `brand/design-system.html`) so everyone with the repo sees it; render it again with each DESIGN.md change.
+
+Full steps: `references/design-md.md`.
 
 ## Missing file → ask, then log
 

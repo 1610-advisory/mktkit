@@ -134,6 +134,7 @@ def init_client(client_name, base_path):
         # Client CLAUDE.md
         "CLIENT-CLAUDE.md": "CLAUDE.md",
         # Knowledge files
+        "DESIGN.md": "knowledge/DESIGN.md",
         "00-client-overview.md": "knowledge/00-client-overview.md",
         "voice-guidelines.md": "knowledge/voice-guidelines.md",
         "personas-storybrand.md": "knowledge/personas-storybrand.md",
