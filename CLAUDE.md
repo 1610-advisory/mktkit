@@ -79,6 +79,7 @@ If you find committed data that looks like a leak: open a GitHub issue titled `s
 
 - The `.claude/commands/` folder holds workflow playbooks. Reach for them when the conversation calls for it, don't wait to be told; **read the command file before executing.** Route with `AGENTS-REFERENCE.md` → "Command Routing".
 - **Chain workflows naturally** — a finished workflow suggests the logical next step, never a dead end — and **suggest proactively** on stale data, a pipeline gap, or a milestone.
+- Toolkit change works → `kit-contribute` skill. User-visible change → dated line in `CHANGELOG.md`.
 - Each client's `CLAUDE.md` has a **Conversational Triggers** table mapping user statements to workflows. Read it.
 
 ### Delegation Defaults
