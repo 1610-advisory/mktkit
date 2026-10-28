@@ -3,6 +3,7 @@
 Plain-language history of the 1610 Marketing Toolkit. Newest first.
 
 ## 2026-10-28
+- Made DESIGN.md the required brand file for every business. A new script checks it, turns it into one local web page any assistant can make, and builds a private claude.ai design system page from it in Claude sessions. The file stays the source; the pages are views of it.
 - Added a take check that reads each raw talking take before anyone edits it. It names the best take of each piece and the part to cut, and it flags takes to shoot again.
 - Made the shoot organizer run the take check right after it names the clips, so the shoot summary lists the best takes and the reshoots.
 

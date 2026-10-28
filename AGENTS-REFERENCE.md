@@ -313,6 +313,7 @@ The `references/` folder contains on-demand knowledge that you read when the tas
 | `content-notes.md` | Content note schema, naming convention, Kanban setup |
 | `caption-protocol.md` | Writing/finalizing any spokesperson or on-camera caption (hook + expand, BANKED-promotion trap, pre-flight QA) |
 | `workflows.md` | Weekly and monthly workflow cadences |
+| `design-md.md` | Any visual work, a new business, or a missing/changed `knowledge/DESIGN.md`: the required brand source, `scripts/design_md.py` (check, local HTML view, claude.ai Design System page), who can read the page, where its URL goes |
 | `edit-route.md` | Any video cut: choosing Resolve (`resolve-reel`) or ffmpeg (`cut-video`), the business's `edit_route` preference, how to ask |
 | `edit-craft.md` | Any video cut: house edit rules for every business (hook, 3 s A-roll, hidden joins, clean edges, straight montages), their gates, and how to file a reviewer's note (craft → toolkit, taste → business repo) |
 

@@ -21,11 +21,13 @@ file. Stop treating this as source of truth once that file exists.
 
 Ask only what this task needs. Log all answers anyway if you asked them.
 
-**DESIGN.md / brand-identity.md**
+**DESIGN.md / brand-identity.md** (start from `templates/DESIGN.md`; first ask for the live site or a brand guide and read values from its CSS)
 - Display (serif) family? Body (sans)? Mono for labels, if any?
 - Page background hex? Primary/mass hex? Accent hex (rules, not fills)?
+- Text color, and a muted text color?
 - Corners: square or radius?
-- Light or dark default surface?
+- Light or dark default surface? Is there a dark mode?
+- Logo files: where are they, and which versions are approved?
 
 **voice-guidelines.md**
 - We or I on this surface?
