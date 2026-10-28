@@ -87,15 +87,19 @@ businesses in one page. Name it for the business. Private.
    the business name, `auto_open: "after_first_write"`, no files.
 4. Upload the logo files (`asset: true`, `file_paths`, to the new URL). Put
    each returned id in the index:
-   `assetGroups.<Group>.files.<name> = {name, blob, size, type}`. Upload only
-   the logo versions DESIGN.md names.
+   `assetGroups.<Group>.files.<name> = {name, blob, size, type}`, with the
+   `size` the upload result reports (the store can change an SVG's bytes, so
+   the local size may differ). Upload only the logo versions DESIGN.md names.
 5. ONE publish: `url`, `root` = `<dir>`, `file_path` = the index,
    `files` = the map in `publish.json`.
 6. Write `design_system_url: <url>` in DESIGN.md's frontmatter. Commit it in
    the business's repo. Never write the URL in this toolkit.
 
-**DESIGN.md changed:** run `ds` again to a fresh folder, `read` the live
-index, then publish only the changed files to the same `url`. Send the index
+**DESIGN.md changed:** run `ds` again to a fresh folder and compare it with
+the last build (`cmp` per file) to find what changed. `read` the live index,
+copy only the changed files into a new folder at their `project/` paths, and
+publish them to the same `url` (`root` = that folder). Logos that did not
+change are not uploaded again. Send the index
 last and only to change its own keys (title, asset records, `lastChange`),
 keeping every other key.
 
