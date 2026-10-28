@@ -653,8 +653,21 @@ def _sample_for(doc, style):
     return doc["name"] or style
 
 
+def feature_css(t):
+    """fontFeature ("lnum", or "lnum, tnum") as font-feature-settings; empty when absent."""
+    tags = [x.strip().strip("'\"") for x in str(t.get("fontFeature") or "").split(",")]
+    tags = [x for x in tags if re.fullmatch(r"[a-z0-9]{4}( (on|off|\d+))?", x)]
+    return "font-feature-settings:" + ",".join(f'"{x[:4]}"{x[4:]}' for x in tags) + ";" if tags else ""
+
+
+def is_rule(props):
+    """A component no taller than 4px (a hairline or gold rule) shows as a bar, not a label."""
+    m = re.match(r"^([\d.]+)px$", str(props.get("height") or ""))
+    return bool(m) and float(m.group(1)) <= 4
+
+
 def _type_css(t):
-    css = f"font-family:{stack(str(t.get('fontFamily') or ''))};"
+    css = f"font-family:{stack(str(t.get('fontFamily') or ''))};" + feature_css(t)
     for k, prop in (("fontSize", "font-size"), ("fontWeight", "font-weight"), ("lineHeight", "line-height"),
                     ("letterSpacing", "letter-spacing"), ("fontStyle", "font-style")):
         if t.get(k) not in (None, ""):
@@ -710,6 +723,7 @@ def _comp_style(doc, props, preview=False):
             if parts and parts[0] == "typography":
                 if preview:
                     cls = token_name("type", parts[1])
+                    css += feature_css(doc["typography"].get(parts[1]) or {})
                 else:
                     css += _type_css(doc["typography"].get(parts[1]) or {})
         elif prop == "rounded":
@@ -718,7 +732,7 @@ def _comp_style(doc, props, preview=False):
             else:
                 css += f"border-radius:{val};"
         elif prop == "height":
-            css += f"min-height:{val};"
+            css += f"height:{val};" if is_rule(props) else f"min-height:{val};"
         elif prop == "padding":
             css += f"padding-inline:{val};" if "height" in props else f"padding:{val};"
         elif prop == "width":
@@ -735,7 +749,8 @@ def _components(doc):
             css, _ = _comp_style(doc, props)
             if props.get("backgroundColor") and r["ground"] and ref_parts(props["backgroundColor"]) == ("colors", r["ground"]):
                 css += "outline:1px solid var(--rule);"
-            samples.append(f'<div class="cp-s"><div class="cp-el" style="{html.escape(css)}">{html.escape(humanize(base))}</div>'
+            label = "" if is_rule(props) else html.escape(humanize(base))
+            samples.append(f'<div class="cp-s"><div class="cp-el" style="{html.escape(css)}">{label}</div>'
                            f'<span class="cp-st">{html.escape(state)}</span></div>')
         spec = "; ".join(f"{k}: {v}" for k, v in states[0][2].items())
         cells.append(f'<figure class="cp"><div class="cp-stage">{"".join(samples)}</div>'
@@ -1015,8 +1030,10 @@ def tokens_json(doc):
                 if t.get(src) not in (None, ""):
                     st[dst] = t[src]
             users = [c for c, comp in doc["components"].items() if ref_parts(comp.get("typography")) == ("typography", k)]
-            if users:
-                st["usage"] = "Used by components: " + ", ".join(users) + "."
+            notes = (["Used by components: " + ", ".join(users) + "."] if users else []) + \
+                ([f"Font features: {t['fontFeature']} (font-feature-settings)."] if t.get("fontFeature") else [])
+            if notes:
+                st["usage"] = " ".join(notes)
             st["sample"] = _sample_for(doc, k)[:200]
             styles.append(st)
         groups.append({"name": f, "family": fam_key[f], "styles": styles})
@@ -1058,7 +1075,7 @@ def preview_html(doc, base, states):
         el_cls = ("el " + cls).strip()
         wide_cls = " wide" if wide else ""
         samples.append(f'<figure class="s{wide_cls}"><div class="{el_cls}" style="{html.escape(css)}">'
-                       f'{html.escape(humanize(base))}</div><figcaption>{html.escape(state)}</figcaption></figure>')
+                       f'{"" if is_rule(props) else html.escape(humanize(base))}</div><figcaption>{html.escape(state)}</figcaption></figure>')
     height = 140 if any(not p.get("height") and p.get("backgroundColor") for _, _, p in states) else 112
     ground = f"var(--{r['ground']})" if r["ground"] else "#ffffff"
     ink = f"var(--{r['ink']})" if r["ink"] else "#111111"
@@ -1188,7 +1205,7 @@ body{{background:{ground};color:{ink};overflow:hidden}}
 .art svg{{display:block;width:480px;height:288px}}
 {chr(10).join(css)}
 .words{{position:absolute;left:32px;bottom:32px;max-width:440px}}
-.name{{margin:0;font-family:{fam_var};font-size:{size}px;line-height:{'.95' if lines > 1 else '.92'};font-weight:400;color:{ink}}}
+.name{{margin:0;{feature_css(doc["typography"].get(tr["display"]) or {})}font-family:{fam_var};font-size:{size}px;line-height:{'.95' if lines > 1 else '.92'};font-weight:400;color:{ink}}}
 .tag{{margin:10px 0 0 2px;font-family:{tag_var};font-size:14px;line-height:20px;color:{muted}}}
 </style>
 </head>

@@ -36,6 +36,7 @@ typography:
     fontSize: 64px
     fontWeight: 400
     lineHeight: 0.95
+    fontFeature: "lnum"
   body-md:
     fontFamily: "Work Sans"
     fontSize: 16px
@@ -64,6 +65,13 @@ components:
     padding: 20px
   button-primary-hover:
     backgroundColor: "{colors.primary-dark}"
+  divider:
+    backgroundColor: "{colors.tertiary}"
+    width: 40px
+    height: 1px
+  heading:
+    textColor: "{colors.ink}"
+    typography: "{typography.display}"
 ---
 
 # DESIGN.md — Acme Bakery
@@ -154,7 +162,7 @@ class DocTest(unittest.TestCase):
 
     def test_variants_fold_and_inherit(self):
         g = dm.component_groups(self.doc)
-        self.assertEqual(list(g), ["page", "button-primary"])
+        self.assertEqual(list(g), ["page", "button-primary", "divider", "heading"])
         states = g["button-primary"]
         self.assertEqual([s for s, _, _ in states], ["default", "hover"])
         hover = states[1][2]
@@ -255,7 +263,7 @@ class DesignSystemTest(unittest.TestCase):
 
     def test_components_and_cover(self):
         comps = sorted(p.name for p in (self.proj / "components").iterdir())
-        self.assertEqual(comps, ["ButtonPrimary", "Cover", "Page"])
+        self.assertEqual(comps, ["ButtonPrimary", "Cover", "Divider", "Heading", "Page"])
         prev = (self.proj / "components" / "ButtonPrimary" / "preview.html").read_text()
         self.assertTrue(prev.startswith("<!-- @dsCard"))
         self.assertIn("var(--primary-dark)", prev)
@@ -279,6 +287,31 @@ class DesignSystemTest(unittest.TestCase):
         self.assertIn("project/assets/Logos/README.md", self.plan["files"])
         self.assertNotIn("project/design-system.json", self.plan["files"])
         self.assertTrue((self.out / "publish.json").exists())
+
+
+class FeatureAndRuleTest(unittest.TestCase):
+    def setUp(self):
+        self.doc = dm.load(write(SAMPLE))
+
+    def test_feature_css(self):
+        self.assertEqual(dm.feature_css({"fontFeature": "lnum"}), 'font-feature-settings:"lnum";')
+        self.assertEqual(dm.feature_css({"fontFeature": "lnum, tnum"}), 'font-feature-settings:"lnum","tnum";')
+        self.assertEqual(dm.feature_css({"fontFeature": "bad;x"}), "")
+        self.assertEqual(dm.feature_css({}), "")
+
+    def test_feature_reaches_every_view(self):
+        self.assertIn('font-feature-settings:"lnum"', dm.render_html(self.doc).replace("&quot;", '"'))
+        self.assertIn('font-feature-settings:"lnum"', dm.cover_html(self.doc))
+        heading = dm.component_groups(self.doc)["heading"]
+        self.assertIn('font-feature-settings:&quot;lnum&quot;', dm.preview_html(self.doc, "heading", heading))
+        style = next(st for g in dm.tokens_json(self.doc)["type"]["groups"] for st in g["styles"] if st["name"] == "display")
+        self.assertIn("lnum", style["usage"])
+
+    def test_thin_component_is_a_bar(self):
+        states = dm.component_groups(self.doc)["divider"]
+        prev = dm.preview_html(self.doc, "divider", states)
+        self.assertIn("height:1px", prev)
+        self.assertIn("height:1px;\"></div><figcaption>", prev)
 
 
 class CliTest(unittest.TestCase):

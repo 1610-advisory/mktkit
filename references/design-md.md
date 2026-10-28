@@ -23,6 +23,10 @@ in the prose below. Start from `templates/DESIGN.md`.
   (name: fontFamily, fontSize, fontWeight, lineHeight, letterSpacing),
   `rounded`, `spacing`, `components` (properties that point at tokens:
   `"{colors.primary}"`, `"{typography.button}"`, `"{rounded.sm}"`).
+- **Type features:** `fontFeature: "lnum"` (or `"lnum, tnum"`) on a type
+  token sets lining or tabular figures in every view.
+- **Rules as components:** a component 4px tall or less (a 1px gold rule)
+  shows as a bar, not a label.
 - **State variants:** name them `<component>-hover`, `-active`, `-pressed`,
   `-focus`, `-disabled` or `-selected`. A variant lists only what changes;
   the views fold it into its base component.
