@@ -1,0 +1,22 @@
+{
+  "d": [
+    {
+      "__type": "QueryStats:#Microsoft.Bing.Webmaster.Api",
+      "AvgClickPosition": 18,
+      "AvgImpressionPosition": 17,
+      "Clicks": 15,
+      "Date": "/Date(1316156400000-0700)/",
+      "Impressions": 100,
+      "Query": "widget maker"
+    },
+    {
+      "__type": "QueryStats:#Microsoft.Bing.Webmaster.Api",
+      "AvgClickPosition": 4,
+      "AvgImpressionPosition": 6,
+      "Clicks": 3,
+      "Date": "/Date(1700000000000)/",
+      "Impressions": 25,
+      "Query": "acme widgets"
+    }
+  ]
+}

@@ -343,7 +343,7 @@ populate the destination or redirect to the closest genuinely relevant page.
 
 ## Authority & Links (Ahrefs-Powered)
 
-If the client has Ahrefs configured (`knowledge/ahrefs-config.md`), pull this data before writing the authority section. Read `references/ahrefs-integration.md` for API details.
+If the client has Ahrefs configured (`knowledge/ahrefs-config.md`), pull this data before writing the authority section. Read ai-cmo's `references/ahrefs-integration.md` (toolkit root, if ai-cmo is installed) for API details.
 
 ### Domain Authority Snapshot
 
@@ -403,7 +403,7 @@ Analyze:
 
 **No Content Gap API endpoint exists.** Two approaches:
 
-**Option A (API):** Pull organic keywords for the client and each competitor, then diff programmatically. Costs ~500 units per domain (see `references/ahrefs-integration.md` for the full procedure).
+**Option A (API):** Pull organic keywords for the client and each competitor, then diff programmatically. Costs ~500 units per domain (see ai-cmo's `references/ahrefs-integration.md` (toolkit root, if ai-cmo is installed) for the full procedure).
 
 **Option B (UI — preferred for deeper analysis):** Run Content Gap in the Ahrefs UI, export the CSV, and save to `tracking/ahrefs/content-gap-YYYY-MM.csv`. This uses UI credits instead of API units.
 
@@ -414,7 +414,7 @@ Flag:
 
 ### API Cost for a Full SEO Audit
 
-~3,000-4,000 API units depending on competitor count. With 100,000 units/month, this is a small fraction. See `references/ahrefs-integration.md` for the full credit breakdown.
+~3,000-4,000 API units depending on competitor count. With 100,000 units/month, this is a small fraction. See ai-cmo's `references/ahrefs-integration.md` (toolkit root, if ai-cmo is installed) for the full credit breakdown.
 
 ---
 
@@ -625,7 +625,7 @@ Same format as above
 > **Note on schema detection:** `web_fetch` strips `<script>` tags (including JSON-LD) and cannot detect JS-injected schema. Always use the browser tool, Rich Results Test, or Screaming Frog for schema checks. See the warning at the top of the Audit Framework section.
 
 **Paid Tools**
-- **Ahrefs** (Lite plan, API integrated — see `references/ahrefs-integration.md`)
+- **Ahrefs** (Lite plan, API integrated — see ai-cmo's `references/ahrefs-integration.md` (toolkit root, if ai-cmo is installed))
 - Screaming Frog
 - Sitebulb
 - ContentKing

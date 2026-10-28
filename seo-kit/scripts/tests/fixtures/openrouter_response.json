@@ -1,0 +1,56 @@
+{
+  "id": "gen-test",
+  "object": "chat.completion",
+  "model": "perplexity/sonar",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "Acme Corp makes widgets. Competitor A is also in the market.",
+        "annotations": [
+          {
+            "type": "url_citation",
+            "url_citation": {
+              "url": "https://example.com/about",
+              "title": "Acme Corp",
+              "content": "Acme Corp makes widgets.",
+              "start_index": 0,
+              "end_index": 9
+            }
+          },
+          {
+            "type": "url_citation",
+            "url_citation": {
+              "url": "https://other.example/roundup",
+              "title": "Widget roundup",
+              "start_index": 28,
+              "end_index": 40
+            }
+          },
+          {
+            "type": "file_citation",
+            "url_citation": {
+              "url": "https://ignored.example/file"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "citations": [
+    "https://example.com/pricing",
+    "https://other.example/roundup",
+    {"url": "https://news.example/acme", "title": "News"}
+  ],
+  "usage": {
+    "prompt_tokens": 40,
+    "completion_tokens": 22,
+    "total_tokens": 62,
+    "cost": 0.00125,
+    "cost_details": {
+      "upstream_inference_cost": 0.001
+    }
+  }
+}

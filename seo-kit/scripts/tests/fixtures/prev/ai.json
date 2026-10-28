@@ -1,0 +1,7 @@
+{
+  "generated_at": "2026-10-20T00:00:00+00:00",
+  "summary": {
+    "openai": {"calls": 8, "mention_rate": 0.2, "citation_rate": 0.1, "avg_position": 2.0},
+    "perplexity": {"calls": 8, "mention_rate": 0.0, "citation_rate": 0.0, "avg_position": null}
+  }
+}

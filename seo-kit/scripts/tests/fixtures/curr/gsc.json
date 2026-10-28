@@ -1,0 +1,12 @@
+{
+  "generated_at": "2026-10-27T00:00:00+00:00",
+  "property": "sc-domain:example.com",
+  "summary": {
+    "clicks": 140,
+    "impressions": 1800,
+    "ctr": 0.0778,
+    "position": 9.5,
+    "indexed": 12,
+    "not_indexed": 1
+  }
+}

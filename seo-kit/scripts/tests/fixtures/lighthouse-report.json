@@ -1,0 +1,59 @@
+{
+  "lighthouseVersion": "13.5.0",
+  "finalUrl": "https://example.com/",
+  "categories": {
+    "performance": {"score": 0.82},
+    "accessibility": {"score": 0.96},
+    "best-practices": {"score": 1},
+    "seo": {"score": 0.91}
+  },
+  "audits": {
+    "largest-contentful-paint": {"numericValue": 2410.4},
+    "cumulative-layout-shift": {"numericValue": 0.0214},
+    "total-blocking-time": {"numericValue": 180.2},
+    "first-contentful-paint": {"numericValue": 990.6},
+    "speed-index": {"numericValue": 3100.1},
+    "largest-contentful-paint-element": {
+      "details": {
+        "type": "list",
+        "items": [
+          {
+            "items": [
+              {"node": {"type": "node", "snippet": "<h1>Hello</h1>"}}
+            ]
+          }
+        ]
+      }
+    },
+    "unused-javascript": {
+      "id": "unused-javascript",
+      "title": "Reduce unused JavaScript",
+      "score": 0,
+      "details": {"type": "opportunity", "overallSavingsMs": 420}
+    },
+    "render-blocking-resources": {
+      "id": "render-blocking-resources",
+      "title": "Eliminate render-blocking resources",
+      "score": 0.5,
+      "details": {"type": "opportunity", "overallSavingsMs": 150}
+    },
+    "modern-image-formats": {
+      "id": "modern-image-formats",
+      "title": "Serve images in next-gen formats",
+      "score": 0.4,
+      "details": {"type": "opportunity", "overallSavingsMs": 300}
+    },
+    "offscreen-images": {
+      "id": "offscreen-images",
+      "title": "Defer offscreen images",
+      "score": 0,
+      "details": {"type": "opportunity", "overallSavingsMs": 80}
+    },
+    "uses-text-compression": {
+      "id": "uses-text-compression",
+      "title": "Enable text compression",
+      "score": 1,
+      "details": {"type": "opportunity", "overallSavingsMs": 0}
+    }
+  }
+}

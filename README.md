@@ -142,6 +142,16 @@ Client data stays local — it's never tracked by git.
 
 All integrations are optional. The system works fully with local markdown and CSV files.
 
+## SEO engineer: the `seo-kit` plugin
+
+The same marketplace ships a second plugin, **seo-kit**: an SEO engineer agent the AI CMO can call, or you can use on its own.
+
+```
+/plugin install seo-kit@mktkit
+```
+
+Each week it crawls your site, runs Lighthouse, reads Search Console and Bing (when you grant access), asks AI engines a fixed set of buyer questions to see if they name and cite you, compares everything with last week, and writes a short report into your client folder. Fixes become pull requests in your site repo. It never merges, never logs in to accounts, and never submits forms or sends outreach; it drafts those for you. Details: [`seo-kit/README.md`](seo-kit/README.md).
+
 ## Recommended: Humanizer
 
 The 1610 Marketing Toolkit directs strategy — when you need Claude to write or polish copy, pair it with [Humanizer](https://github.com/blader/humanizer). It strips common AI writing patterns so your captions and scripts sound like a person wrote them.
@@ -155,7 +165,7 @@ The 1610 Marketing Toolkit directs strategy — when you need Claude to write or
 
 ## Credits
 
-The marketing skills (email-sequence, content-strategy, marketing-psychology, seo-audit, analytics-tracking) are adapted from [marketingskills](https://github.com/coreyhaines31/marketingskills) by [Corey Haines](https://corey.co). Licensed under MIT.
+The marketing skills (email-sequence, content-strategy, marketing-psychology, seo-audit, analytics-tracking) and the seo-kit playbooks (competitors, free-tools, programmatic-seo, directory-submissions, link-building) are adapted from [marketingskills](https://github.com/coreyhaines31/marketingskills) by [Corey Haines](https://corey.co). Licensed under MIT.
 
 ## License
 

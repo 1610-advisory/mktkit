@@ -1,0 +1,14 @@
+{
+  "generated_at": "2026-10-20T00:00:00+00:00",
+  "tool_version": "13.5.0",
+  "results": [
+    {
+      "url": "https://example.com/",
+      "page": "/",
+      "form_factor": "mobile",
+      "runs": 1,
+      "scores": {"performance": 70, "accessibility": 90, "best-practices": 90, "seo": 80},
+      "metrics": {"lcp_ms": 3000, "cls": 0.1, "tbt_ms": 400, "fcp_ms": 1500, "speed_index_ms": 4000}
+    }
+  ]
+}

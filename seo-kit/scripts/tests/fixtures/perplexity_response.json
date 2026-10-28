@@ -1,0 +1,34 @@
+{
+  "id": "chatcmpl-test",
+  "model": "test-model",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Acme Corp charges $1,200. Competitor B is cheaper."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "citations": [
+    "https://example.com/pricing",
+    "https://other.example/roundup"
+  ],
+  "search_results": [
+    {
+      "title": "Pricing",
+      "url": "https://example.com/pricing",
+      "snippet": "Plans start at a published rate."
+    },
+    {
+      "title": "Roundup",
+      "url": "https://blog.other.example/widgets"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 30,
+    "completion_tokens": 18,
+    "total_tokens": 48
+  }
+}

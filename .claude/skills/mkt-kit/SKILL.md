@@ -59,6 +59,14 @@ Two-week execution plan (10–14 pieces, shoot list): follow the playbook skip; 
 
 Any "cut / edit this video": read `references/edit-craft.md` (house rules; file every reviewer note: craft → toolkit, taste → this repo), then choose `resolve-reel` or `cut-video` with `references/edit-route.md` (business preference first, then hard limits, then task signals; ask once only when unclear). `cut-video`, `resolve-reel`, `film-board`, and other mkt verbs are unchanged. Pack first, then that skill. `resolve-reel` also reads the client's `resources/reel-style.json` (`resolve.grade` block) and look profile.
 
+## SEO engineer (seo-kit)
+
+The CMO decides what to say and to whom. The **seo-engineer** agent (plugin `seo-kit`, same marketplace) makes the site found, indexed and cited. Route to it any ask about rankings, Search Console, indexing, site speed, schema, broken links, AI-answer visibility (ChatGPT, Perplexity, AI Overviews), a keyword map, or a search-led page (calculator, comparison, question page).
+
+- **Installed** (agent type `seo-kit:seo-engineer` is available): delegate with the Agent tool. Brief = business repo path, site repo path, the job (`weekly loop`, `fix these findings`, `build this page`, `keyword map`, `AI answer check`) and, for a page, the search term, persona, which offer it leads to, and the deadline. You keep the verdict: read its report, check the PR, decide what goes to the person.
+- **Not installed:** say what it would do and how to add it: `/plugin install seo-kit@mktkit`.
+- **Feed back:** the engineer's `tracking/seo/keyword-map.md` and page-two list are inputs to monthly and biweekly plans; a new article or page it ships is a social-post trigger.
+
 ## Other skills
 
 `cut-video`, `film-board`, `carousel-slides`, `branded-report`, and any copy/visual skill: run this pack first. If a pack file is missing, ask + log, then continue with the logged answers for this run only.

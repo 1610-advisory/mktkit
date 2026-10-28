@@ -386,7 +386,7 @@ Visual or structured representation of how content interconnects.
 ## Related Skills
 
 - **ai-cmo**: For overall content strategy, monthly/weekly planning, and performance tracking
-- **seo-audit**: For technical SEO and on-page optimization
+- **seo-kit**: For technical SEO and on-page optimization (`seo-loop`, `seo-fix`)
 - **email-sequence**: For email-based content and nurture sequences
 - **marketing-psychology**: For psychological principles to improve content effectiveness
 - **analytics-tracking**: For measuring content performance and attribution

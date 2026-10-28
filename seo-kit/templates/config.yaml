@@ -1,0 +1,22 @@
+site: https://example.com            # canonical origin, no trailing slash
+sitemap: https://example.com/sitemap.xml
+gsc_property: sc-domain:example.com  # Search Console property
+brand: Acme Corp
+brand_aliases: [Acme]                # other names that count as a mention
+domains: [example.com]               # our domains; a citation of any counts
+competitors: [Competitor A, Competitor B]
+facts_file: knowledge/corpus-numbers.md   # path relative to client repo root; the allowlist of true numbers
+skip_links: ["/cdn-cgi/l/email-protection"]  # URL substrings the crawler never fetches
+max_pages: 300
+site_repo: ~/code/example-site            # local clone of the site; seo-fix opens PRs here
+indexnow_key_url: ""                 # e.g. https://example.com/<key>.txt once the key file is live; empty = IndexNow off
+lighthouse:
+  pages: [/, /about]
+  form_factors: [mobile]
+  runs: 3                            # median of 3; one lab run swings LCP by seconds
+ai_engines:                          # model ids change; check vendor docs before first run
+  openai:     {model: "", enabled: false}
+  perplexity: {model: "", enabled: false}
+  gemini:     {model: "", enabled: false}
+  anthropic:  {model: "", enabled: false, tool: "web_search_20250305"}
+  openrouter: {enabled: false, models: [], search: "native"}   # e.g. models: [openai/gpt-5.4-mini, perplexity/sonar, google/gemini-flash-latest, anthropic/claude-haiku-latest]

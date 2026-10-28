@@ -114,6 +114,7 @@ When a user asks you to do something, match their request to the right workflow.
 | "QA this reel" | Machine QA on a vertical short | `reel-qa` skill |
 | "find B-roll for this line" | Index/search library stills and clips | `reel-broll` skill |
 | "ingest footage" | Compiled footage catalog | `footage-index` skill |
+| "SEO", "rankings", "Search Console", "AI answers / GEO", "keyword map", "build a calculator / comparison page" | Delegate to the SEO engineer | `seo-kit:seo-engineer` agent (plugin `seo-kit`; see `mkt-kit` skill → SEO engineer) |
 | "film board" | 9:16 talk-over HTML board | `film-board` skill |
 | "draft a blog from this video" | Search-cluster blog from transcript | `draft-cluster-blog` skill |
 | "render this as HTML" | Brand-themed HTML report | `branded-report` skill |
@@ -317,11 +318,11 @@ The `references/` folder contains on-demand knowledge that you read when the tas
 | `marketing-psychology.md` | Writing hooks, CTAs, messaging, pricing framing (70+ mental models) |
 | `content-strategy.md` | Content planning, topic clusters, buyer journey, prioritization |
 | `email-sequence.md` | Email sequences, drip campaigns, lifecycle automation |
-| `seo-audit.md` | Technical SEO audits, on-page optimization, diagnostics |
+| `seo-kit/references/seo-audit.md` | Technical SEO audits, on-page optimization, diagnostics (moved to the seo-kit plugin) |
 | `analytics-tracking.md` | GA4, GTM, event tracking, UTM frameworks, conversion tracking |
 | `copywriting-frameworks.md` | Shared copy structure before client voice |
 | `search-cluster-blog-ranking.md` | Ranking factors for transcript-grounded cluster posts |
-| `ai-visibility-audit.md` | How assistants cite (or ignore) the site |
+| `seo-kit/references/ai-visibility-audit.md` | How assistants cite (or ignore) the site (moved to the seo-kit plugin) |
 | `branded-html-reports.md` | Self-contained HTML deliverable + optional BYO host |
 | `platform-backfill.md` | Revive a dormant social catalog without looking automated |
 | `newsletter-pipeline.md` | Segmented, tape-grounded newsletters; anti-slop stack; `scripts/lint-copy.py` and `scripts/scaffold-pipeline.py` |
