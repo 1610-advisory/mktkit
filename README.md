@@ -80,6 +80,7 @@ These are available as slash commands and as natural language triggers:
 | "you're the AI CMO" / session start | Load the knowledge pack (`mkt-kit`) |
 | "cut this reel" / "cut the next N" | Talking-head reel from brief + transcript (`cut-video`) |
 | "QA this reel" | Machine gate on a vertical short (`reel-qa`) |
+| "check these takes" / "which take is best" | Score raw talking takes on the spoken word before any edit (`take-check`) |
 | "edit it in Resolve" / "grade it" / "show me LUT options" | Resolve-built reel: DWG/DI grade, look LUTs, look-review page (`resolve-reel`) |
 | "find B-roll for this line" | Index/search library stills and clips (`reel-broll`) |
 | "ingest footage" / after a shoot | Compiled footage catalog (`footage-index`) |

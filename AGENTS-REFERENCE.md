@@ -112,6 +112,7 @@ When a user asks you to do something, match their request to the right workflow.
 | "cut this reel" / "cut the next N" | Talking reel from brief + transcript | `/cut-video` (a queue points to ffmpeg; see `references/edit-route.md`) |
 | "cut it in Resolve" / "I want a project I can edit" | Reel or montage built in DaVinci Resolve | `resolve-reel` skill |
 | "QA this reel" | Machine QA on a vertical short | `reel-qa` skill |
+| "check these takes" / "which take is best" / after organize-shoot | Score raw talking takes, name the best take and the cut window | `take-check` skill |
 | "find B-roll for this line" | Index/search library stills and clips | `reel-broll` skill |
 | "ingest footage" | Compiled footage catalog | `footage-index` skill |
 | "SEO", "rankings", "Search Console", "AI answers / GEO", "keyword map", "build a calculator / comparison page" | Delegate to the SEO engineer | `seo-kit:seo-engineer` agent (plugin `seo-kit`; see `mkt-kit` skill → SEO engineer) |
@@ -237,6 +238,9 @@ Session loader: read the knowledge pack, ask and log what's missing.
 
 #### `reel-qa` / `reel-broll` / `reel-bench` / `reel-regress`
 QA gate, B-roll index/search, harness bake-off, engine fixture re-render.
+
+#### `take-check`
+Score raw talking takes from the word JSON: metrics plus a model judge that finds the best window. Green (cut), yellow (trim to the window), red (reshoot, blooper, voiceover). Runs as organize-shoot Step 7b.
 
 #### `footage-index`
 Compile a mounted footage volume into catalog JSONL + generated `content-index.md`.
