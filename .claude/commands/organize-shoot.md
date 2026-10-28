@@ -201,6 +201,23 @@ Video/064A7327.MP4  (silent — not renamed)
 
 Rename in place — no copies.
 
+### Step 7b: Check the Takes
+
+Score every talking take on the spoken word with the `take-check` skill (`.claude/skills/take-check/`), so the editor cuts the best take and a bad take is caught while a reshoot is still cheap. Run it after the renames (it picks `ARoll-` and `CB-` stems) and before the summary:
+
+```bash
+python3 <toolkit>/.claude/skills/take-check/scripts/take_check.py "[shoot-folder]" \
+  --config "[client-repo]/resources/reel-style.json" \
+  --out-dir "[client-repo]/tracking/take-check/[shoot-date]" \
+  [--calibrate "[client-repo]/tracking/take-check-calibration.json"]
+```
+
+- `--out-dir` must be in the client repo, never on the footage drive (the script refuses an out-dir inside the shoot folder). The `take_check` block in the client's `reel-style.json` holds that business's thresholds; without one the defaults apply.
+- The judge is a model call per take (default Claude Sonnet in print mode; see the skill). Replies are cached in the out-dir, so a re-run is free. If the judge cannot run, re-run with `--judge none` and say so: the metrics alone still catch silent takes, false starts, and fillers, but not structure.
+- Read `take-report.md`. Carry three things into the summary and the shoot log: the best take per piece (the "Takes of the same piece" section), each yellow take's in–out window, and every red take with its use (reshoot, blooper, voiceover).
+- A red take on a planned piece is a reshoot item: list it under Outstanding in Step 12 so it goes on the next shoot list.
+- Do not rename, move, or delete footage because of a verdict. The check only reports.
+
 ### Step 8: Present Summary to User
 
 Show a clear summary:
@@ -222,6 +239,11 @@ Show a clear summary:
 ✅ Cedar addition progress — captured
 ❌ Birch bathroom — NOT SHOT
 ❌ Owner talking heads — NOT RECORDED
+
+### Take Check (from Step 7b)
+🟢 Maple kitchen walkthrough — best: ARoll-Maple-Kitchen-Walkthrough-Take2, cut 0:04–0:52
+🟡 Cedar addition progress — trim to 0:11–0:47 (restart at 0:30)
+🔴 Cedar pocket door tip — no usable window: reshoot
 
 ### Unmatched Files
 - [list any files that couldn't be confidently placed]
