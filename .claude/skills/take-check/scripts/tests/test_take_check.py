@@ -518,6 +518,21 @@ class TakeCheckTests(unittest.TestCase):
         self.assertEqual(result["kind"], "episode")
         self.assertEqual(result["kind_source"], "flag")
 
+    def test_default_kind_and_tip_keywords(self):
+        cfg = dict(self.cfg, default_kind="episode")
+        self.assertEqual(tc.infer_kind("ARoll-Kitchen-Cabinets", 60, False, cfg), "episode")
+        self.assertEqual(tc.infer_kind("ARoll-Kitchen-Trim-Tip-PRIMARY", 60, False, cfg), "tip")
+        self.assertEqual(tc.infer_kind("ARoll-Kitchen-Walkthrough-Tip", 60, False, cfg), "tip")
+        self.assertEqual(tc.infer_kind("ARoll-Kitchen-Cabinets", 60, False, dict(cfg, default_kind="bogus")), "tip")
+
+    def test_line_take_uses_line_floor(self):
+        opener = timeline([(0.5, "Every great kitchen starts with one good plan.")])
+        result = tc.analyze(whisper(opener), self.cfg, stem="ARoll-Opener")
+        self.assertEqual(result["kind"], "line")
+        self.assertNotIn("short_speech", [f["code"] for f in result["flags"]])
+        stub = timeline([(0.5, "Okay go.")])
+        self.assertIn("short_speech", [f["code"] for f in tc.analyze(whisper(stub), self.cfg, stem="ARoll-Stub")["flags"]])
+
     def test_hook_flag_only_for_tip(self):
         slow = timeline([(0.5, "When we started on this house the first thing we noticed was how the light "
                                "came in from the south side of the lot. Then we planned around it.")])

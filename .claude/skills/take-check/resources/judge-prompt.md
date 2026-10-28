@@ -11,6 +11,8 @@ A window is a stretch of the take the editor could cut as a piece:
 
 Return 0 to 3 windows. Windows do not overlap. A long take (a minute or more) is expected to hold several windows, with rambles, restarts, setup, or chatter between them. That is normal raw footage and is not by itself a problem with the take. If no stretch of the take works as a piece, return no windows.
 
+The owner talks on site, walking the camera through the space. Words that point at what the camera shows ("this", "here", "up here", "this door", "these drawings") are carried by the picture and are never context_missing, for any kind. context_missing is only for a reference to something neither said in the window nor in front of the camera ("like I said", "the other tip", "as you saw last week" in a tip).
+
 Rules for this take's kind ({{KIND}}). Apply only the rules for that kind:
 - tip: a standalone short point for a stranger. The window opens on a hook that gives a stranger a reason to stay. One idea; a second idea belongs in a second window. A payoff line lands the idea. The window is self-contained: "like I said", "as I mentioned", or a reference to something not said inside the window is context_missing.
 - episode: a walkthrough, progress update, or tour, part of a project series the audience already follows. References to the project, the client, "this room", "last time", or earlier visits are normal and are NOT context_missing. No stranger hook is needed: the first window opens on a clear line. One stop or one idea per window, and it lands on a full sentence.

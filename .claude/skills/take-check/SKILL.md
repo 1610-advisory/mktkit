@@ -10,7 +10,7 @@ description: >
   "score the takes", "take check", or after organize-shoot transcription
   when Audio JSON is on disk and nothing has been cut yet.
 metadata:
-  version: 1.1.0
+  version: 1.1.1
 ---
 
 # Take check
@@ -76,7 +76,7 @@ Each take has a kind. It goes into the prompt and changes the rules.
 | `episode` | walkthrough, progress update, tour: part of a project series the audience follows | references to the project, the client, "this room", or earlier visits are not `context_missing`. The first window opens on a clear line; no stranger hook needed. |
 | `line` | a one-liner or reel opener | judged only on whether the line is clean and complete. |
 
-Inference, per take: `line` when the take is not silent and its speaking span is under `min_window_s` (default 8 s). Otherwise `episode` when a stem token (split on `-` and `_`, any case) matches `episode_keywords` (default Walkthrough, Walk, Progress, Update, Tour, Episode, Monthly). Otherwise `tip`. `--kind` sets the kind for every take in the run.
+Inference, per take: `line` when the take is not silent and its speaking span is under `min_window_s` (default 8 s). Otherwise `tip` when a stem token (split on `-` and `_`, any case) matches `tip_keywords` (default Tip), then `episode` when one matches `episode_keywords` (default Walkthrough, Walk, Progress, Update, Tour, Episode, Monthly). Otherwise `default_kind` (default `tip`; a business whose footage is mostly on-site project series sets `episode` in its config). A `line` take uses `min_line_s` (default 1.5 s) in place of `min_speech_s` as its red floor, so a short opener is not red for being short. `--kind` sets the kind for every take in the run.
 
 ## Windows and verdicts
 

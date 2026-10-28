@@ -23,7 +23,7 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 HERE = Path(__file__).resolve().parent
 PROMPT_PATH = HERE.parent / "resources" / "judge-prompt.md"
 EXAMPLE_CONFIG = HERE.parent / "resources" / "take-check.example.json"
@@ -63,6 +63,7 @@ DEFAULTS = {
     "setup_window_s": 8,
     "hook_max_s": 6,
     "min_speech_s": 4,
+    "min_line_s": 1.5,
     "min_words": 4,
     "min_window_s": 8,
     "fillers_per_min_max": 4,
@@ -78,6 +79,8 @@ DEFAULTS = {
     "silence_phrases": ["thank you", "thanks for watching", "you"],
     "prefixes": ["ARoll-", "CB-"],
     "episode_keywords": ["Walkthrough", "Walk", "Progress", "Update", "Tour", "Episode", "Monthly"],
+    "tip_keywords": ["Tip"],
+    "default_kind": "tip",
     "judge_cmd": CLAUDE_JUDGE,
     "judge_timeout_s": 180,
     "jobs": 3,
@@ -270,13 +273,18 @@ def sentences_of(words):
 
 
 def infer_kind(stem, span, silent, cfg):
-    """line when a spoken take is shorter than min_window_s, else episode by
-    stem keyword (tokens split on - and _), else tip."""
+    """line when a spoken take is shorter than min_window_s; else tip or episode
+    by stem keyword (tokens split on - and _, tip_keywords checked first); else
+    default_kind."""
     if not silent and span < float(cfg["min_window_s"]):
         return "line"
     tokens = {part.lower() for part in re.split(r"[-_\s]+", str(stem)) if part}
-    keys = {str(k).lower() for k in cfg["episode_keywords"]}
-    return "episode" if tokens & keys else "tip"
+    if tokens & {str(k).lower() for k in cfg["tip_keywords"]}:
+        return "tip"
+    if tokens & {str(k).lower() for k in cfg["episode_keywords"]}:
+        return "episode"
+    kind = str(cfg["default_kind"])
+    return kind if kind in ("tip", "episode") else "tip"
 
 
 def level_of(flags):
@@ -440,10 +448,12 @@ def analyze(data, cfg, video_duration=None, stem="", kind=None):
 
     if silent:
         flags.append({"code": "silent", "level": "red", "reason": silent_reason})
-    if span < float(cfg["min_speech_s"]):
+    # A one-liner (kind line) has its own, lower floor: a 3 s opener is a real take.
+    floor_key = "min_line_s" if take_kind == "line" else "min_speech_s"
+    if span < float(cfg[floor_key]):
         flags.append({
             "code": "short_speech", "level": "red",
-            "reason": f"speaking span {span:.1f}s (min {cfg['min_speech_s']}s)",
+            "reason": f"speaking span {span:.1f}s (min {cfg[floor_key]}s)",
         })
     flags.extend(m["flags"])
 
