@@ -40,7 +40,7 @@ Every marketing repo has `knowledge/DESIGN.md`. Missing: copy the toolkit's `tem
 Views are built from it, never edited as the source; if a view and the file disagree, the file wins. Always read the file itself:
 
 - **Claude sessions:** build or refresh the business's private claude.ai Design System page from it (`design_md.py ds` + the Artifact tool). Its URL goes in DESIGN.md as `design_system_url:`. Only Claude sessions on the owner's account can read that page; other agents and the business's team cannot. Sharing it needs the owner's yes.
-- **Any agent:** `design_md.py render` makes one local HTML view, when a person wants to look at the system.
+- **Any agent:** `design_md.py render` makes one HTML view. Commit it in this marketing repo (default `brand/design-system.html`) so everyone with the repo sees it; render it again with each DESIGN.md change.
 
 Full steps: `references/design-md.md`.
 

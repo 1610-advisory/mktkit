@@ -7,7 +7,7 @@ truth. Two views are built from it. Neither view is ever the source.
 | What | Who builds it | Who can read it |
 |---|---|---|
 | `knowledge/DESIGN.md` | The owner, with any agent | Every agent and person with the repo |
-| Local HTML view (`design_md.py render`) | Any agent, any model | Anyone who has the file |
+| Local HTML view (`design_md.py render`), committed in the marketing repo | Any agent, any model | Everyone with access to the business's marketing repo, by default |
 | claude.ai Design System page (`design_md.py ds` + Artifact tool) | Claude sessions only | Claude Code sessions and claude.ai on the owner's account. Nobody else, in or outside the org, until the owner shares it. Never pi or Grok, Cursor, Codex, scripts or CI |
 
 So **every agent reads DESIGN.md itself**, never only a view. If a view and
@@ -67,8 +67,12 @@ python3 <toolkit>/scripts/design_md.py ds     knowledge/DESIGN.md -o <scratch di
 - `render`: one self-contained HTML page (fonts from Google Fonts only).
   Swatches per theme with contrast, type specimens, spacing and radius
   scales, live component samples, then the prose. Optional logo tiles.
-  Any agent can make it; keep it local unless the owner asks to share it.
-  A business may keep its own richer renderer; this one is the default.
+  Any agent can make it. **Its home is the business's marketing repo:**
+  commit it beside DESIGN.md (default `brand/design-system.html`), so
+  everyone with access to that repo sees it by default. Render it again in
+  the same commit as any DESIGN.md change. Do not publish it anywhere else
+  without the owner's yes. A business may keep its own richer renderer
+  instead (its committed page is then the view); this one is the default.
 
 ## 3. The Design System page (Claude sessions)
 
@@ -109,8 +113,10 @@ keeping every other key.
   page or by hand. A change goes into DESIGN.md first.
 - The cover is a picture made only from tokens. You may redraw it when the
   owner asks ("more green"), with tokens only, no new facts.
-- Sharing the page (with the business's team or anyone) needs the owner's
-  yes. You cannot share it; the owner uses the page's Share menu.
+- Sharing the page needs the owner's yes. You cannot share it; the owner
+  uses the page's Share menu. When the owner shares it, the audience is the
+  people with access to the business's marketing repo, no one wider. Until
+  then the committed local view is how they see the system.
 - Before you use the page in a later session, compare it with DESIGN.md
   (`design_md.py ds` to a scratch folder, diff `tokens.json`). Out of date:
   rebuild, then use it.

@@ -38,7 +38,7 @@ typography:
 
 The brand source for every surface. Google DESIGN.md format: tokens above, rules below. Fill from live CSS or a brand guide. Leave a field blank rather than guessing.
 
-Views are built from this file and are never the source: the local HTML (`design_md.py render`) and, in Claude sessions, the claude.ai Design System page (`design_md.py ds`). If a view and this file disagree, this file wins. Standard: toolkit `references/design-md.md`.
+Views are built from this file and are never the source: the HTML view committed in this repo (`design_md.py render`) and, in Claude sessions, the claude.ai Design System page (`design_md.py ds`). If a view and this file disagree, this file wins. Standard: toolkit `references/design-md.md`.
 
 ## Overview
 
