@@ -8,7 +8,7 @@ truth. Two views are built from it. Neither view is ever the source.
 |---|---|---|
 | `knowledge/DESIGN.md` | The owner, with any agent | Every agent and person with the repo |
 | Local HTML view (`design_md.py render`) | Any agent, any model | Anyone who has the file |
-| claude.ai Design System page (`design_md.py ds` + Artifact tool) | Claude sessions only | Claude Code sessions and claude.ai on the owner's account (and their org). Not pi or Grok, Cursor, Codex, scripts or CI. Not the business's own team until the owner shares it |
+| claude.ai Design System page (`design_md.py ds` + Artifact tool) | Claude sessions only | Claude Code sessions and claude.ai on the owner's account. Nobody else, in or outside the org, until the owner shares it. Never pi or Grok, Cursor, Codex, scripts or CI |
 
 So **every agent reads DESIGN.md itself**, never only a view. If a view and
 the file disagree, the file wins: fix the file, then build the view again.

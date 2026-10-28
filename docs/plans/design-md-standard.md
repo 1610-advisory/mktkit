@@ -1,6 +1,6 @@
 # Plan: DESIGN.md as the standard brand source
 
-Status: built on branch `feat/design-md-standard` (2026-10-28). Not pushed.
+Status: built and piloted on branch `feat/design-md-standard` (2026-10-28). Not pushed.
 
 ## The rule
 
@@ -41,9 +41,9 @@ the file disagree, the file wins.
    - DESIGN.md changed: run `ds` again and send the changed files to the
      same URL.
 4. **Who can read the claude.ai page.** Claude Code sessions and claude.ai
-   on the owner's account (and the owner's org). Not pi or Grok, Cursor,
-   Codex, scripts, CI, or the business's own team unless the owner shares
-   it. So every agent reads DESIGN.md, never only the page.
+   on the owner's account. Nobody else, in or outside the org, until the
+   owner shares it. Never pi or Grok, Cursor, Codex, scripts or CI. So
+   every agent reads DESIGN.md, never only the page.
 5. **Docs:** `mkt-kit` skill + REFERENCE, the template, the client
    CLAUDE.md template, the new-client checklist, CLAUDE.md principle 0,
    the reference index, the changelog, a plugin version bump. Every rules
