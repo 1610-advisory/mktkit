@@ -1,6 +1,6 @@
 # Plan: DESIGN.md as the standard brand source
 
-Status: built and piloted on branch `feat/design-md-standard` (2026-10-28). Not pushed.
+Status: built and piloted on branch `feat/design-md-standard` (2026-10-28).
 
 ## The rule
 
