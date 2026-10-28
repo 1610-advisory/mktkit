@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """Synthetic takes only. No network. The judge is a fake."""
 
+import io
 import json
+import os
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -83,21 +86,63 @@ def filler_words():
 
 def judge_payload():
     return {
-        "hook": {"quote": "Most owners guess wrong.", "start": 1.62, "end": 2.91, "score": 4},
+        "windows": [{
+            "in": 1.62, "out": 5.05, "idea": "Price the job before starting.",
+            "hook_quote": "Most owners guess wrong.",
+            "payoff_quote": "We price the job before we start.", "score": 4,
+        }],
         "main_point": "Price the job before starting.",
-        "single_idea": True,
-        "payoff": {"quote": "We price the job before we start.", "start": 3.2, "end": 5.2},
         "problems": [
             {"type": "other", "quote": "we invented fusion", "start": 1.0, "end": 2.0, "note": "not said"},
             {"type": "filler", "quote": "guess wrong", "start": 2.22, "end": 2.99, "note": "soft"},
         ],
-        "suggested_in": 1.62,
-        "suggested_out": 5.05,
-        "structure_score": 4,
-        "verdict": "green",
+        "verdict": "yellow",
         "use": "cut",
         "reason": "Hook lands and the payoff is a full sentence.",
     }
+
+
+def timeline(blocks, word_s=0.3, gap=0.1):
+    """blocks: [(start_s, text)] -> whisper words, word_s long, gap apart."""
+    out = []
+    for start, text in blocks:
+        t = start
+        for part in text.split():
+            out.append(word(" " + part, round(t, 3), round(t + word_s, 3)))
+            t += word_s + gap
+    return out
+
+
+def span_of(words, first, last):
+    """in/out of the words whose text starts with first and ends with last."""
+    starts = [w for w in words if w["word"].strip() == first]
+    ends = [w for w in words if w["word"].strip() == last]
+    return starts[0]["start"], ends[-1]["end"]
+
+
+EPISODE_A = ("This is the kitchen at the Acme house. Last time the walls were still open. "
+             "Now the cabinets are in and the island is set. The stone goes on next week. "
+             "We picked a warm white so the room stays bright all day. The hood is the last big piece.")
+EPISODE_RAMBLE = "um so uh where was I um the the plumber came and uh we we moved some stuff around and um yeah"
+EPISODE_B = ("Here is the part people ask about most. The pantry door is hidden in the cabinet run. "
+             "You push the panel and the whole wall opens. It keeps the snacks out of sight and the room calm. "
+             "That is my favorite detail in the whole house.")
+
+
+def episode_words():
+    return timeline([(1.0, EPISODE_A), (22.0, EPISODE_RAMBLE), (40.0, EPISODE_B)])
+
+
+def tip_words():
+    return timeline([(0.5, "Most owners guess the price wrong. We price the whole job before we start. "
+                           "That way nobody gets a surprise bill at the end.")])
+
+
+def window_reply(windows, verdict="green", use="cut", problems=None):
+    return json.dumps({
+        "windows": windows, "main_point": "x", "problems": problems or [],
+        "verdict": verdict, "use": use, "reason": "test reply",
+    })
 
 
 class TakeCheckTests(unittest.TestCase):
@@ -176,11 +221,15 @@ class TakeCheckTests(unittest.TestCase):
         self.assertIn("fusion", payload["judge_dropped"][0]["quote"])
         self.assertEqual(len(payload["judge"]["problems"]), 1)
         self.assertEqual(payload["judge"]["problems"][0]["quote"], "guess wrong")
-        self.assertEqual(payload["judge"]["hook"]["quote"], "Most owners guess wrong.")
-        self.assertEqual(payload["judge"]["hook"]["start"], 1.5)
-        self.assertEqual(payload["judge"]["hook"]["end"], 3.0)
+        best = payload["judge"]["windows"][payload["judge"]["best_window"]]
+        self.assertEqual(best["hook_quote"], "Most owners guess wrong.")
+        self.assertEqual(best["in"], 1.5)
+        self.assertEqual(best["out"], 5.2)
+        self.assertEqual(payload["kind"], "line")
         self.assertEqual(payload["suggested_in"], 1.5)
         self.assertEqual(payload["suggested_out"], 5.2)
+        self.assertEqual(payload["structure_score"], 4)
+        self.assertEqual(payload["verdict"], "yellow")
         self.assertEqual(payload["judge"]["problems"][0]["start"], 2.2)
         self.assertEqual(payload["judge"]["problems"][0]["end"], 3.0)
 
@@ -205,13 +254,16 @@ class TakeCheckTests(unittest.TestCase):
         self.assertEqual(payload["verdict"], "green")
         self.assertEqual(payload["use"], "cut")
 
-    def test_07_folder_scan_keeps_prefixes_and_does_not_write_input(self):
+    def test_07_folder_scan_keeps_prefixes_skips_stray_audio_and_does_not_write_input(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "shoot"
             audio = root / "Audio"
             audio.mkdir(parents=True)
-            (root / "Day" / "Audio").mkdir(parents=True)
             (root / "Video").mkdir()
+            (root / "Day" / "Audio").mkdir(parents=True)
+            (root / "Day" / "Video").mkdir()
+            (root / "Video" / "Audio").mkdir()
+            (root / "Loose" / "Audio").mkdir(parents=True)
             samples = {
                 audio / "ARoll-One.json": whisper(clean_words()),
                 audio / "CB-Two.json": whisper(clean_words()),
@@ -219,6 +271,8 @@ class TakeCheckTests(unittest.TestCase):
                 audio / "notes.json": whisper(clean_words()),
                 root / "Day" / "Audio" / "ARoll-Nested.json": whisper(clean_words()),
                 root / "Day" / "Audio" / "wild.json": whisper(clean_words()),
+                root / "Video" / "Audio" / "ARoll-Stray.json": whisper(clean_words()),
+                root / "Loose" / "Audio" / "ARoll-Loose.json": whisper(clean_words()),
                 root / "ARoll-Outside.json": whisper(clean_words()),
             }
             for path, data in samples.items():
@@ -226,11 +280,18 @@ class TakeCheckTests(unittest.TestCase):
             (root / "Video" / "ARoll-One.MP4").write_bytes(b"")
             before = self._tree(root)
             out = Path(tmp) / "out"
-            code = tc.main([str(root), "--out-dir", str(out), "--judge", "none"])
+            err = io.StringIO()
+            with redirect_stderr(err), redirect_stdout(io.StringIO()):
+                code = tc.main([str(root), "--out-dir", str(out), "--judge", "none"])
             self.assertEqual(code, 0)
             self.assertEqual(self._tree(root), before)
             written = sorted(p.name for p in out.glob("*.take.json"))
             self.assertEqual(written, ["ARoll-Nested.take.json", "ARoll-One.take.json", "CB-Two.take.json"])
+            skipped = [line for line in err.getvalue().splitlines() if "skipped" in line]
+            self.assertEqual(len(skipped), 1)
+            self.assertIn("skipped 2 Audio folder(s)", skipped[0])
+            self.assertIn(str(Path("Video") / "Audio"), skipped[0])
+            self.assertIn(str(Path("Loose") / "Audio"), skipped[0])
             one = json.loads((out / "ARoll-One.take.json").read_text())
             self.assertIsNotNone(one["video"])
             self.assertTrue(one["video"]["path"].endswith("ARoll-One.MP4"))
@@ -295,7 +356,7 @@ class TakeCheckTests(unittest.TestCase):
             out = Path(tmp) / "out"
             code = tc.main([
                 str(path), "--out-dir", str(out), "--judge", "none",
-                "--config", str(cfg_path), "--fail-on", "yellow",
+                "--config", str(cfg_path), "--fail-on", "yellow", "--kind", "tip",
             ])
             self.assertEqual(code, 3)
             payload = json.loads((out / "ARoll-Gap.take.json").read_text())
@@ -309,14 +370,276 @@ class TakeCheckTests(unittest.TestCase):
             out = Path(tmp) / "out"
             self.assertEqual(tc.main([str(empty), "--out-dir", str(out), "--judge", "none"]), 2)
             self.assertFalse(out.exists())
-            bad = Path(tmp) / "Audio"
-            bad.mkdir()
-            (bad.parent / "shoot").mkdir()
             shoot = Path(tmp) / "shoot"
             (shoot / "Audio").mkdir(parents=True)
+            (shoot / "Video").mkdir()
             (shoot / "Audio" / "ARoll-Bad.json").write_text("{not json", encoding="utf-8")
             self.assertEqual(tc.main([str(shoot), "--out-dir", str(out), "--judge", "none"]), 2)
             self.assertFalse(any(shoot.rglob("*.take.json")))
+
+    # ---- v1.1: best window, kinds, restarts, calibration, cache, judge argv ----
+
+    def _run_one(self, stem, data, reply, extra=None):
+        prompts = []
+
+        def runner(cmd, prompt, timeout):
+            prompts.append(prompt)
+            return reply, "", 0
+
+        path = self._write_take(stem, data)
+        out = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(out, ignore_errors=True))
+        tc.JUDGE_RUNNER = runner
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            code = tc.main([str(path), "--out-dir", out, "--jobs", "1"] + (extra or []))
+        self.assertEqual(code, 0)
+        payload = json.loads((Path(out) / f"{stem}.take.json").read_text())
+        return payload, prompts, Path(out)
+
+    def test_episode_two_windows_and_ramble_is_not_red(self):
+        words = episode_words()
+        self.assertGreater(words[-1]["end"], 55)
+        a_in, a_out = span_of(words, "This", "piece.")
+        b_in, b_out = span_of(words, "Here", "house.")
+        reply = window_reply(
+            [
+                {"in": a_in, "out": a_out, "idea": "kitchen progress", "hook_quote": "This is the kitchen",
+                 "payoff_quote": "The hood is the last big piece.", "score": 4},
+                {"in": b_in + 0.05, "out": b_out - 0.05, "idea": "hidden pantry",
+                 "hook_quote": "Here is the part people ask about most.",
+                 "payoff_quote": "That is my favorite detail in the whole house.", "score": 5},
+            ],
+            verdict="green", use="cut",
+            problems=[{"type": "ramble", "quote": "where was I", "start": 23.0, "end": 24.0, "note": "lost"}],
+        )
+        payload, prompts, _ = self._run_one("ARoll-Kitchen-Walkthrough", whisper(episode_words()), reply)
+        self.assertEqual(payload["kind"], "episode")
+        self.assertIn("Take kind: episode", prompts[0])
+        self.assertIn(payload["verdict"], ("green", "yellow"))
+        self.assertEqual(payload["verdict"], "green")
+        self.assertEqual(payload["metrics_verdict"], "yellow")  # the ramble's fillers, whole take
+        self.assertEqual(payload["window_flags"], [])
+        self.assertEqual(payload["suggested_in"], b_in)
+        self.assertEqual(payload["suggested_out"], b_out)
+        self.assertEqual(payload["structure_score"], 5)
+        self.assertEqual(len(payload["judge"]["windows"]), 2)
+        self.assertFalse(payload["judge"]["problems"][0]["in_best_window"])
+
+    def test_judge_red_with_valid_window_becomes_yellow(self):
+        words = tip_words()
+        w_in, w_out = span_of(words, "Most", "end.")
+        reply = window_reply(
+            [{"in": w_in, "out": w_out, "idea": "price first", "hook_quote": "Most owners guess the price wrong.",
+              "payoff_quote": None, "score": 3}],
+            verdict="red", use="reshoot",
+        )
+        payload, _, _ = self._run_one("ARoll-Price", whisper(words), reply)
+        self.assertEqual(payload["kind"], "tip")
+        self.assertEqual(payload["judge"]["claimed_verdict"], "red")
+        self.assertEqual(payload["verdict"], "yellow")
+        self.assertEqual(payload["use"], "trim")
+        self.assertTrue(payload["judge"]["corrections"])
+
+    def test_judge_no_windows_is_red(self):
+        words = tip_words()
+        reply = window_reply([], verdict="green", use="cut")
+        payload, _, _ = self._run_one("ARoll-Price", whisper(words), reply)
+        self.assertEqual(payload["verdict"], "red")
+        self.assertIn(payload["use"], ("reshoot", "blooper", "voiceover"))
+        self.assertIsNone(payload["suggested_in"])
+        self.assertEqual(payload["structure_score"], 1)
+
+    def test_window_shorter_than_minimum_is_dropped(self):
+        words = tip_words()  # about 11 s of speech, so the minimum is 8 s
+        w_in, w_out = span_of(words, "Most", "wrong.")
+        reply = window_reply([{"in": w_in, "out": w_out, "idea": "short", "hook_quote": None,
+                               "payoff_quote": None, "score": 5}])
+        payload, _, _ = self._run_one("ARoll-Price", whisper(words), reply)
+        self.assertEqual(payload["window_min_s"], 8.0)
+        self.assertEqual(payload["verdict"], "red")
+        self.assertTrue(any("shorter" in d.get("reason", "") for d in payload["judge_dropped"]))
+
+    def test_line_kind_short_opener_is_not_red(self):
+        words = timeline([(0.5, "Welcome back to the Acme house, today we finish the kitchen.")])
+        span = words[-1]["end"] - words[0]["start"]
+        self.assertLess(span, 8)
+        self.assertGreater(span, 4)
+        analysis = tc.analyze(whisper(words), self.cfg, stem="ARoll-Opener")
+        self.assertEqual(analysis["kind"], "line")
+        self.assertAlmostEqual(analysis["window_min_s"], round(span, 3))
+        self.assertNotEqual(analysis["metrics_verdict"], "red")
+        reply = window_reply([{"in": words[0]["start"], "out": words[-1]["end"], "idea": "opener",
+                               "hook_quote": "Welcome back to the Acme house", "payoff_quote": None, "score": 5}])
+        payload, prompts, _ = self._run_one("ARoll-Opener", whisper(words), reply)
+        self.assertIn("Take kind: line", prompts[0])
+        self.assertEqual(payload["kind"], "line")
+        self.assertEqual(payload["verdict"], "green")
+        # a silent take is never line
+        silent = tc.analyze(whisper([word(" Thank", 0.5, 0.8), word(" you.", 0.8, 1.1)]), self.cfg)
+        self.assertNotEqual(silent["kind"], "line")
+
+    def test_restart_ignores_going_to_be_and_catches_the_reason_we(self):
+        fluent = timeline([(0.5, "It is going to be a long week, and it is going to be worth it. "
+                                 "We are going to be done by Friday.")])
+        result = tc.analyze(whisper(fluent), self.cfg)
+        self.assertEqual(result["metrics"]["restarts"], [])
+        self.assertNotIn("restart", [f["code"] for f in result["flags"]])
+        stutter = timeline([(0.5, "So the reason we the reason we do this is the price.")])
+        result = tc.analyze(whisper(stutter), self.cfg)
+        self.assertTrue(any(r["ngram"] == "the reason we" for r in result["metrics"]["restarts"]))
+        self.assertIn("restart", [f["code"] for f in result["flags"]])
+        self.assertIsNotNone(result["metrics"]["restarts_per_min"])
+        # a 4-word repeat inside the window counts even when not back to back
+        repeat = timeline([(0.5, "Cabinet doors close soft now. Cabinet doors close soft and quiet.")])
+        result = tc.analyze(whisper(repeat), self.cfg)
+        self.assertTrue(any(r["n"] >= 4 for r in result["metrics"]["restarts"]))
+
+    def test_restart_rate_threshold(self):
+        # one restart over about 28 s is about 2.1/min, under the default 3/min
+        filler = ("Cabinets arrive Monday morning. Plumbers set fixtures after drywall. Painters prime every wall twice. "
+                  "Electricians hang lights near windows. Flooring crews start upstairs first. Tile setters finish showers early. "
+                  "Inspectors walk framing before insulation. Trim carpenters fit doors carefully. Homeowners pick hardware late. "
+                  "Countertops need templates measured onsite. Appliances ship separately from cabinets. ")
+        long_take = timeline([(0.5, "So the reason we the reason we do this is the price. " + filler)])
+        result = tc.analyze(whisper(long_take), self.cfg)
+        self.assertEqual(len(result["metrics"]["restarts"]), 1)
+        self.assertNotIn("restart", [f["code"] for f in result["flags"]])
+
+    def test_kind_inference_from_stem(self):
+        cfg = self.cfg
+        self.assertEqual(tc.infer_kind("ARoll-Kitchen-Walkthrough", 60, False, cfg), "episode")
+        self.assertEqual(tc.infer_kind("CB_monthly_update", 60, False, cfg), "episode")
+        self.assertEqual(tc.infer_kind("ARoll-Basement-PROGRESS-Take2", 60, False, cfg), "episode")
+        self.assertEqual(tc.infer_kind("ARoll-Walkway-Tip", 60, False, cfg), "tip")
+        self.assertEqual(tc.infer_kind("ARoll-PricingTip", 60, False, cfg), "tip")
+        self.assertEqual(tc.infer_kind("ARoll-Kitchen-Walkthrough", 5, False, cfg), "line")
+        self.assertEqual(tc.infer_kind("ARoll-Kitchen-Walkthrough", 5, True, cfg), "episode")
+        result = tc.analyze(whisper(tip_words()), cfg, stem="ARoll-Price", kind="episode")
+        self.assertEqual(result["kind"], "episode")
+        self.assertEqual(result["kind_source"], "flag")
+
+    def test_hook_flag_only_for_tip(self):
+        slow = timeline([(0.5, "When we started on this house the first thing we noticed was how the light "
+                               "came in from the south side of the lot. Then we planned around it.")])
+        tip = tc.analyze(whisper(slow), self.cfg, stem="ARoll-Light")
+        episode = tc.analyze(whisper(slow), self.cfg, stem="ARoll-Light-Tour")
+        self.assertIn("long_hook", [f["code"] for f in tip["flags"]])
+        self.assertNotIn("long_hook", [f["code"] for f in episode["flags"]])
+
+    def test_calibration_counts_and_false_red(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            takes = {
+                "ARoll-Good": whisper(clean_words()),
+                "ARoll-Silent": whisper([word(" Thank", 0.5, 0.8), word(" you.", 0.8, 1.1)], text="Thank you."),
+                "CB-Yellow": whisper(filler_words()),
+            }
+            paths = []
+            (tmp / "in").mkdir()
+            for stem, data in takes.items():
+                path = tmp / "in" / f"{stem}.json"
+                path.write_text(json.dumps(data), encoding="utf-8")
+                paths.append(str(path))
+            labels = tmp / "labels.json"
+            labels.write_text(json.dumps({
+                "ARoll-Good": "bad", "ARoll-Silent": "ok", "CB-Yellow": "ok", "ARoll-Gone": "ok",
+            }), encoding="utf-8")
+            out = tmp / "out"
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                code = tc.main(paths + ["--out-dir", str(out), "--judge", "none", "--calibrate", str(labels),
+                                        "--fail-on", "red"])
+            self.assertEqual(code, 3)  # exit code follows --fail-on only
+            report = (out / "take-report.md").read_text()
+        self.assertIn("## Calibration", stdout.getvalue())
+        self.assertIn("## Calibration", report)
+        self.assertIn("| ok | 0 | 1 | 1 |", report)
+        self.assertIn("| bad | 1 | 0 | 0 |", report)
+        self.assertIn("False red (ok came out red): 1", report)
+        self.assertIn("`ARoll-Silent`", report.split("False red")[1])
+        self.assertIn("False green (bad came out green): 1", report)
+        self.assertIn("`ARoll-Good`", report.split("False green")[1])
+        self.assertIn("`ARoll-Gone`", report.split("Missing from this run")[1])
+
+        cal = tc.calibrate(
+            [{"stem": "A", "verdict": "red", "flags": [{"level": "red", "reason": "too short"}]}],
+            {"A": "ok", "B": "bad"},
+        )
+        self.assertEqual(cal["counts"]["ok"]["red"], 1)
+        self.assertEqual(cal["false_red"][0]["stem"], "A")
+        self.assertIn("too short", cal["false_red"][0]["reason"])
+        self.assertEqual(cal["missing"], ["B"])
+
+    def test_bad_calibration_file_exits_2(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "ARoll-X.json"
+            path.write_text(json.dumps(whisper(clean_words())), encoding="utf-8")
+            labels = Path(tmp) / "labels.json"
+            labels.write_text(json.dumps({"ARoll-X": "maybe"}), encoding="utf-8")
+            with redirect_stderr(io.StringIO()):
+                code = tc.main([str(path), "--out-dir", str(Path(tmp) / "out"), "--judge", "none",
+                                "--calibrate", str(labels)])
+            self.assertEqual(code, 2)
+
+    def test_judge_cache_hit_skips_second_call(self):
+        calls = []
+        reply = "```json\n" + json.dumps(judge_payload()) + "\n```"
+
+        def runner(cmd, prompt, timeout):
+            calls.append(prompt)
+            return reply, "", 0
+
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "in").mkdir()
+            path = Path(tmp) / "in" / "ARoll-Clean.json"
+            path.write_text(json.dumps(whisper(clean_words())), encoding="utf-8")
+            out = Path(tmp) / "out"
+            tc.JUDGE_RUNNER = runner
+            args = [str(path), "--out-dir", str(out), "--jobs", "1"]
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                self.assertEqual(tc.main(args), 0)
+                first = json.loads((out / "ARoll-Clean.take.json").read_text())
+                self.assertEqual(len(calls), 1)
+                self.assertEqual(len(list((out / ".judge-cache").glob("*.json"))), 1)
+                self.assertEqual(tc.main(args), 0)
+                second = json.loads((out / "ARoll-Clean.take.json").read_text())
+                self.assertEqual(len(calls), 1)
+                self.assertFalse(first["judge_cached"])
+                self.assertTrue(second["judge_cached"])
+                self.assertEqual(first["verdict"], second["verdict"])
+                # a changed kind changes the prompt, so it misses
+                self.assertEqual(tc.main(args + ["--kind", "episode"]), 0)
+                self.assertEqual(len(calls), 2)
+                self.assertEqual(tc.main(args + ["--no-judge-cache"]), 0)
+                self.assertEqual(len(calls), 3)
+
+    def test_default_judge_is_claude_no_tools_no_mcp(self):
+        cmd = tc.DEFAULTS["judge_cmd"]
+        self.assertEqual(cmd[:2], ["claude", "-p"])
+        self.assertEqual(cmd[cmd.index("--model") + 1], "claude-sonnet-5-5")
+        self.assertEqual(cmd[cmd.index("--tools") + 1], "")
+        self.assertIn("--strict-mcp-config", cmd)
+        self.assertEqual(json.loads(cmd[cmd.index("--mcp-config") + 1]), {"mcpServers": {}})
+        self.assertEqual(cmd[cmd.index("--setting-sources") + 1], "")
+        self.assertIn("--no-session-persistence", cmd)
+        self.assertFalse(any("{prompt}" in part for part in cmd))  # prompt goes to stdin
+        example = json.loads(tc.EXAMPLE_CONFIG.read_text(encoding="utf-8"))
+        self.assertIn("xai/grok-4.7", example["_doc"])
+        skill = (tc.HERE.parent / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("xai/grok-4.7", skill)
+        self.assertIn("claude-sonnet-5-5", skill)
+
+    def test_judge_runs_in_empty_temp_dir_with_prompt_on_stdin(self):
+        script = ("import os, sys, json; data = sys.stdin.read(); "
+                  "print(json.dumps({'cwd': os.getcwd(), 'ls': os.listdir('.'), 'stdin': data}))")
+        stdout, _, code = tc.run_judge_process([sys.executable, "-c", script], "hello judge", 30)
+        self.assertEqual(code, 0)
+        seen = json.loads(stdout)
+        self.assertEqual(seen["stdin"], "hello judge")
+        self.assertEqual(seen["ls"], [])
+        self.assertTrue(os.path.basename(seen["cwd"]).startswith("take-check-judge-"))
+        self.assertNotEqual(os.path.realpath(seen["cwd"]), os.path.realpath(os.getcwd()))
+        self.assertFalse(os.path.exists(seen["cwd"]))
 
     def test_timestamp_format(self):
         self.assertEqual(tc.fmt_ts(65.3), "01:05.3")
