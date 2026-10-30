@@ -288,6 +288,13 @@ class DesignSystemTest(unittest.TestCase):
         self.assertIn("project/assets/Logos/README.md", self.plan["files"])
         self.assertNotIn("project/design-system.json", self.plan["files"])
         self.assertTrue((self.out / "publish.json").exists())
+        files = json.loads((self.out / "publish.json").read_text())["files"]
+        self.assertIn("project/components/index.d.ts", files)
+        for k, v in files.items():
+            if k.endswith(".d.ts"):
+                self.assertEqual(v, {"from": k, "contentType": "text/plain"})
+            else:
+                self.assertEqual(v, k)
 
 
 class FeatureAndRuleTest(unittest.TestCase):

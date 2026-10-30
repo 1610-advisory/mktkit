@@ -1687,6 +1687,16 @@ def ds_index(doc, now, by="Claude", via="Claude Code", react_lib=None):
 UPLOAD_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".mp4", ".webm", ".pdf"}
 
 
+# The Artifact tool serves only common web types by extension; anything else
+# (index.d.ts) must carry an explicit contentType in the publish map.
+SERVED_EXT = {".html", ".css", ".js", ".mjs", ".json", ".map", ".txt", ".md", ".csv", ".xml", ".svg", ".png", ".jpg",
+              ".jpeg", ".gif", ".webp", ".avif", ".ico", ".woff", ".woff2", ".ttf", ".otf", ".mp4", ".webm", ".pdf"}
+
+
+def publish_source(rel):
+    return rel if Path(rel).suffix.lower() in SERVED_EXT else {"from": rel, "contentType": "text/plain"}
+
+
 def build_ds(doc, out_dir, assets=(), now=None, by="Claude", name_logo=None, pages=(), page_height=560,
              react_lib=None):
     """Write <out_dir>/project/... and <out_dir>/publish.json. Returns the publish plan.
@@ -1773,7 +1783,7 @@ def build_ds(doc, out_dir, assets=(), now=None, by="Claude", name_logo=None, pag
                             for g, _ in assets}
     (proj / "design-system.json").write_text(json.dumps(index, indent=2) + "\n", encoding="utf-8")
     plan = {"root": str(out.resolve()), "file_path": str((proj / "design-system.json").resolve()),
-            "files": {k: k for k in written}, "uploads": uploads,
+            "files": {k: publish_source(k) for k in written}, "uploads": uploads,
             "note": ("New page: send file_path + files in ONE Artifact publish (root as given). Uploads go first "
                      "(asset: true), then fill index.assetGroups.<Group>.files.<name> = {name, blob, size, type}. "
                      "Revision: read the live index first and send it only last, keeping its keys.")}

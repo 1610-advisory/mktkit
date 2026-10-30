@@ -135,7 +135,8 @@ businesses in one page. Name it for the business. Private.
    `size` the upload result reports (the store can change an SVG's bytes, so
    the local size may differ). Upload only the logo versions DESIGN.md names.
 5. ONE publish: `url`, `root` = `<dir>`, `file_path` = the index,
-   `files` = the map in `publish.json`.
+   `files` = the map in `publish.json` (it already gives `index.d.ts`
+   `contentType: "text/plain"`; the tool refuses a `.ts` file without one).
 6. Write `design_system_url: <url>` in DESIGN.md's frontmatter. Commit it in
    the business's repo. Never write the URL in this toolkit.
 
