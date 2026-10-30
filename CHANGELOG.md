@@ -2,6 +2,9 @@
 
 Plain-language history of the 1610 Marketing Toolkit. Newest first.
 
+## 2026-10-30
+- Made the claude.ai design system page complete: components now work as real React parts, the business's own pages and icons can show on it, and it ends with short notes on how to use the system.
+
 ## 2026-10-28
 - Made DESIGN.md the required brand file for every business. A new script checks it, turns it into one local web page any assistant can make, and builds a private claude.ai design system page from it in Claude sessions. The file stays the source; the pages are views of it.
 - Headers on those pages now show the business's real logo file, not the name typed in a font, so a hand-set mark (special numerals, custom spacing) always looks right.

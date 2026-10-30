@@ -28,6 +28,8 @@ Ask only what this task needs. Log all answers anyway if you asked them.
 - Corners: square or radius?
 - Light or dark default surface? Is there a dark mode?
 - Logo files: where are they, and which versions are approved?
+- Icons: is there an icon set? Where are the files? Line or fill, what stroke, what sizes, which colors?
+- Example pages: which real pages (site, email, flyer) best show the brand?
 
 **voice-guidelines.md**
 - We or I on this surface?

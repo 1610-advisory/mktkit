@@ -36,7 +36,9 @@ in the prose below. Start from `templates/DESIGN.md`.
   - `design_system_url`: the claude.ai page built from this file (step 3).
 - **Prose sections**, in this order when they apply: Overview, Colors,
   Typography, Layout, Elevation & Depth, Shapes, Components, Do's and
-  Don'ts. Add others (Logo, Photography, Voice) as the brand needs.
+  Don'ts. Add others (Logo, Iconography, Photography, Voice) as the brand
+  needs. Iconography names the business's own icon set, its stroke, sizes
+  and colors. Never invent icons for a business.
 - **One rule per color token.** In Colors, write each role as a bullet whose
   bold label starts with the token name: `- **Primary (#9C2F1E):** the one
   button.` The Design System page lifts that bullet as the token's usage
@@ -60,11 +62,36 @@ uses PyYAML if installed). It holds no brand values.
 
 ```bash
 python3 <toolkit>/scripts/design_md.py check  knowledge/DESIGN.md
-python3 <toolkit>/scripts/design_md.py render knowledge/DESIGN.md -o <out>.html [--logo <file> ...]
+python3 <toolkit>/scripts/design_md.py render knowledge/DESIGN.md -o <out>.html [--logo <file> ...] \
+        [--icon <file or folder> ...]
 python3 <toolkit>/scripts/design_md.py ds     knowledge/DESIGN.md -o <scratch dir> \
-        [--asset Logos=<folder or file>] [--by "<owner name>"] \
-        [--name-logo <logo for light>.svg --name-logo dark=<logo for dark>.svg]
+        [--asset Logos=<folder or file>] [--asset Icons=<folder>] [--by "<owner name>"] \
+        [--name-logo <logo for light>.svg --name-logo dark=<logo for dark>.svg] \
+        [--page Home=<their page>.html ...] [--page-height 560] [--react-lib <folder>]
 ```
+
+- `--icon` (render): icon files, or a folder of them, shown as tiles in the
+  Iconography section (a section named "Icons..." also works). SVGs show
+  inline on the page's ink, so `currentColor` icons show.
+- `--asset Icons=<folder>` (ds): the business's own icon set. Never invent
+  icons or draw them from memory. No icon set: leave the group out and say
+  so under Iconography.
+- `--page NAME=FILE.html` (ds): one of the business's own pages (a home
+  page, an email, a flyer), shown as an example card in the group
+  Examples. NAME is a JS identifier; the card is its PascalCase. Examples
+  come only from the business's real work, never a page made up for the
+  card. A `FILE.md` beside the page becomes the card's README. Height:
+  `<meta name="ds-height" content="900">` in the page, else
+  `--page-height` (default 560). The script refuses a page with
+  `<iframe>`, `<frame>`, `<object>`, `<embed>`, `<portal>` or `<noscript>`,
+  a `src`/`href`/`url()` to any host but Google Fonts, or a `<script src>`
+  that is not a relative path. A relative path resolves from
+  `components/<Name>/` on the page, so keep pages self-contained.
+- `--react-lib DIR` (ds): a folder with `react.production.min.js` and
+  `react-dom.production.min.js` (React 18.3.1 UMD builds). They are packed
+  into `components/lib/` and named in the index `libraries` with `file`.
+  Without it the index names the same two libraries with no `file`, and
+  the page loads React 18 from jsDelivr.
 
 - `--name-logo` (render and ds): the logo file that stands for the name
   in a header (the view's title, the page's cover), one per theme. **When
@@ -95,8 +122,9 @@ businesses in one page. Name it for the business. Private.
 
 1. `check` passes with no errors.
 2. `ds` writes `<dir>/project/...` (tokens.json, README.md from the prose,
-   one preview + README per component, a cover, a new index) and
-   `<dir>/publish.json` (the files map and the uploads list).
+   one preview + README per component, the component bundle, a cover,
+   example cards, a new index) and `<dir>/publish.json` (the files map and
+   the uploads list).
 3. Artifact tool: `action: "quickstart"`, `intent: "other"`, then publish
    with the Design System `type_url` from the quickstart result (today the
    core type https://claude.ai/artifact/5M7UeXXcx16TP3vzVFNDzd), `title` =
@@ -118,6 +146,33 @@ publish them to the same `url` (`root` = that folder). Logos that did not
 change are not uploaded again. Send the index
 last and only to change its own keys (title, asset records, `lastChange`),
 keeping every other key.
+
+**What `ds` builds**
+
+- **The bundle.** `components/bundle.js` is one classic script with no
+  build step. Line 1 is the `@ds-bundle` header. It sets
+  `window.<Namespace>` (the business name in PascalCase) with one React
+  component per DESIGN.md component. The element comes from the name:
+  a rule (4px tall or less) is a `<div role="separator">`, "button" is a
+  `<button>`, "link" an `<a>`, "input" or "field" an `<input>`, "nav" a
+  `<nav>`, else a `<div>`. Props: `children`, `className`, `state` (one of
+  the component's state variants, as class `is-<state>`), and any other
+  attribute. `components/bundle.css` holds one class per component with
+  token variables, and each state both as its real selector (`:hover`,
+  `:focus-visible`, `:active`, `:disabled`, `[aria-pressed="true"]`,
+  `[aria-selected="true"]`) and as `.is-<state>`. `components/index.d.ts`
+  documents the props. They need React 18 on the page.
+- **Previews** show each state through the bundle when React is on the
+  page, and the same states as static markup when it is not. Each
+  component README says how to use it (`<Namespace>.<Comp>`).
+- **Asset notes.** An asset group's README is the DESIGN.md section with
+  the same name, else one that shares a 4+ letter stem ("Icons" and
+  "Iconography", "Photos" and "Photography"). It also names the SVGs drawn
+  with `currentColor`.
+- **Using this system.** The README ends with a generated section: the
+  themes (the first is the fallback), the `on-*` rule, type classes, the
+  components and React 18, the asset groups, examples, and that DESIGN.md
+  is the source. A DESIGN.md section of that name replaces it.
 
 **Rules**
 

@@ -3,6 +3,7 @@
 
 import json
 import re
+import shutil
 import sys
 import tempfile
 import unittest
@@ -262,7 +263,7 @@ class DesignSystemTest(unittest.TestCase):
         self.assertNotIn("# DESIGN.md", r)
 
     def test_components_and_cover(self):
-        comps = sorted(p.name for p in (self.proj / "components").iterdir())
+        comps = sorted(p.name for p in (self.proj / "components").iterdir() if p.is_dir())
         self.assertEqual(comps, ["ButtonPrimary", "Cover", "Divider", "Heading", "Page"])
         prev = (self.proj / "components" / "ButtonPrimary" / "preview.html").read_text()
         self.assertTrue(prev.startswith("<!-- @dsCard"))
@@ -355,6 +356,346 @@ class NameLogoTest(unittest.TestCase):
                                   "--name-logo", f"dark={self.dark}"]), 0)
         self.assertIn('class="mark mark-dark"', (out / "project/components/Cover/preview.html").read_text())
         self.assertEqual(dm.main(["ds", str(write(SAMPLE)), "-o", str(out), "--name-logo", "nope.png"]), 2)
+
+
+STATES = SAMPLE.replace("""  divider:
+""", """  button-primary-focus:
+    borderColor: "{colors.ink}"
+  button-primary-disabled:
+    backgroundColor: "{colors.outline}"
+  button-primary-pressed:
+    backgroundColor: "{colors.primary-dark}"
+  nav-item:
+    textColor: "{colors.ink}"
+  nav-item-selected:
+    textColor: "{colors.primary}"
+  text-link:
+    textColor: "{colors.primary}"
+  email-field:
+    backgroundColor: "{colors.paper}"
+    borderColor: "{colors.outline}"
+    height: 44px
+  divider:
+""")
+
+
+def js_bundle_exports(bundle, preview_props):
+    """Run bundle.js in node with a stand-in React; return what each export makes."""
+    script = ("global.window = global;\n"
+              "window.React = {createElement: function (t, p) { var k = [].slice.call(arguments, 2);"
+              " return {t: t, p: p, k: k}; }};\n" + bundle +
+              "\nvar out = {};\nfor (var n in window.AcmeBakery) { out[n] = window.AcmeBakery[n](" + preview_props + "); }\n"
+              "console.log(JSON.stringify(out));\n")
+    import subprocess
+    r = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30)
+    if r.returncode:
+        raise AssertionError(r.stderr)
+    return json.loads(r.stdout)
+
+
+class BundleTest(unittest.TestCase):
+    def setUp(self):
+        self.doc = dm.load(write(STATES))
+        self.js = dm.bundle_js(self.doc)
+        self.css = dm.bundle_css(self.doc)
+
+    def test_header_and_namespace(self):
+        first = self.js.splitlines()[0]
+        m = re.fullmatch(r"/\* @ds-bundle: (\{.*\}) \*/", first)
+        self.assertTrue(m)
+        head = json.loads(m.group(1))
+        self.assertEqual(head["format"], 4)
+        self.assertEqual(head["namespace"], "AcmeBakery")
+        self.assertEqual([c["name"] for c in head["components"]],
+                         ["Page", "ButtonPrimary", "NavItem", "TextLink", "EmailField", "Divider", "Heading"])
+        self.assertIn("window.AcmeBakery = window.AcmeBakery || {}", self.js)
+        self.assertIn("window.React", self.js)
+
+    def test_safe_to_inline(self):
+        for bad in ("</script", "<!--", "import ", "http", "fetch("):
+            self.assertNotIn(bad, self.js.lower())
+        self.assertNotIn("#9C2F1E", self.css)
+        self.assertNotIn("</style", self.css.lower())
+
+    def test_elements_by_name(self):
+        g = dm.component_groups(self.doc)
+        pick = {b: dm.comp_element(b, s[0][2]) for b, s in g.items()}
+        self.assertEqual(pick["button-primary"], ("button", "button"))
+        self.assertEqual(pick["text-link"], ("a", "link"))
+        self.assertEqual(pick["email-field"], ("input", "input"))
+        self.assertEqual(pick["divider"], ("div", "rule"))
+        self.assertEqual(pick["nav-item"], ("nav", "nav"))
+        self.assertEqual(pick["page"], ("div", "div"))
+        self.assertEqual(dm.comp_element("canvas", {}), ("div", "div"))
+
+    @unittest.skipUnless(shutil.which("node"), "node not installed")
+    def test_exports_render(self):
+        out = js_bundle_exports(self.js, '{state: "hover", className: "x", children: "Go", title: "t"}')
+        btn = out["ButtonPrimary"]
+        self.assertEqual(btn["t"], "button")
+        self.assertEqual(btn["p"]["className"], "acmebakery-button-primary button is-hover x")
+        self.assertEqual((btn["p"]["type"], btn["p"]["title"]), ("button", "t"))
+        self.assertEqual(btn["k"], ["Go"])
+        self.assertNotIn("state", btn["p"])
+        self.assertEqual(out["NavItem"]["p"]["className"], "acmebakery-nav-item x")  # no hover state: ignored
+        self.assertEqual(out["Divider"]["p"]["role"], "separator")
+        self.assertEqual(out["Divider"]["k"], [])
+        self.assertEqual(out["EmailField"]["t"], "input")
+        self.assertEqual(out["EmailField"]["k"], [])
+
+    def test_css_states(self):
+        self.assertIn(".acmebakery-button-primary{background:var(--primary);color:var(--on-primary);"
+                      "border-radius:var(--radius-sm);min-height:48px;padding-inline:20px}", self.css)
+        self.assertIn(".acmebakery-button-primary:hover,.acmebakery-button-primary.is-hover{background:var(--primary-dark)}", self.css)
+        self.assertIn(".acmebakery-button-primary:focus-visible,.acmebakery-button-primary.is-focus{border-color:var(--ink);"
+                      "border-width:1px;border-style:solid}", self.css)
+        self.assertIn('.acmebakery-button-primary:disabled,.acmebakery-button-primary[aria-disabled="true"],'
+                      ".acmebakery-button-primary.is-disabled{background:var(--outline)}", self.css)
+        self.assertIn('.acmebakery-button-primary[aria-pressed="true"],.acmebakery-button-primary.is-pressed{', self.css)
+        self.assertIn('.acmebakery-nav-item[aria-selected="true"],.acmebakery-nav-item.is-selected{color:var(--primary)}', self.css)
+        self.assertIn(":where(.acmebakery-button-primary){font:inherit;", self.css)  # resets never outrank the type class
+        self.assertIn(".acmebakery-divider{background:var(--tertiary);width:40px;height:1px}", self.css)
+
+    def test_dts(self):
+        d = dm.index_dts(self.doc)
+        self.assertIn("import type * as React from 'react';", d)
+        self.assertIn('export interface ButtonPrimaryProps extends React.ButtonHTMLAttributes<HTMLButtonElement> '
+                      '{ children?: React.ReactNode; className?: string; state?: "hover" | "focus" | "disabled" | "pressed"; }', d)
+        self.assertIn("export interface EmailFieldProps extends React.InputHTMLAttributes<HTMLInputElement> { className?: string; }", d)
+        self.assertIn("export declare function TextLink(props: TextLinkProps): React.ReactElement;", d)
+        self.assertRegex(d, r"declare global \{ interface Window \{ AcmeBakery: \{ Page: typeof Page; ButtonPrimary: typeof ButtonPrimary;")
+
+    def test_preview_renders_through_bundle_with_fallback(self):
+        states = dm.component_groups(self.doc)["button-primary"]
+        prev = dm.preview_html(self.doc, "button-primary", states)
+        self.assertTrue(prev.startswith('<!-- @dsCard group="Components" height=112 -->\n'))
+        self.assertIn('<div class="row" id="root"><figure class="s"><div class="el button" style="background:var(--primary);', prev)
+        self.assertEqual(prev.count("<script>"), 1)
+        self.assertIn("var N=window.AcmeBakery,R=window.React,D=window.ReactDOM;", prev)
+        self.assertIn("if(!N||!N.ButtonPrimary||!R||!D||!D.createRoot){return}", prev)
+        for st in ("hover", "focus", "disabled", "pressed"):
+            self.assertIn(f'"state":"{st}"', prev)
+            self.assertIn(f'h("figcaption",null,"{st}")', prev)
+        field = dm.preview_html(self.doc, "email-field", dm.component_groups(self.doc)["email-field"])
+        self.assertIn('"placeholder":"Email field"', field)
+        self.assertIn('"className":"el edge"', field)  # paper on paper gets an edge
+
+    def test_readme_use_it(self):
+        g = dm.component_groups(self.doc)
+        r = dm.component_readme(self.doc, "button-primary", g["button-primary"])
+        self.assertIn('Use it: `AcmeBakery.ButtonPrimary`, a `<button>`. Props: `className`, `children`, '
+                      '`state` (`"hover"`, `"focus"`, `"disabled"`, `"pressed"`), and any `<button>` attribute.', r)
+        self.assertIn("Use it: `AcmeBakery.Divider`, a `<div>`. Props: `className`, and any",
+                      dm.component_readme(self.doc, "divider", g["divider"]))
+
+
+class ReactLibTest(unittest.TestCase):
+    def setUp(self):
+        self.doc = dm.load(write(SAMPLE))
+        self.lib = Path(tempfile.mkdtemp())
+        (self.lib / "react.production.min.js").write_text("window.React={};")
+        (self.lib / "react-dom.production.min.js").write_text("window.ReactDOM={};")
+
+    def test_packed(self):
+        out = Path(tempfile.mkdtemp())
+        plan = dm.build_ds(self.doc, out, react_lib=self.lib, now="2026-01-01T00:00:00Z")
+        proj = out / "project"
+        self.assertEqual((proj / "components/lib/react.production.min.js").read_text(), "window.React={};")
+        ix = json.loads((proj / "design-system.json").read_text())
+        self.assertEqual(ix["libraries"], [
+            {"name": "react", "version": "18.3.1", "global": "React", "file": "components/lib/react.production.min.js"},
+            {"name": "react-dom", "version": "18.3.1", "global": "ReactDOM", "file": "components/lib/react-dom.production.min.js"}])
+        for f in ("project/components/lib/react-dom.production.min.js", "project/components/bundle.js",
+                  "project/components/bundle.css", "project/components/index.d.ts"):
+            self.assertIn(f, plan["files"])
+
+    def test_not_packed(self):
+        out = Path(tempfile.mkdtemp())
+        dm.build_ds(self.doc, out, now="2026-01-01T00:00:00Z")
+        ix = json.loads((out / "project/design-system.json").read_text())
+        self.assertEqual(ix["libraries"], [{"name": "react", "version": "18.3.1", "global": "React"},
+                                           {"name": "react-dom", "version": "18.3.1", "global": "ReactDOM"}])
+        self.assertFalse((out / "project/components/lib").exists())
+
+    def test_cli_missing_lib(self):
+        empty = Path(tempfile.mkdtemp())
+        self.assertEqual(dm.main(["ds", str(write(SAMPLE)), "-o", str(Path(tempfile.mkdtemp())),
+                                  "--react-lib", str(empty)]), 2)
+        out = Path(tempfile.mkdtemp())
+        self.assertEqual(dm.main(["ds", str(write(SAMPLE)), "-o", str(out), "--react-lib", str(self.lib)]), 0)
+        self.assertTrue((out / "project/components/lib/react-dom.production.min.js").exists())
+
+
+PAGE = """<!doctype html>
+<html><head><meta charset="utf-8"><title>Home</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces&display=swap">
+<style>body{background:var(--paper)}</style></head>
+<body><h1 class="display">Fresh bread</h1><a href="mailto:hello@example.com">Mail</a><img src="data:image/png;base64,AAAA" alt=""></body></html>
+"""
+
+
+class PageTest(unittest.TestCase):
+    def setUp(self):
+        self.doc = dm.load(write(SAMPLE))
+        self.dir = Path(tempfile.mkdtemp())
+
+    def page(self, name, text):
+        p = self.dir / name
+        p.write_text(text)
+        return p
+
+    def test_card_marker_readme_and_height(self):
+        home = self.page("home.html", PAGE)
+        self.page("home.md", "# Home\n\nThe shop's front page.\n")
+        out = Path(tempfile.mkdtemp())
+        dm.build_ds(self.doc, out, pages=dm.parse_pages([f"home_page={home}"]), now="2026-01-01T00:00:00Z")
+        prev = (out / "project/components/HomePage/preview.html").read_text()
+        self.assertEqual(prev.splitlines()[0], '<!-- @dsCard group="Examples" height=560 page -->')
+        self.assertEqual(prev.splitlines()[0], dm.PAGE_MARKER.format(height=560))
+        self.assertIn("Fresh bread", prev)
+        self.assertEqual((out / "project/components/HomePage/README.md").read_text(), "# Home\n\nThe shop's front page.\n")
+        self.assertNotIn("HomePage", dm.bundle_js(self.doc))  # a page, not a bundle export
+        self.assertIn("Examples (HomePage)", (out / "project/README.md").read_text())
+
+    def test_height_meta_old_marker_and_generic_readme(self):
+        text = '<!-- @dsCard group="Old" height=90 -->\n<meta name="ds-height" content="900">\n' + PAGE
+        prev, readme = dm.page_card("Menu", self.page("menu.html", text), 400)
+        self.assertTrue(prev.startswith('<!-- @dsCard group="Examples" height=900 page -->\n<meta'))
+        self.assertEqual(prev.count("@dsCard"), 1)
+        self.assertIn("`menu.html`", readme)
+        self.assertTrue(readme.startswith("# Menu\n"))
+        prev, _ = dm.page_card("Menu", self.page("plain.html", PAGE), 400)
+        self.assertTrue(prev.startswith('<!-- @dsCard group="Examples" height=400 page -->'))
+        prev, _ = dm.page_card("Menu", self.page("huge.html", '<meta name="ds-height" content="99999">' + PAGE))
+        self.assertIn("height=4000 page", prev.splitlines()[0])
+
+    def test_refuses_unsafe_pages(self):
+        bad = {
+            "frame.html": PAGE.replace("<body>", '<body><iframe src="x.html"></iframe>'),
+            "embed.html": PAGE.replace("<body>", "<body><EMBED src=a.swf>"),
+            "noscript.html": PAGE.replace("<body>", "<body><noscript>x</noscript>"),
+            "cdn.html": PAGE.replace("</head>", '<link rel="stylesheet" href="https://cdn.example.com/a.css"></head>'),
+            "img.html": PAGE.replace("<body>", "<body><img src='//images.example.com/a.png'>"),
+            "css.html": PAGE.replace("var(--paper)", "url(https://images.example.com/bg.png)"),
+            "script.html": PAGE.replace("</head>", '<script src="https://fonts.googleapis.com/x.js"></script></head>'),
+            "js.html": PAGE.replace("mailto:hello@example.com", "javascript:alert(1)"),
+        }
+        for name, text in bad.items():
+            with self.assertRaises(ValueError, msg=name):
+                dm.page_card("Bad", self.page(name, text))
+        self.assertEqual(dm.check_page_html(PAGE.replace("</head>", '<script src="app.js"></script></head>')), [])
+
+    def test_names_and_cli(self):
+        home = self.page("home.html", PAGE)
+        with self.assertRaises(ValueError):
+            dm.parse_pages([f"home-page={home}"])
+        with self.assertRaises(ValueError):
+            dm.parse_pages([f"Home={self.dir / 'missing.html'}"])
+        with self.assertRaises(ValueError):
+            dm.build_ds(self.doc, Path(tempfile.mkdtemp()), pages=dm.parse_pages([f"buttonPrimary={home}"]))
+        bad = self.page("bad.html", PAGE.replace("<body>", "<body><object></object>"))
+        self.assertEqual(dm.main(["ds", str(write(SAMPLE)), "-o", str(Path(tempfile.mkdtemp())), "--page", f"Bad={bad}"]), 2)
+        out = Path(tempfile.mkdtemp())
+        self.assertEqual(dm.main(["ds", str(write(SAMPLE)), "-o", str(out), "--page", f"Home={home}",
+                                  "--page-height", "700"]), 0)
+        self.assertIn("height=700 page", (out / "project/components/Home/preview.html").read_text())
+
+
+ICON = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="1.75"><path d="M4 8h12v6H4z"/></svg>')
+
+
+class AssetNoteTest(unittest.TestCase):
+    def doc_with(self, *titles):
+        text = SAMPLE + "".join(f"\n## {t}\n\nNotes for {t}.\n" for t in titles)
+        return dm.load(write(text))
+
+    def test_stem_and_exact(self):
+        doc = self.doc_with("Iconography", "Photography and imagery", "Logo", "Company voice")
+        self.assertEqual(dm.asset_note(doc, "Icons"), "Notes for Iconography.")
+        self.assertEqual(dm.asset_note(doc, "Photos"), "Notes for Photography and imagery.")
+        self.assertEqual(dm.asset_note(doc, "Logos"), "Notes for Logo.")
+        self.assertIsNone(dm.asset_note(doc, "Components"))  # "comp" alone is no shared stem
+        self.assertIsNone(dm.asset_note(doc, "Fonts"))
+
+    def test_exact_first(self):
+        doc = self.doc_with("Iconography", "Icons")
+        self.assertEqual(dm.asset_note(doc, "Icons"), "Notes for Icons.")
+
+    def test_group_readme_in_build(self):
+        doc = self.doc_with("Iconography")
+        src = Path(tempfile.mkdtemp())
+        (src / "cup.svg").write_text(ICON)
+        (src / "mark.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg"><path fill="#111" d="M0 0h1v1z"/></svg>')
+        photos = Path(tempfile.mkdtemp())
+        (photos / "a.jpg").write_bytes(b"\xff\xd8\xff")
+        out = Path(tempfile.mkdtemp())
+        dm.build_ds(doc, out, assets=[("Icons", src), ("Photos", photos)], now="2026-01-01T00:00:00Z")
+        icons = (out / "project/assets/Icons/README.md").read_text()
+        self.assertTrue(icons.startswith("# Icons\n\nNotes for Iconography.\n"))
+        self.assertIn("`currentColor`: `cup.svg`.", icons)
+        self.assertNotIn("mark.svg", icons)
+        self.assertIn("never redraw them", (out / "project/assets/Photos/README.md").read_text())
+        readme = (out / "project/README.md").read_text()
+        self.assertIn("- Asset groups: Icons, Photos.", readme)
+        self.assertIn("Single-ink SVG icons draw with `currentColor`", readme)
+
+
+class UsingSectionTest(unittest.TestCase):
+    def test_section(self):
+        doc = dm.load(write(SAMPLE))
+        s = dm.using_section(doc, ["Logos"])
+        lines = s.strip().splitlines()
+        self.assertEqual(lines[0], "## Using this system")
+        self.assertLessEqual(len(lines), 12)
+        self.assertIn("`light`, `dark`. The first, `light`, is the fallback", s)
+        self.assertIn("(`on-primary` on `primary`)", s)
+        self.assertIn("`window.AcmeBakery` in `components/bundle.js`", s)
+        self.assertIn("React 18", s)
+        self.assertIn("- Asset groups: Logos.", s)
+        self.assertNotIn("currentColor", s)
+        self.assertTrue(lines[-1].startswith("- DESIGN.md is the source."))
+        readme = dm.ds_readme(doc)
+        self.assertTrue(readme.rstrip().endswith("Change it there and build this page again."))
+        self.assertEqual(readme.count("## Using this system"), 1)
+
+    def test_own_section_wins(self):
+        doc = dm.load(write(SAMPLE + "\n## Using this system\n\nOur own words.\n"))
+        readme = dm.ds_readme(doc)
+        self.assertEqual(readme.count("## Using this system"), 1)
+        self.assertIn("Our own words.", readme)
+
+
+class RenderIconTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp())
+        (self.dir / "cup.svg").write_text('<?xml version="1.0"?>' + ICON)
+        (self.dir / ".hidden.svg").write_text(ICON)
+
+    def test_own_section_inline_on_ink(self):
+        page = dm.render_html(dm.load(write(SAMPLE)), icons=dm.expand_files([str(self.dir)], dm.ICON_EXT))
+        self.assertIn(">Iconography</h2>", page)
+        self.assertIn('<div class="ic-tile"><svg aria-hidden="true" focusable="false" xmlns=', page)
+        self.assertIn('stroke="currentColor"', page)
+        self.assertIn("color:var(--ink)", page)
+        self.assertNotIn(".hidden.svg", page)
+        self.assertNotIn("<?xml", page)
+
+    def test_matches_existing_section(self):
+        doc = dm.load(write(SAMPLE + "\n## Icons\n\nLine icons, 1.75 stroke.\n"))
+        page = dm.render_html(doc, icons=[self.dir / "cup.svg"])
+        self.assertNotIn(">Iconography</h2>", page)
+        self.assertRegex(page, r'<section id="icons"><h2>Icons</h2><div class="ic-grid">')
+
+    def test_cli(self):
+        p = write(SAMPLE)
+        out = p.with_name("view.html")
+        self.assertEqual(dm.main(["render", str(p), "-o", str(out), "--icon", str(self.dir / "cup.svg")]), 0)
+        self.assertIn('class="ic-tile"', out.read_text())
+        bad = self.dir / "bad.svg"
+        bad.write_text('<svg onload="x()"></svg>')
+        self.assertEqual(dm.main(["render", str(p), "-o", str(out), "--icon", str(bad)]), 2)
+        self.assertEqual(dm.main(["render", str(p), "-o", str(out), "--icon", str(self.dir / "nope")]), 2)
 
 
 class CliTest(unittest.TestCase):

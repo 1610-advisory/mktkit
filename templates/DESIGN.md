@@ -58,6 +58,10 @@ One bullet per token, bold label first, so the Design System page can use it as 
 
 ## Shapes
 
+## Iconography
+
+[Which icon set (the business's own files, never invented), line or fill, stroke width, sizes, and which color tokens they take. Single-ink SVGs use `currentColor`. No icon set: say so here.]
+
 ## Components
 
 ## Do's and Don'ts
