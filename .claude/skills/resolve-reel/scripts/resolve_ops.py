@@ -129,12 +129,18 @@ def apply_grade(item, cdl, lut, vignette=0.035, drx=None):
 
 def add_graphics(p, tl, captions_mov, cover_mov, frames, cover_frames, captions_track=3, cover_track=4):
     mp = p.GetMediaPool()
-    cap, cov = mp.ImportMedia([captions_mov, cover_mov])
+    # cover.seconds 0 (no cover card): the cover mov has no frames, so import captions only
+    if cover_frames <= 0:
+        cap, cov = mp.ImportMedia([captions_mov])[0], None
+    else:
+        cap, cov = mp.ImportMedia([captions_mov, cover_mov])
     for c in (cap, cov):
-        set_clip_input(p, c, 'Rec.709 Gamma 2.4')
+        if c:
+            set_clip_input(p, c, 'Rec.709 Gamma 2.4')
     t0 = tl.GetStartFrame()
     mp.AppendToTimeline([{'mediaPoolItem': cap, 'startFrame': 0, 'endFrame': frames, 'trackIndex': captions_track, 'recordFrame': t0, 'mediaType': 1}])
-    mp.AppendToTimeline([{'mediaPoolItem': cov, 'startFrame': 0, 'endFrame': cover_frames, 'trackIndex': cover_track, 'recordFrame': t0, 'mediaType': 1}])
+    if cov:
+        mp.AppendToTimeline([{'mediaPoolItem': cov, 'startFrame': 0, 'endFrame': cover_frames, 'trackIndex': cover_track, 'recordFrame': t0, 'mediaType': 1}])
 
 
 def voice_chain(tl, gain_db):
