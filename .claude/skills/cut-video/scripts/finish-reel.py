@@ -523,26 +523,156 @@ def map_words_to_output(
     return mapped
 
 
-def _cue_line_count(text: str, max_chars: int) -> int:
-    if not text:
-        return 0
-    lines = 1
-    cur = 0
-    for w in text.split():
-        add = len(w) if cur == 0 else len(w) + 1
-        if cur and cur + add > max_chars:
-            lines += 1
-            cur = len(w)
-        else:
-            cur += add
-    return lines
+# Words a caption line or cue must not end on: articles, prepositions, conjunctions,
+# subject pronouns, auxiliaries and possessives. A line ending on one reads as a
+# dangling half-phrase ("want out of", "design a", "that I"); the word moves to the
+# next line or cue instead. Trailing punctuation lifts the rule ("that I." is fine).
+WEAK_LINE_END_WORDS = frozenset("""
+a an the
+of to in on at for from with by into onto about as like than
+between during among toward towards upon per via versus
+and but or nor so if because that which who
+i you we they he she
+is are was were be been am can could will would shall should may might must
+do does did has have had don't can't won't didn't doesn't isn't aren't wasn't
+my your our their his her its
+i'm i've i'll i'd you're you've you'll you'd we're we've we'll we'd
+they're they've they'll it's that's there's here's what's let's
+""".split())
+
+# Line ends that read weakly but can close a phrase ("look around", "what we want
+# out"): a small cost only, so they break ties rather than force a break elsewhere.
+SOFT_LINE_END_WORDS = frozenset("""
+this these those every each some any no not very really just
+out up how what where when why whose
+around over after before under through across along behind inside without within
+""".split())
+
+# A break just before one of these starts a new clause.
+_CLAUSE_STARTERS = frozenset("and but or so because when while if which who where then".split())
+
+_CLAUSE_END = (",", ";", ":", "\u2014", "\u2013", "-", "\u2026")
+_TOKEN_EDGE = "\"'()[]\u201c\u201d\u2018\u2019"
+
+# Cue grouping costs (phrase style). Lower wins; see _segment_phrase_run.
+_COST_WEAK_END = 100.0       # a cue or line that ends on a weak word
+_COST_SOFT_END = 5.0         # a cue or line that ends on a soft-weak word ("this", "out")
+_COST_ONE_WORD_LINE = 15.0   # a lone word on a line of a multi-line cue
+_COST_ORPHAN_CUE = 25.0      # a one-word cue ("person", "spaces.")
+_COST_SHORT_TAIL = 6.0       # a two-word sentence tail on its own cue
+_COST_CUE = 4.0              # every cue
+_COST_SPLIT = 6.0            # a cue break mid-phrase
+_COST_SPLIT_PHRASE = 3.5     # a cue break before a phrase-starting word ("the", "for", "we")
+_COST_SPLIT_SOFT = 1.5       # a cue break at a comma, a pause, or before "and", "but" ...
+_COST_MID_STOP = 12.0        # a sentence end inside a cue
+_CAPTION_OVERRUN_S = 0.6     # a cue may run this far past max_dur rather than orphan a word
+_CAPTION_PAUSE_S = 0.25      # a gap this long between words is a natural break
+
+
+def _ends_sentence(tok: str) -> bool:
+    return tok.rstrip(_TOKEN_EDGE).endswith((".", "?", "!"))
+
+
+def _ends_clause(tok: str) -> bool:
+    return tok.rstrip(_TOKEN_EDGE).endswith((".", "?", "!") + _CLAUSE_END)
+
+
+def _norm_tok(tok: str) -> str:
+    return tok.replace("\u2019", "'").strip(_TOKEN_EDGE).lower()
+
+
+def _end_cost(tok: str) -> float:
+    """Cost of ending a line or a cue on this token, when more words follow."""
+    if _ends_clause(tok):
+        return 0.0   # trailing punctuation closes the phrase ("that I." is fine)
+    t = _norm_tok(tok)
+    if t in WEAK_LINE_END_WORDS:
+        return _COST_WEAK_END
+    if t in SOFT_LINE_END_WORDS:
+        return _COST_SOFT_END
+    return 1.0
+
+
+def _is_weak_end(tok: str) -> bool:
+    """True when a line or cue must not end on this token."""
+    return _end_cost(tok) >= _COST_WEAK_END
+
+
+def _best_wrap(tokens: list[str], max_chars: int, max_lines: int) -> tuple[float, list[str]] | None:
+    """Best line layout for one cue: (cost, lines), or None when it cannot fit.
+
+    Text that fits one line stays on one line. Otherwise lines are balanced, a lone
+    word on a line is avoided, and no line ends on a weak word. A single word longer
+    than max_chars may take a line by itself.
+    """
+    if not tokens:
+        return 0.0, []
+    m = len(tokens)
+    if max_chars <= 0 or len(" ".join(tokens)) <= max_chars:
+        return 0.0, [" ".join(tokens)]
+    limit = m if max_lines <= 0 else min(max_lines, m)
+    if limit < 2:
+        return None
+    lens = [len(t) for t in tokens]
+
+    def line_len(a: int, b: int) -> int:
+        return sum(lens[a:b]) + (b - a - 1)
+
+    inf = float("inf")
+    # best[k][j]: cost of tokens[:j] laid out in exactly k lines
+    best = [[inf] * (m + 1) for _ in range(limit + 1)]
+    back = [[-1] * (m + 1) for _ in range(limit + 1)]
+    best[0][0] = 0.0
+    for k in range(1, limit + 1):
+        for j in range(k, m + 1):
+            for i in range(j - 1, k - 2, -1):
+                if best[k - 1][i] == inf:
+                    continue
+                ln = line_len(i, j)
+                if ln > max_chars and j - i > 1:
+                    break
+                c = ((max_chars - min(ln, max_chars)) / max_chars) ** 2 * 4.0
+                if j - i == 1:
+                    c += _COST_ONE_WORD_LINE
+                if j < m:
+                    c += _end_cost(tokens[j - 1])
+                total = best[k - 1][i] + c
+                if total < best[k][j]:
+                    best[k][j] = total
+                    back[k][j] = i
+    choice: tuple[float, int] | None = None
+    for k in range(2, limit + 1):
+        if best[k][m] == inf:
+            continue
+        cost = best[k][m] + 6.0 * (k - 2)
+        if choice is None or cost < choice[0]:
+            choice = (cost, k)
+    if choice is None:
+        return None
+    cost, k = choice
+    lines: list[str] = []
+    j = m
+    while k > 0:
+        i = back[k][j]
+        lines.append(" ".join(tokens[i:j]))
+        j, k = i, k - 1
+    lines.reverse()
+    return cost, lines
 
 
 def wrap_cue_lines(text: str, max_chars: int, max_lines: int) -> str:
-    """Wrap cue text to at most max_lines. Real newlines become ASS \\N later."""
+    """Wrap cue text to at most max_lines. Real newlines become ASS \\N later.
+
+    Balanced lines, never a line ending on a weak word when another layout fits.
+    Text that cannot fit max_lines falls back to greedy wrap with the overflow kept
+    on the last line.
+    """
     words = text.split()
     if not words or max_chars <= 0:
         return text
+    best = _best_wrap(words, max_chars, max_lines)
+    if best is not None:
+        return "\n".join(best[1])
     lines: list[str] = []
     cur: list[str] = []
     for w in words:
@@ -622,35 +752,95 @@ def _group_word_cues(
     return cues
 
 
-def _ends_sentence(tok: str) -> bool:
-    return tok.rstrip("\"')").endswith((".", "?", "!"))
-
-
-def _balance_sentence_tails(
-    groups: list[tuple[list[tuple[float, float, str]], int]],
+def _segment_phrase_run(
+    run: list[tuple[float, float, str]],
     max_chars: int,
+    max_dur: float,
+    min_cue: float,
     max_lines: int,
-    tail: int = 3,
-) -> list[tuple[list[tuple[float, float, str]], int]]:
-    """Give a sentence's last one or two words some company on their cue.
+) -> list[list[tuple[float, float, str]]]:
+    """Split one keep-range's words into cues at the lowest total cost.
 
-    When a cue holds only the end of a sentence ("door.", "is open."), pull words
-    back from the cue before it (same sentence, same keep-range) until it holds `tail`
-    words. The cue before keeps at least two words, and both still fit the line limit.
+    Hard limits: each cue fits max_lines lines of max_chars, and lasts at most
+    max_dur plus _CAPTION_OVERRUN_S (a single word always fits). Costs steer the
+    breaks to sentence ends, then commas and pauses, never after a weak word, and
+    away from one-word cues, lone words on a line and lopsided cues.
     """
-    out = [(list(g), sp) for g, sp in groups]
-    for i in range(1, len(out)):
-        prev, psp = out[i - 1]
-        cue, sp = out[i]
-        if sp != psp or len(cue) >= tail or not _ends_sentence(cue[-1][2]) \
-                or _ends_sentence(prev[-1][2]):
-            continue
-        while len(cue) < tail and len(prev) > 2 and not _ends_sentence(prev[-1][2]):
-            trial = " ".join(w[2] for w in [prev[-1]] + cue)
-            if _cue_line_count(trial, max_chars) > max_lines:
+    n = len(run)
+    if n <= 1:
+        return [list(run)] if run else []
+    toks = [w[2] for w in run]
+    hard_dur = max_dur + _CAPTION_OVERRUN_S if max_dur > 0 else float("inf")
+    fill_chars = max_chars * max_lines if max_chars > 0 and max_lines > 0 else 0
+
+    def sentence_start(i: int) -> bool:
+        return i == 0 or _ends_sentence(toks[i - 1])
+
+    def split_cost(i: int) -> float:
+        """Cost of a cue break between word i-1 and word i."""
+        tok, nxt = toks[i - 1], _norm_tok(toks[i])
+        if _ends_sentence(tok):
+            return 0.0
+        end = _end_cost(tok)
+        if end >= _COST_WEAK_END:
+            return end
+        extra = end if end == _COST_SOFT_END else 0.0
+        if _ends_clause(tok) or nxt in _CLAUSE_STARTERS \
+                or (run[i][0] - run[i - 1][1]) > _CAPTION_PAUSE_S:
+            return _COST_SPLIT_SOFT + extra
+        if nxt in WEAK_LINE_END_WORDS or nxt in SOFT_LINE_END_WORDS:
+            return _COST_SPLIT_PHRASE + extra
+        return _COST_SPLIT + extra
+
+    def cue_cost(i: int, j: int, wrap_cost: float) -> float:
+        k = j - i
+        dur = run[j - 1][1] - run[i][0]
+        c = _COST_CUE + wrap_cost
+        if max_dur > 0 and dur > max_dur:
+            whole_sentence = sentence_start(i) and _ends_sentence(toks[j - 1])
+            over = dur - max_dur
+            c += (2.0 + 10.0 * over) if whole_sentence else (12.0 + 20.0 * over)
+        if dur < min_cue:
+            c += 3.0
+        if k == 1:
+            c += 10.0 if sentence_start(i) and _ends_sentence(toks[i]) else _COST_ORPHAN_CUE
+        elif k == 2 and not sentence_start(i) and _ends_sentence(toks[j - 1]):
+            c += _COST_SHORT_TAIL
+        for m in range(i, j - 1):
+            if _ends_sentence(toks[m]):
+                c += _COST_MID_STOP
+            if run[m + 1][0] - run[m][1] > 0.6:
+                c += 3.0   # a long silence held on screen
+        if fill_chars:
+            c += 3.0 * (len(" ".join(toks[i:j])) / fill_chars) ** 2
+        return c
+
+    inf = float("inf")
+    best = [inf] * (n + 1)
+    back = [0] * (n + 1)
+    best[0] = 0.0
+    for j in range(1, n + 1):
+        for i in range(j - 1, -1, -1):
+            k = j - i
+            if k > 1 and run[j - 1][1] - run[i][0] > hard_dur:
                 break
-            cue.insert(0, prev.pop())
-    return out
+            wrap = _best_wrap(toks[i:j], max_chars, max_lines)
+            if wrap is None:
+                if k > 1:
+                    break
+                wrap = (0.0, [toks[i]])
+            total = best[i] + cue_cost(i, j, wrap[0]) + (split_cost(i) if i else 0.0)
+            if total < best[j]:
+                best[j] = total
+                back[j] = i
+    groups: list[list[tuple[float, float, str]]] = []
+    j = n
+    while j > 0:
+        i = back[j]
+        groups.append(list(run[i:j]))
+        j = i
+    groups.reverse()
+    return groups
 
 
 def group_caption_cues(
@@ -661,46 +851,30 @@ def group_caption_cues(
     max_lines: int = 2,
     style: str = "phrase",
 ) -> list[tuple[float, float, str]]:
-    """Pack words into cues. Never let a cue span a keep-range join."""
+    """Pack words into cues. Never let a cue span a keep-range join.
+
+    Phrase style picks cue breaks for the whole keep-range at once (lowest total
+    cost, see _segment_phrase_run): breaks land on sentence ends, then commas and
+    pauses; a cue or line never ends on a weak word ("of", "the", "I", "you", "is"
+    ...); a one-word cue merges into its neighbour, running up to
+    _CAPTION_OVERRUN_S past max_dur if it must. Cue times stay the first word's
+    start and the last word's end; short cues then get the min_cue rule.
+    """
     if style == "word":
         return _group_word_cues(words, min_cue=min_cue)
 
-    groups: list[tuple[list[tuple[float, float, str]], int]] = []
-    cur: list[tuple[float, float, str]] = []
-    start: float | None = None
-    prev_end = 0.0
-    cur_span = 0
+    runs: list[tuple[list[tuple[float, float, str]], int]] = []
     for item in words:
         ws, we, tok = item[0], item[1], item[2]
         span = item[3] if len(item) > 3 else 0
-        if start is None:
-            start = ws
-            cur_span = span
-        trial = " ".join([w[2] for w in cur] + [tok])
-        crossed = bool(cur) and span != cur_span
-        too_long = bool(cur) and (we - start) > max_dur
-        too_many_lines = bool(cur) and _cue_line_count(trial, max_chars) > max_lines
-        # A sentence's last word stays with its sentence rather than sitting alone
-        # on the next cue ("...at the end of the" / "hall."), if it still fits.
-        if too_long and not crossed and not too_many_lines and _ends_sentence(tok) \
-                and (we - start) <= max_dur + 0.8:
-            too_long = False
-        # Phrase cues close at a sentence end, so no cue runs on past a full stop.
-        after_stop = bool(cur) and _ends_sentence(cur[-1][2]) and (prev_end - start) >= min_cue
-        if cur and (crossed or too_long or too_many_lines or after_stop):
-            groups.append((cur, cur_span))
-            cur = [(ws, we, tok)]
-            start = ws
-            cur_span = span
-        else:
-            cur.append((ws, we, tok))
-            cur_span = span
-        prev_end = we
-    if cur:
-        groups.append((cur, cur_span))
+        if not runs or runs[-1][1] != span:
+            runs.append(([], span))
+        runs[-1][0].append((ws, we, tok))
 
-    groups = _balance_sentence_tails(groups, max_chars, max_lines)
-    packed = [(g[0][0], g[-1][1], " ".join(w[2] for w in g), sp) for g, sp in groups]
+    packed: list[tuple[float, float, str, int]] = []
+    for run, span in runs:
+        for g in _segment_phrase_run(run, max_chars, max_dur, min_cue, max_lines):
+            packed.append((g[0][0], g[-1][1], " ".join(w[2] for w in g), span))
     packed = _enforce_min_cue(packed, min_cue)
     out: list[tuple[float, float, str]] = []
     for s, e, text, _span in packed:

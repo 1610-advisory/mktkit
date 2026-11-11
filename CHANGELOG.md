@@ -2,6 +2,9 @@
 
 Plain-language history of the 1610 Marketing Toolkit. Newest first.
 
+## 2026-11-10
+- Fixed reel captions ending a line or a card on a small word ("out of", "from the", "that I") or leaving one word alone ("person."). Caption breaks now go at sentence ends, commas and pauses, and the two lines of a card are balanced.
+
 ## 2026-10-28
 - Made DESIGN.md the required brand file for every business. A new script checks it, turns it into one local web page any assistant can make, and builds a private claude.ai design system page from it in Claude sessions. The file stays the source; the pages are views of it.
 - Headers on those pages now show the business's real logo file, not the name typed in a font, so a hand-set mark (special numerals, custom spacing) always looks right.
