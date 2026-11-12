@@ -44,6 +44,9 @@ def fixture(root: Path) -> None:
     mp4(shoot / "Video" / "ARoll-Walkthrough-PRIMARY.MP4")
     mp4(shoot / "Video" / "BRoll-Brick-Detail.MP4")
     mp4(shoot / "Video" / "Scrap-False-Start.MP4")
+    # macOS AppleDouble sidecars on exFAT drives: never media
+    mp4(shoot / "Video" / "._ARoll-Walkthrough-PRIMARY.MP4")
+    jpeg(shoot / "Photos" / "_edited" / "._hero.jpg")
     write(shoot / "Audio" / "ARoll-Walkthrough-PRIMARY.txt", "the wall is gone")
     write(shoot / "Audio" / "ARoll-Walkthrough-PRIMARY.json", '{"words":[]}')
     jpeg(shoot / "Photos" / "_edited" / "hero.jpg")
@@ -117,6 +120,7 @@ def test_ingest_fixture() -> None:
         assert "2026_Acme_Kitchen/2026-08-17/Art/keeper.jpg" in rels
         assert not any("Scrap" in rel for rel in rels)
         assert not any("raw-skip" in rel for rel in rels)
+        assert not any("/._" in rel for rel in rels)
         aroll = kinds["aroll"]
         assert aroll["social_name"] == "1900 Kitchen"
         assert aroll["shoot_date"] == "2026-08-17"

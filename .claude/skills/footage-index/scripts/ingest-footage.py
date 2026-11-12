@@ -47,6 +47,11 @@ BROLL_INDEX_PY = (
 )
 
 
+
+def is_appledouble(path: Path) -> bool:
+    """macOS writes ._<name> metadata files on exFAT/FAT drives; they are not media."""
+    return path.name.startswith("._")
+
 def eprint(msg: str) -> None:
     print(msg, file=sys.stderr)
 
@@ -451,7 +456,7 @@ def ingest_shoot(
     audio_dir = shoot_dir / "Audio"
     if video_dir.is_dir():
         for path in sorted(video_dir.iterdir()):
-            if not path.is_file() or path.suffix.lower() not in VIDEO_EXT:
+            if not path.is_file() or is_appledouble(path) or path.suffix.lower() not in VIDEO_EXT:
                 continue
             mapped = mapping.get(path.name, {})
             kind = classify_video(path.name, mapped.get("type"))
@@ -465,13 +470,13 @@ def ingest_shoot(
     edited = shoot_dir / "Photos" / "_edited"
     if edited.is_dir():
         for path in sorted(edited.rglob("*")):
-            if path.is_file() and path.suffix.lower() in IMAGE_EXT:
+            if path.is_file() and not is_appledouble(path) and path.suffix.lower() in IMAGE_EXT:
                 add_row(path, "photo_edited", None, None, None)
 
     art = shoot_dir / "Art"
     if art.is_dir():
         for path in sorted(art.rglob("*")):
-            if path.is_file() and path.suffix.lower() in IMAGE_EXT:
+            if path.is_file() and not is_appledouble(path) and path.suffix.lower() in IMAGE_EXT:
                 add_row(path, "art", None, None, None)
 
     return rows
