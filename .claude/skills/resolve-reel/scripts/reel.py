@@ -810,7 +810,7 @@ def graphics(plan, style, style_path, work, cache, dry=False):
               'platforms': plan['platforms'], 'lead': plan['lead_frames'], 'tail': plan['tail_frames'],
               'words': {c: file_sha(w) for c, w in words.items()},
               'style': {k: style.get(k) for k in ('captions', 'cover', 'platforms')},
-              'shadow': (style.get('resolve') or {}).get('cover_shadow'),
+              'shadow': (style.get('resolve') or {}).get('cover_shadow'), 'scrim': (style.get('resolve') or {}).get('cover_scrim'),
               'code': [file_sha(HOUSE_GRAPHICS), file_sha(FINISH)]}   # finish-reel.py groups the cues
     for f in ((style.get('captions') or {}).get('font'), (style.get('cover') or {}).get('font')):
         if f and Path(f).exists():

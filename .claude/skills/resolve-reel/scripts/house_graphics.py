@@ -125,16 +125,24 @@ subprocess.run(['ffmpeg', '-y', '-hide_banner', '-loglevel', 'error', '-f', 'lav
 font = ImageFont.truetype(str(need(cv['font'], 'cover font')), cv.get('size', 72))
 text = CFG['cover_text'].upper() if cv.get('case', 'as-is') == 'upper' else CFG['cover_text']
 canvas = Image.new('RGBA', (1080, 1920), (0, 0, 0, 0))
-l, t, r, b = ImageDraw.Draw(canvas).textbbox((0, 0), text, font=font)
+l, t, r, b = ImageDraw.Draw(canvas).textbbox((0, 0), text, font=font, align='center')
 x = (1080 - (r - l)) // 2 - l
 y = (1920 - (b - t)) // 2 - t if cv.get('anchor', 'center') == 'center' else safe['top'] + 24 - t
 rs = (STYLE.get('resolve') or {}).get('cover_shadow', {})
 sh = None if rs is False else {**DEFAULT_SHADOW, **(rs or {})}
+# optional soft dark pad behind the cover text, for long text held over busy footage
+sc = (STYLE.get('resolve') or {}).get('cover_scrim')
+if sc:
+    pad, bl = sc.get('pad', 120), sc.get('blur', 70)
+    layer = Image.new('RGBA', canvas.size, (0, 0, 0, 0))
+    ImageDraw.Draw(layer).rounded_rectangle((x + l - pad, y + t - pad, x + r + pad, y + b + pad), pad // 2,
+                                            fill=(0, 0, 0, round(255 * sc.get('alpha', 0.45))))
+    canvas = Image.alpha_composite(canvas, layer.filter(ImageFilter.GaussianBlur(bl)))
 if sh:
     layer = Image.new('RGBA', canvas.size, (0, 0, 0, 0))
-    ImageDraw.Draw(layer).text((x, y + sh['y']), text, font=font, fill=(0, 0, 0, round(255 * sh['alpha'])))
+    ImageDraw.Draw(layer).text((x, y + sh['y']), text, font=font, align='center', fill=(0, 0, 0, round(255 * sh['alpha'])))
     canvas = Image.alpha_composite(layer.filter(ImageFilter.GaussianBlur(sh['blur'] / 2)), canvas)
-ImageDraw.Draw(canvas).text((x, y), text, font=font, fill=cv.get('color', '#FFFFFF'))
+ImageDraw.Draw(canvas).text((x, y), text, font=font, align='center', fill=cv.get('color', '#FFFFFF'))
 canvas.save(out / 'cover.png')
 cover_frames = round(cv.get('seconds', 2.0) * fps)
 subprocess.run(['ffmpeg', '-y', '-hide_banner', '-loglevel', 'error', '-loop', '1', '-framerate', '30000/1001',

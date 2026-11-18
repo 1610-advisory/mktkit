@@ -28,7 +28,7 @@ Load the business's pack first (`mkt-kit`). Read `references/edit-craft.md` (too
 | Need | Where it lives in the client repo | If it is missing |
 |---|---|---|
 | Fonts, colors, caption size, cover spec, platforms | `resources/reel-style.json` (shape: `../cut-video/resources/style.example.json`) | Ask; fonts from `knowledge/DESIGN.md` (no stock-font fallback) |
-| Grade choices: camera input, look, face IRE, WB target, vignette, voice gain; cover shadow | `reel-style.json` → `resolve.grade` block (+ `resolve.cover_shadow`) | Skill defaults (below) and say so |
+| Grade choices: camera input, look, face IRE, WB target, vignette, voice gain; cover shadow and backing | `reel-style.json` → `resolve.grade` block (+ `resolve.cover_shadow`; optional `resolve.cover_scrim` `{alpha, pad, blur}`: a soft dark pad behind long cover text held over busy footage) | Skill defaults (below) and say so |
 | Per-camera grade overrides | `resolve.grade.by_camera`: input color space name → `face_ire`, `sat`, `black_code`, `wb_target_709` (not `look`) | None; every shot uses the style grade |
 | Post-grade node template | `resolve.grade.post_drx`: repo-root-relative `.drx` (node 1 placeholder, node 2+ add-ons; recipe in REFERENCE.md) | None; CDL + LUT + vignette only |
 | The look itself | `grade.look_profile`, e.g. `resources/video-pipeline/look.json` (shape: `resources/look.example.json`) | Run a look review (step 0) |
