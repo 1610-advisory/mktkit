@@ -13,8 +13,14 @@ here: every color, face and word comes from the file it reads.
 Usage:
   python3 scripts/design_md.py check  knowledge/DESIGN.md
   python3 scripts/design_md.py render knowledge/DESIGN.md -o brand/design-md.html [--name-logo logo.svg]
+          [--logo FILE ...] [--icon FILE_OR_DIR ...]
   python3 scripts/design_md.py ds     knowledge/DESIGN.md -o <dir> [--asset Logos=brand/logos/svg]
-          [--name-logo logo-light.svg --name-logo dark=logo-dark.svg]
+          [--asset Icons=brand/icons] [--name-logo logo-light.svg --name-logo dark=logo-dark.svg]
+          [--page Home=site/home.html ...] [--page-height 560] [--react-lib <folder with React 18 UMD>]
+
+ds also writes components/bundle.js (window.<Namespace>, one React export per
+component), bundle.css and index.d.ts. Previews render through the bundle when
+React is on the page and fall back to static markup when it is not.
 
 Detail: references/design-md.md
 """
@@ -771,10 +777,57 @@ def _logos(paths):
     return f'<div class="lg-grid">{"".join(cells)}</div>'
 
 
-def _visual_for(doc, title, logos=()):
+ICON_EXT = {".svg", ".png", ".webp", ".gif", ".jpg", ".jpeg"}
+
+
+def expand_files(specs, exts):
+    """Files from FILE or DIR arguments, a folder's files sorted, dot-files skipped."""
+    out = []
+    for s in specs:
+        p = Path(s)
+        if p.is_dir():
+            out += sorted(f for f in p.rglob("*") if f.is_file() and f.suffix.lower() in exts
+                          and not any(part.startswith(".") for part in f.relative_to(p).parts))
+        elif p.is_file():
+            out.append(p)
+        else:
+            raise ValueError(f"{s}: no such file or folder")
+    return out
+
+
+def clean_svg(text, path="svg"):
+    """An SVG fit to inline: no XML prolog, no scripts or event handlers."""
+    svg = re.sub(r"<\?xml[^>]*>\s*", "", text)
+    svg = re.sub(r"<!DOCTYPE[^>]*>\s*", "", svg, flags=re.I).strip()
+    svg = re.sub(r"\A(<!--.*?-->\s*)+", "", svg, flags=re.S)
+    if (re.search(r"<script|<foreignObject|\son[a-z]+\s*=|javascript:", svg, re.I)
+            or not svg.startswith("<svg")):
+        raise ValueError(f"{path}: not a plain SVG")
+    return svg
+
+
+def _icons(paths):
+    """Icon tiles on the page's ink: SVGs inline (so currentColor takes the ink), other images as data URIs."""
+    import base64
+    cells = []
+    for p in paths:
+        p = Path(p)
+        if p.suffix.lower() == ".svg":
+            art = clean_svg(p.read_text(encoding="utf-8"), p)
+            art = re.sub(r"^<svg\b", '<svg aria-hidden="true" focusable="false"', art, count=1)
+        else:
+            mime = mimetypes.guess_type(p.name)[0] or "image/png"
+            art = f'<img src="data:{mime};base64,{base64.b64encode(p.read_bytes()).decode()}" alt="">'
+        cells.append(f'<figure class="ic"><div class="ic-tile">{art}</div><figcaption>{html.escape(p.name)}</figcaption></figure>')
+    return f'<div class="ic-grid">{"".join(cells)}</div>'
+
+
+def _visual_for(doc, title, logos=(), icons=()):
     t = title.lower()
     if t.startswith("logo"):
         return "logos", _logos(logos) if logos else ""
+    if t.startswith("icon"):
+        return "icons", _icons(icons) if icons else ""
     if t.startswith("color"):
         return "colors", _swatches(doc) if doc["colors"] else ""
     if t.startswith("typograph"):
@@ -837,12 +890,13 @@ def slug(s):
     return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-") or "section"
 
 
-def render_html(doc, logos=(), name_logo=None):
+def render_html(doc, logos=(), name_logo=None, icons=()):
     """One self-contained page. logos: image files shown as tiles in the Logo section (or a section of their own).
-    name_logo: {theme: svg} shown in the header in place of the typed name (see name_logo_html)."""
+    name_logo: {theme: svg} shown in the header in place of the typed name (see name_logo_html).
+    icons: icon files shown as tiles in the Iconography section (or a section of their own)."""
     sections, done = [], set()
     for title, text in doc["sections"]:
-        key, visual = _visual_for(doc, title, logos)
+        key, visual = _visual_for(doc, title, logos, icons)
         if key:
             done.add(key)
         sections.append((title, visual, md_to_html(text)))
@@ -850,6 +904,8 @@ def render_html(doc, logos=(), name_logo=None):
               "rounded": lambda d: _scale(d, "rounded"), "components": _components}
     missing = [(SECTION_FOR[k], makers[k](doc), "") for k in SECTION_FOR
                if k not in done and doc[k]]
+    if icons and "icons" not in done:
+        missing.insert(0, ("Iconography", _icons(icons), ""))
     if logos and "logos" not in done:
         missing.insert(0, ("Logo", _logos(logos), ""))
     at = 1 if sections and sections[0][0].lower() == "overview" else 0
@@ -935,6 +991,10 @@ th{{font:500 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color
 .lg-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:28px}}
 .lg{{margin:0;display:grid;gap:6px}}.lg-tile{{display:flex;align-items:center;justify-content:center;height:140px;padding:24px;outline:1px solid var(--rule);outline-offset:-1px}}
 .lg-tile img{{max-width:100%;max-height:92px}}
+.ic-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:12px;margin-bottom:28px}}
+.ic{{margin:0;display:grid;gap:6px;min-width:0}}.ic figcaption{{font-size:12px;overflow-wrap:anywhere}}
+.ic-tile{{display:flex;align-items:center;justify-content:center;height:80px;color:var(--ink);outline:1px solid var(--rule);outline-offset:-1px}}
+.ic-tile svg,.ic-tile img{{width:32px;height:32px}}
 .sw-c{{display:grid;grid-template-columns:34px minmax(0,1fr);column-gap:10px;align-items:center;min-width:0}}
 .chip{{grid-row:span 2;width:34px;height:34px;outline:1px solid var(--rule);outline-offset:-1px}}
 .sw-c code{{background:none;padding:0}}.cr{{font:400 11px var(--mono);color:var(--muted)}}
@@ -1098,7 +1158,42 @@ def tokens_json(doc):
     return out
 
 
-def ds_readme(doc):
+def using_section(doc, groups=(), current_color=(), pages=()):
+    """The generated `## Using this system` section: how to consume the page, from the tokens only.
+    groups: asset group names; current_color: asset files drawn with currentColor; pages: example card names."""
+    themes = theme_ids(doc)
+    lines = ["## Using this system", ""]
+    if len(themes) > 1:
+        lines.append("- Themes: " + ", ".join(f"`{t}`" for t in themes) + f". The first, `{themes[0]}`, is the "
+                     "fallback: a color a later theme does not set keeps its first-theme value.")
+    else:
+        lines.append(f"- One theme, `{themes[0]}`.")
+    ons = [n for n in doc["colors"] if n.startswith("on-") and n[3:] in doc["colors"]]
+    if ons:
+        lines.append(f"- A token named `on-<fill>` is the text color on a fill of that name (`{ons[0]}` on "
+                     f"`{ons[0][3:]}`). Never put plain white or black text on a fill.")
+    if doc["typography"]:
+        lines.append("- Type: put the type style's class on the element (" +
+                     ", ".join(f"`.{token_name('type', k)}`" for k in list(doc["typography"])[:4]) + ").")
+    specs = bundle_specs(doc)
+    if specs:
+        ns = namespace(doc)
+        lines.append(f"- Components are `window.{ns}` in `components/bundle.js` (" +
+                     ", ".join(f"`{ns}.{c}`" for c in list(specs)[:4]) + (", ..." if len(specs) > 4 else "") +
+                     "), styled by `components/bundle.css`. They need React 18 on the page. They take "
+                     "`className`, `children` (not a rule or an input) and, when DESIGN.md has states, `state`.")
+    if groups:
+        lines.append("- Asset groups: " + ", ".join(groups) + ". Use the files as they are; never redraw them.")
+    if current_color:
+        lines.append("- Single-ink SVG icons draw with `currentColor`: inline them to take the text color. "
+                     "In an `<img>` they show black.")
+    if pages:
+        lines.append("- Examples (" + ", ".join(pages) + ") are this business's own pages, shown as they are.")
+    lines.append("- DESIGN.md is the source. Change it there and build this page again.")
+    return "\n".join(lines) + "\n"
+
+
+def ds_readme(doc, groups=(), current_color=(), pages=()):
     head = ("> Generated from this business's `knowledge/DESIGN.md`. That file is the source: "
             "change it there and build this page again. Never edit this page as the source. "
             "If the page and the file disagree, the file wins.\n\n")
@@ -1109,37 +1204,327 @@ def ds_readme(doc):
         parts.append(doc["description"] + "\n\n")
     for title, text in doc["sections"]:
         parts.append(f"## {title}\n\n{text.strip()}\n\n")
+    if not any(_norm(t) == _norm("Using this system") for t, _ in doc["sections"]):
+        parts.append(using_section(doc, groups, current_color, pages))
     return "".join(parts).rstrip() + "\n"
 
 
+def asset_note(doc, group):
+    """The prose section that describes an asset group: an exact name first ("Logos" or "Logo"), then a
+    section whose title shares a 4+ letter stem with the group ("Icons" and "Iconography")."""
+    g = _norm(group)
+    exact = (g, _norm(group.rstrip("sS")))
+    for title, text in doc["sections"]:
+        if _norm(title) in exact:
+            return text
+    stem = _norm(group.rstrip("sS"))
+    for title, text in doc["sections"]:
+        words = re.findall(r"[A-Za-z0-9]+", title)
+        if not words:
+            continue
+        w = _norm(words[0])
+        n = 0
+        while n < min(len(w), len(stem)) and w[n] == stem[n]:
+            n += 1
+        if n >= 4 and n >= min(len(w), len(stem)) - 2:
+            return text
+    return None
+
+
+def uses_current_color(path):
+    p = Path(path)
+    if p.suffix.lower() != ".svg":
+        return False
+    try:
+        return "currentcolor" in p.read_text(encoding="utf-8", errors="ignore").lower()
+    except OSError:
+        return False
+
+
+# --------------------------------------------------------------------------
+# Example pages: a business's own HTML, shown as a showcase card
+# --------------------------------------------------------------------------
+
+PAGE_MARKER = '<!-- @dsCard group="Examples" height={height} page -->'
+PAGE_HOSTS = ("fonts.googleapis.com", "fonts.gstatic.com")
+PAGE_TAGS = re.compile(r"<\s*(iframe|frame|object|embed|portal|noscript)\b", re.I)
+DS_MARKER = re.compile(r"\A\s*<!--\s*@dsCard\b.*?-->[ \t]*\n?", re.S)
+
+
+def check_page_html(text):
+    """Problems that keep a page off the Design System page (empty list = fine)."""
+    out = []
+    for m in PAGE_TAGS.finditer(text):
+        out.append(f"<{m.group(1).lower()}> is not allowed in a card")
+    refs = re.findall(r"""\b(?:src|href)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))""", text, re.I)
+    refs = [a or b or c for a, b, c in refs]
+    refs += re.findall(r"""url\(\s*['"]?([^'")\s]+)""", text, re.I)
+    refs += re.findall(r"""@import\s+['"]([^'"]+)""", text, re.I)
+    for ref in refs:
+        r = ref.strip()
+        low = r.lower()
+        if low.startswith("javascript:"):
+            out.append(f"{r}: javascript: links are not allowed")
+            continue
+        m = re.match(r"^(?:https?:)?//([^/:?#]+)", r, re.I)
+        if m:
+            if m.group(1).lower() not in PAGE_HOSTS:
+                out.append(f"{r}: only Google Fonts may load from another host")
+        elif re.match(r"^[a-z][a-z0-9+.-]*:", low) and not low.startswith(("data:", "mailto:", "tel:")):
+            out.append(f"{r}: only relative paths, Google Fonts, data:, mailto: and tel: are allowed")
+    for m in re.finditer(r"<\s*script\b[^>]*\bsrc\s*=\s*[\"']?([^\"'\s>]+)", text, re.I):
+        if re.match(r"^([a-z][a-z0-9+.-]*:|//)", m.group(1), re.I):
+            out.append(f"<script src={m.group(1)}>: a script may load only by a relative path")
+    return list(dict.fromkeys(out))
+
+
+def parse_pages(specs):
+    """--page NAME=FILE.html → [(Comp, path)]. NAME must be a JS identifier; the card folder is its PascalCase."""
+    pages = []
+    for spec in specs:
+        name, sep, path = spec.partition("=")
+        if not sep or not re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*", name or ""):
+            raise ValueError(f"--page wants NAME=FILE.html with NAME a JS identifier, got {spec!r}")
+        p = Path(path)
+        if not p.is_file() or p.suffix.lower() not in (".html", ".htm"):
+            raise ValueError(f"--page: {path} is not an .html file")
+        comp = pascal(name)
+        if comp in [c for c, _ in pages]:
+            raise ValueError(f"--page: {comp} is named twice")
+        pages.append((comp, str(p)))
+    return pages
+
+
+def page_card(comp, path, height=560):
+    """(preview.html, README.md) for one example page. Raises ValueError when the page breaks the card rules."""
+    p = Path(path)
+    text = p.read_text(encoding="utf-8")
+    problems = check_page_html(text)
+    if problems:
+        raise ValueError(f"--page {p.name}: " + "; ".join(problems))
+    text = DS_MARKER.sub("", text, count=1).lstrip()
+    m = re.search(r"""<meta\s+name=["']ds-height["']\s+content=["'](\d+)["']""", text, re.I)
+    h = int(m.group(1)) if m else int(height)
+    h = max(40, min(4000, h))
+    md = p.with_suffix(".md")
+    if md.is_file():
+        readme = md.read_text(encoding="utf-8").rstrip() + "\n"
+    else:
+        readme = (f"# {comp}\n\nAn example page from this business's own work (`{p.name}`), shown as it is. "
+                  "It is not a component. Change the page in its own repo and build again, not here.\n")
+    return PAGE_MARKER.format(height=h) + "\n" + text, readme
+
+
+def _on_ground(doc, props):
+    r = roles(doc)
+    return bool(props.get("backgroundColor") and r["ground"]
+                and ref_parts(props["backgroundColor"]) == ("colors", r["ground"]))
+
+
 def preview_html(doc, base, states):
+    """The component's card. Static samples first (they need only tokens.css); when the frame has React and
+    the bundle, one script renders the same states through window.<namespace> in their place."""
     r = roles(doc)
     tr = type_roles(doc)
+    ns = namespace(doc)
+    comp = pascal(base)
+    kind = comp_element(base, states[0][2])[1]
+    label = humanize(base)
     cap_family = slug(family_of(doc, tr["body"])) if tr["body"] else None
-    samples = []
+    samples, figs = [], []
     for state, name, props in states:
         css, cls = _comp_style(doc, props, preview=True)
-        if props.get("backgroundColor") and r["ground"] and ref_parts(props["backgroundColor"]) == ("colors", r["ground"]):
+        edge = _on_ground(doc, props)
+        if edge:
             css += f"outline:1px solid var(--{r['rule']});"
         wide = not props.get("height") and props.get("backgroundColor")
         el_cls = ("el " + cls).strip()
         wide_cls = " wide" if wide else ""
         samples.append(f'<figure class="s{wide_cls}"><div class="{el_cls}" style="{html.escape(css)}">'
-                       f'{"" if is_rule(props) else html.escape(humanize(base))}</div><figcaption>{html.escape(state)}</figcaption></figure>')
+                       f'{"" if is_rule(props) else html.escape(label)}</div><figcaption>{html.escape(state)}</figcaption></figure>')
+        p = {"className": "el edge" if edge else "el"}
+        if state != "default":
+            p["state"] = state
+        if kind == "input":
+            p.update({"placeholder": label, "aria-label": label})
+        kids = "" if kind in ("rule", "input") else "," + js_str(label)
+        figs.append(f'h("figure",{{className:{js_str("s" + wide_cls)}}},h(N.{comp},{js_json(p)}{kids}),'
+                    f'h("figcaption",null,{js_str(state)}))')
     height = 140 if any(not p.get("height") and p.get("backgroundColor") for _, _, p in states) else 112
     ground = f"var(--{r['ground']})" if r["ground"] else "#ffffff"
     ink = f"var(--{r['ink']})" if r["ink"] else "#111111"
     muted = f"var(--{r['muted']})" if r["muted"] else ink
+    rule = f"var(--{r['rule']})" if r["rule"] else muted
     capfont = f"var(--font-{cap_family})" if cap_family else "system-ui, sans-serif"
+    script = ("<script>\n(function(){var N=window." + ns + ",R=window.React,D=window.ReactDOM;\n"
+              "if(!N||!N." + comp + "||!R||!D||!D.createRoot){return}\nvar h=R.createElement;\n"
+              "D.createRoot(document.getElementById(\"root\")).render(h(R.Fragment,null,\n"
+              + ",\n".join(figs) + "));\n})();\n</script>\n")
     return (f'<!-- @dsCard group="Components" height={height} -->\n<!doctype html>\n<html lang="en">\n<head>\n'
-            f'<meta charset="utf-8">\n<title>{html.escape(humanize(base))}</title>\n<style>\n'
+            f'<meta charset="utf-8">\n<title>{html.escape(label)}</title>\n<style>\n'
             f"/* Generated from DESIGN.md components.{base}. Edit the file, not this preview. */\n"
             f"html,body{{margin:0}}body{{background:{ground};color:{ink};padding:16px;font-family:{capfont}}}\n"
             ".row{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}\n"
             ".s{margin:0;display:grid;gap:6px;justify-items:start}.s.wide{flex:1 1 100%;justify-items:stretch}\n"
             ".el{display:inline-flex;align-items:center;box-sizing:border-box}.s.wide .el{display:flex;min-height:72px}\n"
+            f".edge{{outline:1px solid {rule}}}\n"
             f"figcaption{{font:12px/1.4 {capfont};color:{muted}}}\n"
-            f'</style>\n</head>\n<body>\n<div class="row">{"".join(samples)}</div>\n</body>\n</html>\n')
+            f'</style>\n</head>\n<body>\n<div class="row" id="root">{"".join(samples)}</div>\n{script}</body>\n</html>\n')
+
+
+# --------------------------------------------------------------------------
+# The component bundle: one React export per base component (no build step)
+# --------------------------------------------------------------------------
+
+REACT_VERSION = "18.3.1"
+REACT_LIBS = (("react", "React", "react.production.min.js"), ("react-dom", "ReactDOM", "react-dom.production.min.js"))
+STATE_SELECTORS = {"hover": [":hover"], "focus": [":focus-visible"], "active": [":active"],
+                   "pressed": ['[aria-pressed="true"]'], "disabled": [":disabled", '[aria-disabled="true"]'],
+                   "selected": ['[aria-selected="true"]']}
+# Zero-specificity resets (:where), so the type class from tokens.css still sets the font.
+ELEMENT_RESET = {
+    "button": "font:inherit;border:0;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box",
+    "input": "font:inherit;border:0;box-sizing:border-box",
+    "rule": "display:block;border:0;margin:0",
+    "div": "box-sizing:border-box", "nav": "box-sizing:border-box",
+}
+DTS_ATTRS = {"button": "React.ButtonHTMLAttributes<HTMLButtonElement>", "link": "React.AnchorHTMLAttributes<HTMLAnchorElement>",
+             "input": "React.InputHTMLAttributes<HTMLInputElement>", "rule": "React.HTMLAttributes<HTMLDivElement>",
+             "nav": "React.HTMLAttributes<HTMLElement>", "div": "React.HTMLAttributes<HTMLDivElement>"}
+
+
+def namespace(doc):
+    return pascal(doc["name"] or "Design")
+
+
+def js_str(s):
+    """A JS string literal that is safe inside an inline <script>."""
+    return js_json(str(s))
+
+
+def js_json(v):
+    return json.dumps(v, separators=(",", ":")).replace("<", "\\u003c").replace(">", "\\u003e")
+
+
+def comp_element(base, props):
+    """(tag, kind) for a component's React export, picked from its name. A rule (4px or less) comes first."""
+    n = base.lower()
+    if is_rule(props):
+        return "div", "rule"
+    if "button" in n:
+        return "button", "button"
+    if "link" in n:
+        return "a", "link"
+    if "input" in n or "field" in n:
+        return "input", "input"
+    if any(w.startswith("nav") for w in re.split(r"[^a-z0-9]+", n)):
+        return "nav", "nav"
+    return "div", "div"
+
+
+def comp_class(doc, base):
+    return f"{slug(namespace(doc))}-{slug(base)}"
+
+
+def _decls(css):
+    return [d.strip() for d in css.split(";") if d.strip()]
+
+
+def bundle_specs(doc):
+    """{Comp: {tag, cls, kind, states, type: {state: type class}}} in file order."""
+    specs = {}
+    for base, states in component_groups(doc).items():
+        tag, kind = comp_element(base, states[0][2])
+        specs[pascal(base)] = {
+            "base": base, "tag": tag, "kind": kind, "cls": comp_class(doc, base),
+            "states": [s for s, _, _ in states[1:]],
+            "type": {s: _comp_style(doc, p, preview=True)[1] for s, _, p in states},
+        }
+    return specs
+
+
+def bundle_js(doc):
+    ns = namespace(doc)
+    specs = bundle_specs(doc)
+    header = {"format": 4, "namespace": ns, "components": [{"name": c} for c in specs]}
+    table = {c: {"tag": s["tag"], "cls": s["cls"], "states": s["states"], "type": s["type"],
+                 "rule": s["kind"] == "rule", "empty": s["kind"] in ("rule", "input")} for c, s in specs.items()}
+    return ("/* @ds-bundle: " + json.dumps(header, separators=(",", ":")) + " */\n"
+            "/* Generated from DESIGN.md components by the marketing toolkit's design_md.py. "
+            "Edit DESIGN.md and build again; never edit this file. */\n"
+            "(function () {\n"
+            "  \"use strict\";\n"
+            "  var SPECS = " + js_json(table) + ";\n"
+            "  var own = Object.prototype.hasOwnProperty;\n"
+            "  function make(name, s) {\n"
+            "    function C(props) {\n"
+            "      var R = window.React, p = {}, k;\n"
+            "      props = props || {};\n"
+            "      for (k in props) {\n"
+            "        if (own.call(props, k) && k !== \"children\" && k !== \"className\" && k !== \"state\") { p[k] = props[k]; }\n"
+            "      }\n"
+            "      var st = s.states.indexOf(props.state) >= 0 ? props.state : null;\n"
+            "      var type = st && own.call(s.type, st) ? s.type[st] : s.type[\"default\"];\n"
+            "      p.className = [s.cls, type, st ? \"is-\" + st : \"\", props.className].filter(Boolean).join(\" \");\n"
+            "      if (s.tag === \"button\" && p.type === undefined) { p.type = \"button\"; }\n"
+            "      if (s.rule && p.role === undefined) { p.role = \"separator\"; }\n"
+            "      if (s.empty) { return R.createElement(s.tag, p); }\n"
+            "      return R.createElement(s.tag, p, props.children);\n"
+            "    }\n"
+            "    C.displayName = name;\n"
+            "    return C;\n"
+            "  }\n"
+            "  var ns = window." + ns + " = window." + ns + " || {};\n"
+            "  for (var n in SPECS) { if (own.call(SPECS, n)) { ns[n] = make(n, SPECS[n]); } }\n"
+            "})();\n")
+
+
+def bundle_css(doc):
+    out = ["/* Generated from DESIGN.md components by the marketing toolkit's design_md.py. Edit DESIGN.md, "
+           "not this file. Colors and sizes are tokens.css variables; type is the type class on the element. */"]
+    groups = component_groups(doc)
+    for comp, spec in bundle_specs(doc).items():
+        states = groups[spec["base"]]
+        cls = spec["cls"]
+        reset = ELEMENT_RESET.get(spec["kind"])
+        if reset:
+            out.append(f":where(.{cls}){{{reset}}}")
+        base_css, _ = _comp_style(doc, states[0][2], preview=True)
+        base_decls = _decls(base_css)
+        out.append(f".{cls}{{{';'.join(base_decls)}}}")
+        for state, name, props in states[1:]:
+            diff = [d for d in _decls(_comp_style(doc, props, preview=True)[0]) if d not in base_decls]
+            sels = [f".{cls}{s}" for s in STATE_SELECTORS.get(state, [])] + [f".{cls}.is-{state}"]
+            out.append(",".join(sels) + "{" + (";".join(diff) if diff else "/* same tokens as the default */") + "}")
+    return "\n".join(out) + "\n"
+
+
+def index_dts(doc):
+    ns = namespace(doc)
+    specs = bundle_specs(doc)
+    lines = ["// Generated from DESIGN.md components by the marketing toolkit's design_md.py. Documentation, not type-checked.",
+             "import type * as React from 'react';"]
+    for comp, s in specs.items():
+        state = " | ".join(js_str(x) for x in s["states"])
+        extra = (f" state?: {state};" if state else "")
+        kids = "" if s["kind"] in ("rule", "input") else " children?: React.ReactNode;"
+        lines.append(f"/** DESIGN.md components.{s['base']}: a <{s['tag']}> with class {s['cls']}. */")
+        lines.append(f"export interface {comp}Props extends {DTS_ATTRS[s['kind']]} {{{kids} className?: string;{extra} }}")
+        lines.append(f"export declare function {comp}(props: {comp}Props): React.ReactElement;")
+    members = "; ".join(f"{c}: typeof {c}" for c in specs)
+    lines.append(f"declare global {{ interface Window {{ {ns}: {{ {members} }} }} }}")
+    return "\n".join(lines) + "\n"
+
+
+def libraries(react_lib=None):
+    """The index `libraries`: React 18 for the previews. With react_lib, the files are packed in components/lib/."""
+    out = []
+    for name, glob, fname in REACT_LIBS:
+        lib = {"name": name, "version": REACT_VERSION, "global": glob}
+        if react_lib:
+            lib["file"] = f"components/lib/{fname}"
+        out.append(lib)
+    return out
 
 
 def component_readme(doc, base, states):
@@ -1172,6 +1557,12 @@ def component_readme(doc, base, states):
                 ratios.append(f"{c:.1f}:1 {th}" + (" (under 4.5:1)" if c < 4.5 else ""))
         if ratios:
             lines.append("\nText on its background: " + ", ".join(ratios) + ".")
+    tag, kind = comp_element(base, props)
+    use = ["`className`"] + ([] if kind in ("rule", "input") else ["`children`"])
+    if len(states) > 1:
+        use.append("`state` (" + ", ".join(f'`"{s}"`' for s, _, _ in states[1:]) + ")")
+    lines.append(f"\nUse it: `{namespace(doc)}.{pascal(base)}`, a `<{tag}>`. Props: " + ", ".join(use)
+                 + f", and any `<{tag}>` attribute.")
     lines.append("\nThe consumer provides the label or content. When and how to use it: the brand book, "
                  "section Components. Change it in DESIGN.md, not here.")
     return "\n".join(lines) + "\n"
@@ -1283,11 +1674,12 @@ body{{background:{ground};color:{ink};overflow:hidden}}
 """
 
 
-def ds_index(doc, now, by="Claude", via="Claude Code"):
+def ds_index(doc, now, by="Claude", via="Claude Code", react_lib=None):
     """A NEW index. On a revision, read the live one and keep its keys instead."""
     return {"v": 3, "layout": "files", "createdOnFiles": {"v": 1, "at": now}, "title": doc["name"],
-            "namespace": pascal(doc["name"] or "Design"),
-            "libraries": [], "sections": {}, "groups": [], "assetGroups": {}, "blobs": {},
+            "namespace": namespace(doc),
+            "libraries": libraries(react_lib) if doc["components"] else [],
+            "sections": {}, "groups": [], "assetGroups": {}, "blobs": {},
             "docs": {"readme": "project/README.md", "sections": []},
             "lastChange": {"by": by, "at": now, "via": via, "note": "Generated from knowledge/DESIGN.md"}}
 
@@ -1295,10 +1687,34 @@ def ds_index(doc, now, by="Claude", via="Claude Code"):
 UPLOAD_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".mp4", ".webm", ".pdf"}
 
 
-def build_ds(doc, out_dir, assets=(), now=None, by="Claude", name_logo=None):
-    """Write <out_dir>/project/... and <out_dir>/publish.json. Returns the publish plan."""
+# The Artifact tool serves only common web types by extension; anything else
+# (index.d.ts) must carry an explicit contentType in the publish map.
+SERVED_EXT = {".html", ".css", ".js", ".mjs", ".json", ".map", ".txt", ".md", ".csv", ".xml", ".svg", ".png", ".jpg",
+              ".jpeg", ".gif", ".webp", ".avif", ".ico", ".woff", ".woff2", ".ttf", ".otf", ".mp4", ".webm", ".pdf"}
+
+
+def publish_source(rel):
+    return rel if Path(rel).suffix.lower() in SERVED_EXT else {"from": rel, "contentType": "text/plain"}
+
+
+def build_ds(doc, out_dir, assets=(), now=None, by="Claude", name_logo=None, pages=(), page_height=560,
+             react_lib=None):
+    """Write <out_dir>/project/... and <out_dir>/publish.json. Returns the publish plan.
+    pages: [(Comp, file.html)] example pages; react_lib: a folder holding the React 18 UMD builds to pack."""
     now = now or dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     out = Path(out_dir)
+    groups = component_groups(doc)
+    taken = {pascal(b) for b in groups} | {"Cover"}
+    cards = []
+    for comp, path in pages:
+        if comp in taken:
+            raise ValueError(f"--page {comp}: that name is already a component or the cover")
+        taken.add(comp)
+        cards.append((comp, page_card(comp, path, page_height)))
+    if react_lib:
+        missing = [f for _, _, f in REACT_LIBS if not (Path(react_lib) / f).is_file()]
+        if missing:
+            raise ValueError(f"--react-lib {react_lib}: missing " + ", ".join(missing))
     proj = out / "project"
     if proj.exists():
         shutil.rmtree(proj)
@@ -1312,14 +1728,26 @@ def build_ds(doc, out_dir, assets=(), now=None, by="Claude", name_logo=None):
         written[f"project/{rel}"] = str(p)
 
     put("tokens.json", json.dumps(tokens_json(doc), indent=2) + "\n")
-    put("README.md", ds_readme(doc))
-    for base, states in component_groups(doc).items():
+    for base, states in groups.items():
         comp = pascal(base)
         put(f"components/{comp}/preview.html", preview_html(doc, base, states))
         put(f"components/{comp}/README.md", component_readme(doc, base, states))
+    if groups:
+        put("components/bundle.js", bundle_js(doc))
+        put("components/bundle.css", bundle_css(doc))
+        put("components/index.d.ts", index_dts(doc))
+        if react_lib:
+            for _, _, fname in REACT_LIBS:
+                dest = proj / "components" / "lib" / fname
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(Path(react_lib) / fname, dest)
+                written[f"project/components/lib/{fname}"] = str(dest)
     put("components/Cover/preview.html", cover_html(doc, name_logo))
+    for comp, (preview, readme) in cards:
+        put(f"components/{comp}/preview.html", preview)
+        put(f"components/{comp}/README.md", readme)
 
-    uploads = []
+    uploads, current = [], []
     for group, src in assets:
         src = Path(src)
         files = sorted(p for p in (src.rglob("*") if src.is_dir() else [src]) if p.is_file() and not p.name.startswith("."))
@@ -1336,18 +1764,26 @@ def build_ds(doc, out_dir, assets=(), now=None, by="Claude", name_logo=None):
                                 "size": dest.stat().st_size})
             else:
                 written[f"project/assets/{group}/{rel}"] = str(dest)
-        note = next((t for ti, t in doc["sections"] if _norm(ti) in (_norm(group), _norm(group.rstrip("s")))), None)
+        note = asset_note(doc, group)
         readme = (f"# {group}\n\n" + (note.strip() if note else
                   f"Files copied from the business's repo. Use them as they are; never redraw them.") + "\n")
+        inked = [str(f.relative_to(src) if src.is_dir() else Path(f.name)) for f in files if uses_current_color(f)]
+        current += inked
+        if inked:
+            ink = roles(doc)["ink"]
+            readme += ("\nDrawn in one ink with `currentColor`: " + ", ".join(f"`{x}`" for x in inked) + ". Inline "
+                       "them to take the text color" + (f" (`{ink}` on the page)" if ink else "") +
+                       "; in an `<img>` they show black.\n")
         put(f"assets/{group}/README.md", readme)
+    put("README.md", ds_readme(doc, [g for g, _ in assets], current, [c for c, _ in cards]))
 
-    index = ds_index(doc, now, by=by)
+    index = ds_index(doc, now, by=by, react_lib=react_lib)
     index["groups"] = [g for g, _ in assets]
     index["assetGroups"] = {g: {"name": g, "tile": "l", "order": [u["name"] for u in uploads if u["group"] == g], "files": {}}
                             for g, _ in assets}
     (proj / "design-system.json").write_text(json.dumps(index, indent=2) + "\n", encoding="utf-8")
     plan = {"root": str(out.resolve()), "file_path": str((proj / "design-system.json").resolve()),
-            "files": {k: k for k in written}, "uploads": uploads,
+            "files": {k: publish_source(k) for k in written}, "uploads": uploads,
             "note": ("New page: send file_path + files in ONE Artifact publish (root as given). Uploads go first "
                      "(asset: true), then fill index.assetGroups.<Group>.files.<name> = {name, blob, size, type}. "
                      "Revision: read the live index first and send it only last, keeping its keys.")}
@@ -1372,6 +1808,8 @@ def main(argv=None):
     r.add_argument("--name-logo", action="append", default=[], metavar="[THEME=]FILE.svg",
                    help="the logo that stands for the name in headers (the view's title, the cover), "
                         "per theme: dark=FILE for dark mode. Repeatable.")
+    r.add_argument("--icon", action="append", default=[], metavar="FILE_OR_DIR",
+                   help="an icon file, or a folder of them, to show in the Iconography section. Repeatable.")
     d = sub.add_parser("ds", help="write the files for a claude.ai Design System page")
     d.add_argument("design")
     d.add_argument("-o", "--out", required=True, help="output folder (gets project/ and publish.json)")
@@ -1381,6 +1819,14 @@ def main(argv=None):
     d.add_argument("--name-logo", action="append", default=[], metavar="[THEME=]FILE.svg",
                    help="the logo that stands for the name in headers (the view's title, the cover), "
                         "per theme: dark=FILE for dark mode. Repeatable.")
+    d.add_argument("--page", action="append", default=[], metavar="NAME=FILE.html",
+                   help="one of the business's own pages, shown as an example card (group Examples). "
+                        "NAME is a JS identifier. A FILE.md beside it becomes the card's README. Repeatable.")
+    d.add_argument("--page-height", type=int, default=560, metavar="N",
+                   help="example card height in px when the page has no <meta name=\"ds-height\"> (default 560)")
+    d.add_argument("--react-lib", metavar="DIR",
+                   help="a folder with react.production.min.js and react-dom.production.min.js (18.3.1) to pack "
+                        "into components/lib/. Without it the page loads React 18 from jsDelivr.")
     a = ap.parse_args(argv)
 
     doc = load(a.design)
@@ -1402,7 +1848,12 @@ def main(argv=None):
         return 2
     if a.cmd == "render":
         out = Path(a.out) if a.out else Path(a.design).with_name("DESIGN.html")
-        out.write_text(render_html(doc, a.logo, marks), encoding="utf-8")
+        try:
+            page = render_html(doc, a.logo, marks, expand_files(a.icon, ICON_EXT))
+        except ValueError as e:
+            print(f"error: --icon: {e}", file=sys.stderr)
+            return 2
+        out.write_text(page, encoding="utf-8")
         print("wrote", out)
         return 0
     assets = []
@@ -1412,7 +1863,13 @@ def main(argv=None):
             print(f"error: --asset wants GROUP=PATH, got {spec!r}", file=sys.stderr)
             return 2
         assets.append((group, path))
-    plan = build_ds(doc, a.out, assets, by=a.by, name_logo=marks)
+    try:
+        pages = parse_pages(a.page)
+        plan = build_ds(doc, a.out, assets, by=a.by, name_logo=marks, pages=pages, page_height=a.page_height,
+                        react_lib=a.react_lib)
+    except ValueError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 2
     print(f"wrote {len(plan['files']) + 1} files under {Path(a.out) / 'project'}; "
           f"{len(plan['uploads'])} upload(s); plan: {Path(a.out) / 'publish.json'}")
     return 0
