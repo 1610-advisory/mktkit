@@ -2,6 +2,9 @@
 
 Plain-language history of the 1610 Marketing Toolkit. Newest first.
 
+## 2026-11-10
+- Fixed reel captions ending a line or a card on a small word ("out of", "from the", "that I") or leaving one word alone ("person."). Caption breaks now go at sentence ends, commas and pauses, and the two lines of a card are balanced.
+
 ## 2026-10-30
 - Made the claude.ai design system page complete: components now work as real React parts, the business's own pages and icons can show on it, and it ends with short notes on how to use the system.
 
