@@ -49,6 +49,10 @@ def fixture(root: Path) -> None:
     jpeg(shoot / "Photos" / "_edited" / "hero.jpg")
     jpeg(shoot / "Photos" / "raw-skip.jpg")
     jpeg(shoot / "Art" / "keeper.jpg")
+    # macOS AppleDouble sidecars on an exFAT drive: must never be cataloged.
+    mp4(shoot / "Video" / "._BRoll-Brick-Detail.MP4")
+    jpeg(shoot / "Photos" / "_edited" / "._hero.jpg")
+    jpeg(shoot / "Art" / "._keeper.jpg")
     mapping = shoot / "file-mapping.csv"
     mapping.write_text(
         "original_name,new_name,type,duration_s\n"
@@ -117,6 +121,7 @@ def test_ingest_fixture() -> None:
         assert "2026_Acme_Kitchen/2026-08-17/Art/keeper.jpg" in rels
         assert not any("Scrap" in rel for rel in rels)
         assert not any("raw-skip" in rel for rel in rels)
+        assert not any("/._" in rel for rel in rels), rels
         aroll = kinds["aroll"]
         assert aroll["social_name"] == "1900 Kitchen"
         assert aroll["shoot_date"] == "2026-08-17"
