@@ -2,6 +2,9 @@
 
 Plain-language history of the 1610 Marketing Toolkit. Newest first.
 
+## 2026-11-21
+- Fixed the footage catalog listing macOS "._" helper files (made when a Mac writes to an exFAT drive) as B-roll, edited photos or art. The footage index now skips them.
+
 ## 2026-11-10
 - Fixed reel captions ending a line or a card on a small word ("out of", "from the", "that I") or leaving one word alone ("person."). Caption breaks now go at sentence ends, commas and pauses, and the two lines of a card are balanced.
 
