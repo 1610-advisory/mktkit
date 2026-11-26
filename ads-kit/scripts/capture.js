@@ -11,13 +11,16 @@
  *      carries them to your CRM intake.
  *
  * What it does NOT do: no network calls, no third-party cookies, no
- * fingerprinting, no personal data. It only reads the URL, the referrer and
- * the Meta pixel's own _fbc/_fbp cookies.
+ * fingerprinting, and no names, emails or phone numbers. It reads only the URL,
+ * the referrer and the Meta pixel's own _fbc/_fbp cookies.
+ * Note: click ids (gclid, fbclid, ...), _fbc and _fbp ARE identifiers: they tie a
+ * browser to an ad click. That is why nothing runs without consent (see consent).
  *
  * Install: <script src="/capture.js" defer></script> on every page.
  * Options (set before the script loads):
  *   window.adsCaptureOptions = {
- *     consent: function () { return true; }, // your consent check; false = do nothing
+ *     consent: function () { ... },          // REQUIRED: return true only when the visitor
+ *                                             // agreed to marketing cookies. No hook = no capture.
  *     cookieDomain: '.example.com',          // share across subdomains (optional)
  *     days: 90,                               // cookie life (gclid lives 90 days)
  *     formSelector: 'form',                   // which forms get hidden fields
@@ -27,7 +30,8 @@
  *   };
  * If your consent tool grants consent later, call window.AdsCapture.run().
  * If consent is withdrawn, call window.AdsCapture.clear() to delete the cookies.
- * Optional content_id: put <meta name="content-id" content="AP-20261201-03"> on the page.
+ * Optional content_id: <meta name="content-id" content="<uuid>"> (mktdata content_id, a
+ * 36-character UUID). Any other value is ignored.
  * Server relay: window.AdsCapture.attribution(form) returns {key: value} with CRM keys only
  * (non-empty); post it as {attribution: ...}.
  * Plain browser JavaScript (ES5), no dependencies.
@@ -57,6 +61,8 @@
   var LAST_COOKIE = '_adsc_lt';
   var MAX_LEN = 255;
   var MAX_URL_LEN = 1000;
+  var MAX_REF_LEN = 500;
+  var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   var MAX_COOKIE = 3500; // encoded value length; browsers cap a cookie near 4096 bytes
 
   function clean(value, max) {
@@ -121,12 +127,47 @@
     for (var i = 0; i < STORED_KEYS.length; i++) {
       var k = STORED_KEYS[i];
       if (!Object.prototype.hasOwnProperty.call(obj, k) || typeof obj[k] !== 'string') continue;
-      var v = clean(obj[k], k === 'landing_page' || k === 'referrer' ? MAX_URL_LEN : MAX_LEN);
+      var v = cleanValue(k, obj[k]);
       if ((k === 'first_seen' || k === 'last_seen') && !ISO_Z.test(v)) continue; // ISO-8601 UTC only
       if (v) out[k] = v;
     }
     for (var key in out) if (Object.prototype.hasOwnProperty.call(out, key)) return out;
     return null; // nothing usable: capture again as if new
+  }
+
+  // Referrer: no query, no fragment, at most 500 characters.
+  function cleanReferrer(url) {
+    return clean(String(url || '').split('#')[0].split('?')[0], MAX_REF_LEN);
+  }
+
+  // Landing page: drop the fragment and every query parameter except the capture keys.
+  function cleanLanding(url) {
+    var noHash = String(url || '').split('#')[0];
+    var q = noHash.indexOf('?');
+    if (q < 0) return clean(noHash, MAX_URL_LEN);
+    var keep = [];
+    var parts = noHash.slice(q + 1).split('&');
+    for (var i = 0; i < parts.length; i++) {
+      if (!parts[i]) continue;
+      var eq = parts[i].indexOf('=');
+      var k = eq < 0 ? parts[i] : parts[i].slice(0, eq);
+      try { k = decodeURIComponent(k.replace(/\+/g, ' ')).toLowerCase(); } catch (e) { continue; }
+      if (URL_KEYS.indexOf(k) >= 0) keep.push(parts[i]);
+    }
+    return clean(noHash.slice(0, q) + (keep.length ? '?' + keep.join('&') : ''), MAX_URL_LEN);
+  }
+
+  function cleanContentId(v) {
+    var c = clean(v, MAX_LEN); // check the whole value; never truncate into a match
+    return UUID.test(c) ? c : '';
+  }
+
+  // One cleaner per stored or sent key.
+  function cleanValue(k, v) {
+    if (k === 'landing_page') return cleanLanding(v);
+    if (k === 'referrer') return cleanReferrer(v);
+    if (k === 'content_id') return cleanContentId(v);
+    return clean(v, MAX_LEN);
   }
 
   function hostOf(url) {
@@ -151,7 +192,7 @@
       if (typeof hook !== 'function' && env.window && typeof env.window.adsCaptureConsent === 'function') {
         hook = env.window.adsCaptureConsent;
       }
-      if (typeof hook !== 'function') return true; // no hook: the site owner decided
+      if (typeof hook !== 'function') return false; // no hook = no consent = no capture
       try {
         var r = hook();
         return r === true || r === 'granted';
@@ -197,12 +238,11 @@
         var li = clean(readCookies(doc).li_fat_id, MAX_LEN);
         if (li) touch.li_fat_id = li;
       }
-      var href = String(loc.href || '').split('#')[0];
-      touch.landing_page = clean(href, MAX_URL_LEN);
+      touch.landing_page = cleanLanding(loc.href);
       var ref = '';
       try { ref = doc.referrer || ''; } catch (e) { ref = ''; }
       // Keep only an outside referrer; our own pages are not a source.
-      touch.referrer = ref && hostOf(ref) !== String(loc.host || '').toLowerCase() ? clean(ref.split('#')[0], MAX_URL_LEN) : '';
+      touch.referrer = ref && hostOf(ref) !== String(loc.host || '').toLowerCase() ? cleanReferrer(ref) : '';
       return { touch: touch, hasSignal: hasSignal };
     }
 
@@ -265,7 +305,7 @@
       try { el = typeof doc.querySelector === 'function' ? doc.querySelector('meta[name="content-id"]') : null; } catch (e) { el = null; }
       if (!el) return '';
       var v = typeof el.getAttribute === 'function' ? el.getAttribute('content') : el.content;
-      return clean(v, MAX_LEN);
+      return cleanContentId(v);
     }
 
     // Cookies first; if the browser dropped our writes, what run() captured.
@@ -307,7 +347,7 @@
         var v = '';
         if (form) {
           var input = typeof form.querySelector === 'function' ? form.querySelector('input[name="' + k + '"]') : null;
-          v = input ? clean(input.value, k === 'landing_page' || k === 'referrer' ? MAX_URL_LEN : MAX_LEN) : '';
+          v = input ? cleanValue(k, input.value) : '';
         } else {
           v = map[k] || '';
         }
@@ -360,10 +400,12 @@
       fill(form, current());
     }
 
-    // Delete our cookies (for example when consent is withdrawn). Removes both the
+    // Delete the capture cookies (for example when consent is withdrawn). Removes both the
     // host-only cookie and the cookieDomain one, so a changed cookieDomain leaves nothing behind.
     function clear() {
-      var names = [FIRST_COOKIE, LAST_COOKIE];
+      // Ours plus the Meta pixel's _fbc/_fbp. A pixel cookie set on a parent domain is
+      // removed only when cookieDomain names that domain.
+      var names = [FIRST_COOKIE, LAST_COOKIE, '_fbc', '_fbp'];
       for (var i = 0; i < names.length; i++) {
         var base = names[i] + '=; path=/; max-age=0; SameSite=Lax';
         try {

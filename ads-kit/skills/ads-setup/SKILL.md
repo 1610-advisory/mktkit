@@ -35,15 +35,25 @@ Copy these into the session checklist. Keep a skipped step listed with `skip: <r
 ## capture.js install note (for the site owner)
 
 ```html
+<!-- optional: the page's mktdata content_id (a UUID; any other value is ignored) -->
+<meta name="content-id" content="0193a7c2-4b1e-7d3a-9f00-00000000c0de">
 <script>
   window.adsCaptureOptions = {
-    consent: function () { return true; } // replace with your consent check
+    // Required. Return true only after the visitor agreed to marketing cookies.
+    // Example: your consent banner saves "consent=marketing" in a cookie.
+    consent: function () {
+      return /(?:^|;\s*)consent=[^;]*marketing/.test(document.cookie);
+    }
   };
+  // When the visitor accepts in the banner, capture at once:
+  //   onAccept: function () { window.AdsCapture.run(); }
+  // When the visitor withdraws consent:
+  //   onWithdraw: function () { window.AdsCapture.clear(); }
 </script>
 <script src="/capture.js" defer></script>
 ```
 
-Host `capture.js` on the site's own domain (first-party). It adds hidden fields to every `<form>`, named exactly as the CRM intake's attribution keys: `utm_*`, `gclid`, `gbraid`, `wbraid`, `fbclid`, `msclkid`, `ttclid`, `li_fat_id`, `_fbc`, `_fbp`, `landing_page`, `referrer`, `first_seen_at`, and `content_id` when the page has `<meta name="content-id" content="...">`. The site relay posts `{attribution: AdsCapture.attribution(form)}` to the CRM intake (flat fields are not read; unknown keys are refused). Keep `lastTouch` off until the CRM accepts `last_*` keys (see the plugin README).
+Host `capture.js` on the site's own domain (first-party). It adds hidden fields to every `<form>`, named exactly as the CRM intake's attribution keys: `utm_*`, `gclid`, `gbraid`, `wbraid`, `fbclid`, `msclkid`, `ttclid`, `li_fat_id`, `_fbc`, `_fbp`, `landing_page`, `referrer`, `first_seen_at`, and `content_id` when the page's `<meta name="content-id">` holds a UUID. With no consent hook it captures nothing: wire it to the site's consent banner (README "Click capture"). The site relay posts `{attribution: AdsCapture.attribution(form)}` to the CRM intake (flat fields are not read; unknown keys are refused). Keep `lastTouch` off until the CRM accepts `last_*` keys (see the plugin README).
 
 ## Rules
 

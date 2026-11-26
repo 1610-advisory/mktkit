@@ -92,11 +92,13 @@ function loc(url) {
 
 function visit({ jar, url, referrer = '', forms = [], at = '2026-12-01T10:00:00.000Z', options = {}, contentId = null }) {
   const document = fakeDocument({ jar, forms, referrer, contentId });
-  const cap = AdsCapture.create({ document, location: loc(url), now: () => new Date(at) }, options);
+  // Tests grant consent unless they pass their own hook (the script's default is NO consent).
+  const cap = AdsCapture.create({ document, location: loc(url), now: () => new Date(at) }, { consent: () => true, ...options });
   return { cap, result: cap.run(), document };
 }
 
 const SITE = 'https://www.acme-plumbing.example';
+const CID = '0193a7c2-4b1e-7d3a-9f00-00000000c0de'; // made-up mktdata content_id (UUID)
 
 // ---- tests ---------------------------------------------------------------
 
@@ -281,7 +283,7 @@ test('the script makes no network calls and loads in a plain browser-like global
   const jar = fakeJar();
   const form = fakeForm('f');
   const document = fakeDocument({ jar, forms: [form] });
-  const window = { document, location: loc(`${SITE}/?gclid=global`), adsCaptureOptions: {} };
+  const window = { document, location: loc(`${SITE}/?gclid=global`), adsCaptureOptions: { consent: () => true } };
   window.window = window;
   vm.runInNewContext(src, { window, Date, JSON, Object, String, Math, encodeURIComponent, decodeURIComponent });
   assert.equal(typeof window.AdsCapture.run, 'function');
@@ -293,7 +295,7 @@ test('cookie writes blocked: submit keeps the values run() filled', () => {
   const blocked = { writes: [], get cookie() { return ''; }, set cookie(v) { this.writes.push(v); } };
   const form = fakeForm('f');
   const document = fakeDocument({ jar: blocked, forms: [form] });
-  const cap = AdsCapture.create({ document, location: loc(`${SITE}/?gclid=kept&utm_source=google`), now: () => new Date('2026-12-01T10:00:00.000Z') }, { lastTouch: true });
+  const cap = AdsCapture.create({ document, location: loc(`${SITE}/?gclid=kept&utm_source=google`), now: () => new Date('2026-12-01T10:00:00.000Z') }, { lastTouch: true, consent: () => true });
   assert.equal(cap.run().ran, true);
   assert.equal(form.value('gclid'), 'kept');
   cap.onSubmit({ target: form });
@@ -335,24 +337,32 @@ test('clear() deletes host-only and cookieDomain cookies', () => {
   jar.writes.length = 0;
   cap.clear();
   assert.equal(jar.store.size, 0);
-  assert.equal(jar.writes.length, 4);
+  assert.equal(jar.writes.length, 8);
   assert.ok(jar.writes.every((w) => /max-age=0/.test(w)));
-  assert.equal(jar.writes.filter((w) => /domain=\.acme-plumbing\.example/.test(w)).length, 2);
+  assert.equal(jar.writes.filter((w) => /domain=\.acme-plumbing\.example/.test(w)).length, 4);
+  for (const name of ['_adsc_ft', '_adsc_lt', '_fbc', '_fbp']) {
+    assert.equal(jar.writes.filter((w) => w.startsWith(`${name}=;`)).length, 2, `${name} cleared`);
+  }
 });
 
 test('default output: only CRM keys as field names, no last_* fields', () => {
   const jar = fakeJar();
   const form = fakeForm('f');
-  visit({ jar, url: `${SITE}/?gclid=g1&fbclid=f1&utm_source=google`, forms: [form], contentId: 'AP-20261201-03' });
+  visit({ jar, url: `${SITE}/?gclid=g1&fbclid=f1&utm_source=google`, forms: [form], contentId: CID });
   const names = form.inputs.map((i) => i.name).sort();
   assert.deepEqual(names, [...AdsCapture.CRM_KEYS].sort());
   assert.ok(!names.some((n) => n.startsWith('last_')));
 });
 
-test('content_id comes from <meta name="content-id">; no meta = no field', () => {
+test('content_id comes from <meta name="content-id"> only when it is a UUID; else no field', () => {
   const form = fakeForm('f');
-  visit({ jar: fakeJar(), url: `${SITE}/?utm_source=meta`, forms: [form], contentId: ' AP-20261201-03 ' });
-  assert.equal(form.value('content_id'), 'AP-20261201-03');
+  visit({ jar: fakeJar(), url: `${SITE}/?utm_source=meta`, forms: [form], contentId: ` ${CID} ` });
+  assert.equal(form.value('content_id'), CID);
+  for (const bad of ['AP-20261201-03', '0193a7c2-4b1e-7d3a-9f00-00000000c0de-extra', 'not-a-uuid', '']) {
+    const f = fakeForm('x');
+    visit({ jar: fakeJar(), url: `${SITE}/?utm_source=meta`, forms: [f], contentId: bad });
+    assert.equal(f.value('content_id'), undefined, `rejected ${bad}`);
+  }
   const form2 = fakeForm('g');
   visit({ jar: fakeJar(), url: `${SITE}/?utm_source=meta`, forms: [form2] });
   assert.equal(form2.value('content_id'), undefined);
@@ -381,7 +391,7 @@ test('attribution(): CRM keys only, non-empty only, from stored touch or from a 
     url: `${SITE}/drains?gclid=g9&utm_source=google&utm_medium=paid&utm_content=AP-20261201-03`,
     referrer: 'https://www.google.com/',
     forms: [form],
-    contentId: 'AP-20261201-03',
+    contentId: CID,
     options: { lastTouch: true },
   });
   const a = cap.attribution();
@@ -393,7 +403,7 @@ test('attribution(): CRM keys only, non-empty only, from stored touch or from a 
     _fbp: 'fb.1.1700000000000.42',
     landing_page: `${SITE}/drains?gclid=g9&utm_source=google&utm_medium=paid&utm_content=AP-20261201-03`,
     referrer: 'https://www.google.com/',
-    content_id: 'AP-20261201-03',
+    content_id: CID,
     first_seen_at: '2026-12-01T10:00:00.000Z',
   });
   for (const k of Object.keys(a)) assert.ok(AdsCapture.CRM_KEYS.includes(k), `${k} is a CRM key`);
@@ -408,7 +418,7 @@ test('page global AdsCapture.attribution is exposed for the relay', () => {
   const jar = fakeJar();
   const form = fakeForm('f');
   const document = fakeDocument({ jar, forms: [form] });
-  const window = { document, location: loc(`${SITE}/?msclkid=m1`), adsCaptureOptions: {} };
+  const window = { document, location: loc(`${SITE}/?msclkid=m1`), adsCaptureOptions: { consent: () => true } };
   window.window = window;
   vm.runInNewContext(src, { window, Date, JSON, Object, String, Math, encodeURIComponent, decodeURIComponent });
   assert.equal(window.AdsCapture.attribution(form).msclkid, 'm1');
@@ -455,4 +465,65 @@ test('a UTM-only visit also replaces a provisional first touch', () => {
   visit({ jar, url: `${SITE}/?utm_source=newsletter&utm_medium=email`, forms: [form], at: '2026-12-02T08:00:00.000Z' });
   assert.equal(form.value('utm_source'), 'newsletter');
   assert.equal(form.value('first_seen_at'), '2026-12-01T08:00:00.000Z');
+});
+
+test('no consent hook = no consent: nothing stored, nothing filled', () => {
+  const jar = fakeJar();
+  const form = fakeForm('f');
+  const document = fakeDocument({ jar, forms: [form] });
+  const cap = AdsCapture.create({ document, location: loc(`${SITE}/?gclid=x`), now: () => new Date('2026-12-01T00:00:00Z') });
+  assert.equal(cap.run().ran, false);
+  assert.equal(jar.writes.length, 0);
+  assert.equal(form.inputs.length, 0);
+  // same through the page global with no options at all
+  const src = fs.readFileSync(SRC, 'utf8');
+  const jar2 = fakeJar();
+  const form2 = fakeForm('g');
+  const document2 = fakeDocument({ jar: jar2, forms: [form2] });
+  const window = { document: document2, location: loc(`${SITE}/?gclid=y`) };
+  window.window = window;
+  vm.runInNewContext(src, { window, Date, JSON, Object, String, Math, encodeURIComponent, decodeURIComponent });
+  assert.equal(jar2.writes.length, 0);
+  assert.equal(form2.inputs.length, 0);
+});
+
+test('referrer: query and fragment stripped, capped at 500', () => {
+  const form = fakeForm('f');
+  visit({ jar: fakeJar(), url: `${SITE}/?gclid=r`, referrer: 'https://search.example/results?q=leaky+drain&email=a@b.example#frag', forms: [form] });
+  assert.equal(form.value('referrer'), 'https://search.example/results');
+  const form2 = fakeForm('g');
+  visit({ jar: fakeJar(), url: `${SITE}/?gclid=r`, referrer: `https://ref.example/${'p'.repeat(900)}?x=1`, forms: [form2] });
+  assert.equal(form2.value('referrer').length, 500);
+  assert.ok(!form2.value('referrer').includes('?'));
+});
+
+test('landing_page keeps only capture keys in its query', () => {
+  const form = fakeForm('f');
+  visit({ jar: fakeJar(), url: `${SITE}/quote?email=a%40b.example&gclid=L1&name=Pat&UTM_Source=google&utm_medium=paid&phone=555#form`, forms: [form] });
+  assert.equal(form.value('landing_page'), `${SITE}/quote?gclid=L1&UTM_Source=google&utm_medium=paid`);
+  const form2 = fakeForm('g');
+  visit({ jar: fakeJar(), url: `${SITE}/quote?email=a%40b.example`, forms: [form2] });
+  assert.equal(form2.value('landing_page'), `${SITE}/quote`);
+});
+
+test('tampered or hand-edited values are cleaned again: stored cookie and form fields', () => {
+  const jar = fakeJar();
+  jar.store.set('_adsc_ft', encodeURIComponent(JSON.stringify({
+    gclid: 'T1',
+    landing_page: `${SITE}/x?email=a%40b.example&gclid=T1`,
+    referrer: 'https://ref.example/p?secret=1',
+    first_seen: '2026-11-01T00:00:00.000Z',
+  })));
+  const document = fakeDocument({ jar });
+  const cap = AdsCapture.create({ document, location: loc(`${SITE}/about`), now: () => new Date('2026-12-02T00:00:00Z') }, { consent: () => true });
+  const a = cap.attribution();
+  assert.equal(a.landing_page, `${SITE}/x?gclid=T1`);
+  assert.equal(a.referrer, 'https://ref.example/p');
+
+  const form = fakeForm('f');
+  form.appendChild({ type: 'hidden', name: 'content_id', value: 'AP-20261201-03' });
+  form.appendChild({ type: 'hidden', name: 'referrer', value: 'https://ref.example/p?secret=1' });
+  const b = cap.attribution(form);
+  assert.equal(b.content_id, undefined);
+  assert.equal(b.referrer, 'https://ref.example/p');
 });

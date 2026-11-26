@@ -36,15 +36,32 @@ Detail: `references/change-queue.md`.
 
 ## Click capture: `scripts/capture.js`
 
-Plain browser JavaScript, no dependencies, no network calls. It saves click ids, UTM tags, landing page, referrer and first-seen time in two first-party cookies on your domain (first touch kept, last touch updated), reads Meta's `_fbc` / `_fbp`, and writes the first touch into hidden fields on your forms. It respects a consent hook.
+Plain browser JavaScript, no dependencies, no network calls. It saves click ids, UTM tags, landing page, referrer and first-seen time in two first-party cookies on your domain (first touch kept, last touch updated), reads Meta's `_fbc` / `_fbp`, and writes the first touch into hidden fields on your forms.
+
+It sends no names, emails or phone numbers, but **click ids, `_fbc` and `_fbp` are identifiers**: they tie a browser to an ad click. So it runs **only with consent**: you must give a consent hook, and with no hook it captures nothing.
 
 ```html
-<meta name="content-id" content="AP-20261201-03">  <!-- optional: the page's content_id -->
-<script>window.adsCaptureOptions = { consent: function () { return true; } };</script>
+<!-- optional: the page's mktdata content_id (a UUID; any other value is ignored) -->
+<meta name="content-id" content="0193a7c2-4b1e-7d3a-9f00-00000000c0de">
+<script>
+  window.adsCaptureOptions = {
+    // Required. Return true only after the visitor agreed to marketing cookies.
+    // Example: your consent banner saves "consent=marketing" in a cookie.
+    consent: function () {
+      return /(?:^|;\s*)consent=[^;]*marketing/.test(document.cookie);
+    }
+  };
+  // When the visitor accepts in the banner, capture at once:
+  //   onAccept: function () { window.AdsCapture.run(); }
+  // When the visitor withdraws consent:
+  //   onWithdraw: function () { window.AdsCapture.clear(); }
+</script>
 <script src="/capture.js" defer></script>
 ```
 
-**Hidden field names = the CRM intake's attribution keys**, nothing else by default: `utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, `utm_term`, `gclid`, `gbraid`, `wbraid`, `fbclid`, `msclkid`, `ttclid`, `li_fat_id`, `_fbc`, `_fbp`, `landing_page`, `referrer`, `content_id` (only when the page has the `content-id` meta tag), `first_seen_at` (ISO-8601 UTC, ends in `Z`).
+**Hidden field names = the CRM intake's attribution keys**, nothing else by default: `utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, `utm_term`, `gclid`, `gbraid`, `wbraid`, `fbclid`, `msclkid`, `ttclid`, `li_fat_id`, `_fbc`, `_fbp`, `landing_page`, `referrer`, `content_id` (only when the page's `content-id` meta tag holds a 36-character UUID), `first_seen_at` (ISO-8601 UTC, ends in `Z`).
+
+What it keeps of the URLs: `landing_page` drops the fragment and every query parameter except the capture keys (`utm_*` and click ids), so form data or emails in a URL are not stored. `referrer` keeps no query and no fragment, at most 500 characters.
 
 **Server relay.** The CRM reads only `{attribution: {...}}`, not flat form fields, and refuses unknown keys. In the browser, `AdsCapture.attribution(form)` returns the CRM keys from that form, non-empty values only (without a form, from the stored touch). The relay posts that object as `attribution`. On the server, keep only the keys above.
 
@@ -54,7 +71,7 @@ Things to know:
 
 - **First touch = the first tagged visit.** A visit with no click id and no UTM only holds the first-touch slot until a tagged visit comes; that visit replaces it (the earliest `first_seen_at` is kept). Once a tagged touch is stored, it stays: the first tagged visit wins. So an organic visit followed by an ad click posts the ad's click id. A lead that never came through a tagged link has only `landing_page`, `referrer` and `first_seen_at`.
 - **What remains:** a second, different ad click (for example a Google click, then a week later a Meta click) is kept only in the `last_*` fields, which are off until the CRM accepts them. Send-back that needs the newest click will read `last_*` then.
-- **Consent withdrawn:** cookies already set stay until they expire. Call `AdsCapture.clear()` from your consent tool to delete them.
+- **Consent withdrawn:** cookies already set stay until they expire. Call `AdsCapture.clear()` from your consent tool: it deletes `_adsc_ft`, `_adsc_lt`, `_fbc` and `_fbp`. The Meta pixel often sets `_fbc` / `_fbp` on the parent domain (`.example.com`); set `cookieDomain` to that domain so `clear()` reaches them, and stop the pixel too.
 - **Changing `cookieDomain`** can leave two cookies with the same name (one for the host, one for the domain). Call `AdsCapture.clear()` once after the change; it deletes both.
 - **Cookies blocked:** the fields filled on page load are kept on submit; nothing is remembered across pages.
 
