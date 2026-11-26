@@ -3,6 +3,7 @@
 Plain-language history of the 1610 Marketing Toolkit. Newest first.
 
 ## 2026-11-25
+- ads-kit: the daily ads review now copies CRM sales results (leads, qualified, won) into mktdata first, so the screens and reports show the same numbers.
 - Added a paid-ads engineer (the new ads-kit plugin). It maps how leads reach you, proves ad clicks are saved on your forms, builds Google and Meta campaigns, judges ads by qualified leads from your own records, and proposes every money change for you or your set limit to approve.
 
 ## 2026-11-21
