@@ -2,6 +2,9 @@
 
 Plain-language history of the 1610 Marketing Toolkit. Newest first.
 
+## 2026-11-25
+- Added a paid-ads engineer (the new ads-kit plugin). It maps how leads reach you, proves ad clicks are saved on your forms, builds Google and Meta campaigns, judges ads by qualified leads from your own records, and proposes every money change for you or your set limit to approve.
+
 ## 2026-11-21
 - Fixed the footage catalog listing macOS "._" helper files (made when a Mac writes to an exFAT drive) as B-roll, edited photos or art. The footage index now skips them.
 

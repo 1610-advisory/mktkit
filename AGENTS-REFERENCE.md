@@ -116,6 +116,7 @@ When a user asks you to do something, match their request to the right workflow.
 | "find B-roll for this line" | Index/search library stills and clips | `reel-broll` skill |
 | "ingest footage" | Compiled footage catalog | `footage-index` skill |
 | "SEO", "rankings", "Search Console", "AI answers / GEO", "keyword map", "build a calculator / comparison page" | Delegate to the SEO engineer | `seo-kit:seo-engineer` agent (plugin `seo-kit`; see `mkt-kit` skill → SEO engineer) |
+| "paid ads", "Google / Meta ads", "kill or scale", "ad budget", "ad tracking / click capture", "ads report", "ad library" | Delegate to the ads engineer | `ads-kit:ads-engineer` agent (plugin `ads-kit`; see `mkt-kit` skill → Ads engineer) |
 | "film board" | 9:16 talk-over HTML board | `film-board` skill |
 | "draft a blog from this video" | Search-cluster blog from transcript | `draft-cluster-blog` skill |
 | "render this as HTML" | Brand-themed HTML report | `branded-report` skill |

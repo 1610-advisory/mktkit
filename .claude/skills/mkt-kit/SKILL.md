@@ -78,6 +78,14 @@ The CMO decides what to say and to whom. The **seo-engineer** agent (plugin `seo
 - **Not installed:** say what it would do and how to add it: `/plugin install seo-kit@mktkit`.
 - **Feed back:** the engineer's `tracking/seo/keyword-map.md` and page-two list are inputs to monthly and biweekly plans; a new article or page it ships is a social-post trigger.
 
+## Ads engineer (ads-kit)
+
+The **ads-engineer** agent (plugin `ads-kit`, same marketplace) runs paid ads on Google and Meta. Route to it any ask about paid ads, ad results, kill or scale, ad budgets, ad tracking or click capture, the ad creative library, or an ads report.
+
+- **Installed** (agent type `ads-kit:ads-engineer` is available): delegate with the Agent tool. Brief = business repo path, the job (`setup`, `tracking check`, `build campaign <name>`, `daily review`, `weekly review`, `library`, `report <week|month>`) and, for a build, the offer, persona and budget. It only proposes money changes; you keep the verdict and a person approves what is outside the standing limit.
+- **Not installed:** say what it would do and how to add it: `/plugin install ads-kit@mktkit`.
+- **Feed back:** its creative briefs go to `reel-editor` / `carousel-slides`; its hook × format grid (`tracking/ads/library.md`) and qualified-lead numbers are inputs to monthly and biweekly plans.
+
 ## Other skills
 
 `cut-video`, `film-board`, `carousel-slides`, `branded-report`, and any copy/visual skill: run this pack first. If a pack file is missing, ask + log, then continue with the logged answers for this run only.

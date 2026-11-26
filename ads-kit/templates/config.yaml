@@ -1,0 +1,111 @@
+# ads-kit config for ONE business. Copy to <business repo>/tracking/ads/config.yaml and fill it in.
+# A person sets every money line here. The ads-engineer reads this file; it never edits caps, the limit,
+# the qualified line or the consent flag.
+# Placeholders only. Account ids belong in the business's private repo, never in this public kit.
+
+business: Acme Plumbing                 # display name for reports
+content_id_prefix: AP                   # the business's content_id prefix (content notes: AP-YYYYMMDD-NN)
+currency: USD                           # ISO 4217; every money line below is in minor units (cents)
+timezone: America/Chicago               # IANA name; match the ad accounts' time zone
+
+# ---------------------------------------------------------------------------
+# Platforms. v1 covers Google Ads and Meta Ads. Reads only through the official MCPs
+# (write tools off) or mktdata. No developer token: Google access belongs to the Cloud project.
+platforms:
+  google_ads:
+    enabled: false
+    customer_id: ""                     # 10 digits, no dashes (private repo only)
+    manager_id: ""                      # login customer id if accessed through a manager account; else empty
+  meta_ads:
+    enabled: false
+    ad_account_id: ""                   # act_<digits> (private repo only)
+    pixel_id: ""                        # dataset / pixel id
+    page_id: ""
+
+# ---------------------------------------------------------------------------
+# Hard caps. Never exceeded, by anyone or anything. 0 = no spend allowed.
+caps:
+  monthly_hard_cap_cents: 0             # total across all platforms per calendar month
+  daily_cap_cents: 0                    # total across all platforms per day
+
+# ---------------------------------------------------------------------------
+# Standing limit: what may run at once (mktdata's limit_runner executes it) and report after.
+# The agent only PROPOSES; it never executes. Outside this block, a person approves each change.
+standing_limit:
+  enabled: false                        # false = every change waits for a person
+  owner: ""                             # the named person who owns the limit (not an agent)
+  act_then_report:
+    pause_ad: true                      # pause an ad or ad set
+    restart_own_pause_within_days: 7    # restart only a pause the limit made, within N days
+    budget_change_pct_per_day: 20       # +/- per campaign per day; total daily spend stays <= caps.daily_cap_cents
+    new_ad_from_approved_library: true  # only creatives with status approved, only into an existing ad set
+  always_queue:                         # a person approves each one
+    - budget_change_over_limit
+    - spend_over_cap
+    - new_creative
+    - new_audience
+    - new_campaign
+    - bids_or_bid_strategy
+    - targeting
+    - conversion_settings
+  never:                                # not even with approval, at any phase
+    - billing_or_payment
+    - user_access
+    - new_ad_accounts
+
+# Loss rule: if agent actions lose money over the window, everything falls back to the queue
+# until a person resets it in mktdata.
+loss_rule:
+  window_days: 14
+  trip_when: cost_per_qualified_lead_over_target_pct   # measure on campaigns the limit touched
+  threshold_pct: 50                     # trips when cost per qualified lead > target x 1.5
+  fallback: queue_everything
+  reset_by: person
+
+# ---------------------------------------------------------------------------
+# Targets. The verdict anchor is cost per QUALIFIED lead from the business's own records.
+targets:
+  cost_per_qualified_lead_cents: 0      # set by a person; no target = no verdicts, only "keep running"
+  break_even_cost_per_qualified_lead_cents: 0
+  average_won_value_cents: 0            # optional; used for return math
+
+# Conversion steps, from our own records (CRM intake), never from platform claims.
+conversions:
+  lead: "A real contact through a tracked path: form, call or booking. Spam and duplicates excluded."
+  qualified: ""                         # ONE line, set by a person or a CRM stage, e.g. "a person talked to them and the job is in the service area"
+  qualified_crm_stage: ""               # CRM stage name that means qualified, if the CRM has one
+  won: "Sale recorded in the CRM with an amount."
+  platform_claims_label: "platform claim"   # how platform-reported conversions are labelled beside ours
+
+# Hashed email/phone to ad platforms. Default false = click ids only.
+# Only the business owner may set true, once, in writing; record who and when.
+hashed_data_consent:
+  allowed: false
+  given_by: ""
+  given_on: ""                          # YYYY-MM-DD
+
+# Send-back of qualified + won (Google Data Manager API, Meta Conversions API for CRM).
+# Parked until vendor reviews pass. Stays false in v1.
+send_back:
+  enabled: false
+  google_data_manager: false            # scope https://www.googleapis.com/auth/datamanager
+  meta_capi_crm: false
+
+# ---------------------------------------------------------------------------
+# Calls. ONE call source per business, never two (two double-count).
+call_source:
+  type: none                            # none | call_service | google_forwarding | how_heard
+  notes: ""
+  recording_disclosure: ""              # what callers hear; some US states need all-party consent
+
+# ---------------------------------------------------------------------------
+# Where data comes from.
+data:
+  mktdata:
+    live: false                         # true when the business's mktdata tool answers named requests
+    base_path: /t/mktdata/
+  outcome_source: csv                   # crm | csv  (csv = tracking/revenue-attribution.csv via log-data)
+  fallback_dir: tracking/ads/           # exports and snapshots when mktdata is not live
+
+# Forms that carry capture.js hidden fields (ads-setup fills this list).
+lead_paths: []                          # e.g. {path: form, page: /contact, form: quote, capture: verified, checked: YYYY-MM-DD}
