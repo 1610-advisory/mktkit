@@ -10,7 +10,7 @@ timezone: America/Chicago               # IANA name; match the ad accounts' time
 
 # ---------------------------------------------------------------------------
 # Platforms. v1 covers Google Ads and Meta Ads. Reads only through the official MCPs
-# (write tools off) or mktdata. No developer token: Google access belongs to the Cloud project.
+# (write tools off) or mktdata. mktdata holds the Google Ads access; the agent never needs a token.
 platforms:
   google_ads:
     enabled: false

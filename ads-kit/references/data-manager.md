@@ -16,7 +16,7 @@ Since 2026-06-15 the Google Ads API refuses **new** callers of offline click con
 
 - Endpoint: `datamanager.googleapis.com/v1/events:ingest`.
 - OAuth scope: `https://www.googleapis.com/auth/datamanager`. Ask for it on its own, apart from the read scopes, so reporting does not wait for its slower consent review.
-- **No developer token.** Google sunset developer tokens on 2026-09-09. Access level belongs to the Google Cloud project that issues the OAuth credentials.
+- **No token in the agent.** mktdata holds the Google Ads access; the agent never needs a developer token or any token.
 - Click ids `gclid`, `gbraid`, `wbraid` go in `adIdentifiers`. Hashed (SHA-256, normalized) email/phone go in user data for Enhanced Conversions for Leads, only with consent.
 - Consent per event: `ad_user_data` and `ad_personalization`.
 - Dedupe with `transactionId` (use the CRM's opportunity id plus the step, for example `<opportunity_id>:qualified`).

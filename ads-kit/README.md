@@ -84,7 +84,7 @@ Tests: `node --test "ads-kit/scripts/tests/*.test.js"` (Node 18+).
 
 **One outcome source counts.** mktdata counts leads, qualified and won from one source the owner picks: `csv` (the default: CSV rows or numbers by hand), `crm` (the CRM's daily counts) or `notion`. So a sale is never counted twice. If your outcomes live in the CRM, the owner switches it to `crm` on the Settings screen; the agent never does.
 
-No Google developer token is needed (Google retired them in 2026). Sending qualified and won leads back to Google (Data Manager API) and Meta (Conversions API) is in mktdata, off by default; only the owner turns it on and sends, on the mktdata screen: `references/data-manager.md`.
+mktdata holds the Google Ads access; the agent never needs a developer token or any token. Sending qualified and won leads back to Google (Data Manager API) and Meta (Conversions API) is in mktdata, off by default; only the owner turns it on and sends, on the mktdata screen: `references/data-manager.md`.
 
 ## Files it keeps in your business repo
 
