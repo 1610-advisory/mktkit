@@ -1,6 +1,6 @@
 {
   "name": "mktkit",
-  "description": "The free, open-source 1610 Marketing Toolkit (AI CMO) and its SEO engineer, for Claude Code and Claude Desktop.",
+  "description": "The free, open-source 1610 Marketing Toolkit (AI CMO), its SEO engineer and its paid-ads engineer, for Claude Code and Claude Desktop.",
   "owner": {
     "name": "1610 Advisory"
   },
@@ -14,6 +14,11 @@
       "name": "seo-kit",
       "source": "./seo-kit",
       "description": "SEO engineer: weekly crawl, speed, Search Console, Bing and AI-answer checks, with fix PRs a human merges. Pairs with ai-cmo."
+    },
+    {
+      "name": "ads-kit",
+      "source": "./ads-kit",
+      "description": "Paid-ads engineer: lead-path map, click capture proof, Google and Meta campaigns from an ad matrix, reviews against CRM-qualified leads, proposals for every money change. Pairs with ai-cmo."
     }
   ]
 }

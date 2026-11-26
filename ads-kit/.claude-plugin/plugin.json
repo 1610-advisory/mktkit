@@ -1,0 +1,17 @@
+{
+  "name": "ads-kit",
+  "version": "0.1.0",
+  "description": "Paid-ads engineer for small businesses: maps every lead path, proves click capture end to end, builds Google and Meta campaigns from an ad matrix, reviews results against CRM-qualified leads (not platform claims), keeps the creative library, and writes branded reports. It proposes every money change; a person or the standing limit in the marketing data tool acts. Works alone or as the AI CMO's ads engineer. Free and open source (MIT).",
+  "author": {
+    "name": "1610 Advisory"
+  },
+  "homepage": "https://1610advisory.com/tools/marketing-toolkit",
+  "repository": "https://github.com/1610-advisory/mktkit",
+  "license": "MIT",
+  "skills": [
+    "./skills/"
+  ],
+  "agents": [
+    "./agents/ads-engineer.md"
+  ]
+}

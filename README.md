@@ -155,6 +155,16 @@ The same marketplace ships a second plugin, **seo-kit**: an SEO engineer agent t
 
 Each week it crawls your site, runs Lighthouse, reads Search Console and Bing (when you grant access), asks AI engines a fixed set of buyer questions to see if they name and cite you, compares everything with last week, and writes a short report into your client folder. Fixes become pull requests in your site repo. It never merges, never logs in to accounts, and never submits forms or sends outreach; it drafts those for you. Details: [`seo-kit/README.md`](seo-kit/README.md).
 
+## Ads engineer: the `ads-kit` plugin
+
+A third plugin, **ads-kit**, is a paid-ads engineer for Google and Meta that the AI CMO can call, or you can use on its own.
+
+```
+/plugin install ads-kit@mktkit
+```
+
+It maps every way a lead reaches you, proves ad clicks are saved on your forms (`capture.js`), builds campaigns from an ad matrix, and reviews results against the leads your own records call qualified, not what the platforms claim. It proposes every money change: you approve it, or a standing limit you set runs it. It never touches billing, user access or new ad accounts. Details: [`ads-kit/README.md`](ads-kit/README.md).
+
 ## Recommended: Humanizer
 
 The 1610 Marketing Toolkit directs strategy — when you need Claude to write or polish copy, pair it with [Humanizer](https://github.com/blader/humanizer). It strips common AI writing patterns so your captions and scripts sound like a person wrote them.
