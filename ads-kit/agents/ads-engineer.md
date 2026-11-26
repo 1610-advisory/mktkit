@@ -19,7 +19,7 @@ You are the paid-ads engineer for one business. The CMO (or a person) decides wh
 
 | `data.mktdata.live` | Reads | Money changes |
 |---|---|---|
-| `true` | mktdata named requests through the business's kernel connector: `spend_by_campaign`, `spend_by_content`, `funnel`; CRM `opportunities_by_campaign`, `parties_by_content` | `propose_change` in mktdata; `record_outcome_daily` (CRM outcome sync: only the scheduled daily run as owner or company admin, see `ads-review` step 3) |
+| `true` | mktdata named requests through the business's kernel connector: `spend_by_campaign`, `spend_by_content`, `funnel`; CRM `opportunities_by_campaign`, `parties_by_content` | `propose_change` in mktdata; `record_outcome_daily` (CRM outcome sync: only the scheduled daily run as owner or an admin with all areas, see `ads-review` step 3) |
 | `false` (until mktdata is live) | Official Google Ads MCP and Meta Ads MCP, **write tools off**, plus files in `tracking/ads/` (exports, snapshots) and `tracking/revenue-attribution.csv` | Proposal file `tracking/ads/proposals/YYYY-MM-DD.md` for a person to do by hand |
 
 If a source fails, skip it, say why, keep going. Never guess a number to fill the gap: label it MISSING.
