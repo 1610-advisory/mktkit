@@ -15,7 +15,7 @@ It pairs with the **ai-cmo** plugin in this repo: the CMO decides what the busin
 
 | Skill | Job |
 |---|---|
-| `ads-setup` | Lead-path map, capture check per form, `tracking/ads/config.yaml` (caps, standing limit, qualified line, consent, platforms, call source), sources to connect, naming rule |
+| `ads-setup` | Lead-path map, capture check per form, `tracking/ads/config.yaml` (caps, standing limit, qualified line, consent, platforms, call source, outcome source), sources to connect, naming rule |
 | `ads-tracking-check` | Proves click id → page → form → CRM lead → platform, each step labelled Observed, Reported or Inferred |
 | `ads-build` | Ad matrix → campaign plan, copy per cell, creative briefs for `reel-editor` / `carousel-slides`, launch proposals |
 | `ads-review` | Daily or weekly KILL / SCALE / ITERATE / REFRESH with the math, then proposals |
@@ -29,7 +29,7 @@ Agent: `ads-engineer` (one business per run). Script: `scripts/capture.js`.
 - **Qualified leads are the measure.** Three steps from your own records: lead, qualified lead (one line you set), won. What the platforms claim shows beside them, labelled "platform claim".
 - **No verdict too early.** An ad gets no verdict before it spends about 2× your target cost per qualified lead, and never on data under 3 days old.
 - **One string joins everything.** Each ad name starts with its content-note id (`AP-20261201-03`), and `utm_content` is that note id. mktdata maps it to its content UUID; the form's `content_id` field carries only that UUID (`references/naming.md`).
-- **Caps are law.** A monthly hard cap and a daily cap in config, never exceeded.
+- **Caps are law.** A monthly hard cap and a daily cap, never exceeded. With mktdata, the owner sets them in its Settings and the tool refuses any raise over a cap when it runs a change.
 - **Standing limit.** Inside it (pause, restart its own pause within 7 days, budget ±20 % a day under the cap, a new ad from an approved creative into an existing ad set) the tool acts and reports after. Everything else waits for a person. If limit actions lose money over the window, everything waits.
 
 Detail: `references/change-queue.md`.
@@ -79,10 +79,12 @@ Tests: `node --test "ads-kit/scripts/tests/*.test.js"` (Node 18+).
 
 ## Where the data comes from
 
-- **With the mktdata tool** (the marketing data store behind the 1610 OS): named reads for spend, content and the funnel; CRM reads for outcomes; `propose_change` for money changes.
+- **With the mktdata tool** (the marketing data store behind the 1610 OS): the agent calls its named requests through your kernel connector. Reads: `get_config`, `sources_status`, `list_campaigns`, `spend_by_campaign`, `spend_by_content`, `creative_grid`, `funnel`, `outcomes_by_campaign`, `web_daily`, `list_content`, `to_match_list`, `list_proposals`, `get_proposal`, `list_actions`. Writes: `propose_change` for every money change, `upsert_content`, `match_row`, and outcomes (`record_outcome` or `record_outcome_daily`, by your outcome source). Approving, undoing, caps, limits, sources and send-back stay on the mktdata screens for a person. Detail: `references/mktdata-requests.md`.
 - **Without it:** the official Google Ads MCP and Meta Ads MCP for reads (turn their write tools off), plus files in `tracking/ads/` and `tracking/revenue-attribution.csv`. Proposals go to `tracking/ads/proposals/` for a person to do by hand.
 
-No Google developer token is needed (Google retired them in 2026). Sending qualified and won leads back to Google (Data Manager API) and Meta (Conversions API) is planned, not on in this version: `references/data-manager.md`.
+**One outcome source counts.** mktdata counts leads, qualified and won from one source the owner picks: `csv` (the default: CSV rows or numbers by hand), `crm` (the CRM's daily counts) or `notion`. So a sale is never counted twice. If your outcomes live in the CRM, the owner switches it to `crm` on the Settings screen; the agent never does.
+
+No Google developer token is needed (Google retired them in 2026). Sending qualified and won leads back to Google (Data Manager API) and Meta (Conversions API) is in mktdata, off by default; only the owner turns it on and sends, on the mktdata screen: `references/data-manager.md`.
 
 ## Files it keeps in your business repo
 

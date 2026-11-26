@@ -1,8 +1,8 @@
-# Sending CRM outcomes back to Google and Meta (parked in v1)
+# Sending CRM outcomes back to Google and Meta (off by default)
 
 ads-kit's own text (MIT). Facts checked 2026-11; vendor APIs change, so check the linked docs before any build.
 
-**Status: parked.** Send-back starts only after the vendor app reviews pass and `send_back.enabled` is true in `tracking/ads/config.yaml`. Until then, reports use all three steps (lead, qualified, won) from our own records, and the platforms learn from the site tag only.
+**Status: built in mktdata, off by default.** Send-back starts only after the vendor app reviews pass and the owner turns it on in mktdata Settings (mirrored as `send_back.enabled` in `tracking/ads/config.yaml`). Without mktdata there is no send-back. Until then, reports use all three steps (lead, qualified, won) from our own records, and the platforms learn from the site tag only.
 
 ## What we send, and why
 
@@ -35,4 +35,4 @@ Docs: Data Manager "send events" guide (developers.google.com/data-manager), Goo
 
 ## Who sends
 
-The mktdata tool, on a timer or from the owner's screen. Never the ads-engineer, never from a chat. The agent's part is to check readiness (`ads-tracking-check`) and to report what send-back would add.
+The mktdata tool, on a timer or from the owner's screen. Never the ads-engineer, never from a chat. In mktdata, send-back is an owner setting (Settings screen, off by default), and the outbox and "send now" (`list_sendback`, `send_conversions`) are owner-only screen requests the agent must never call. The agent's part is to check readiness (`ads-tracking-check`), read whether send-back is on (`get_config`), and report what send-back would add.

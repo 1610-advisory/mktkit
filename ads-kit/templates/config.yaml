@@ -99,12 +99,18 @@ call_source:
   recording_disclosure: ""              # what callers hear; some US states need all-party consent
 
 # ---------------------------------------------------------------------------
-# Where data comes from.
+# Where data comes from. With mktdata live, the owner's settings in mktdata (caps, standing limit,
+# loss rule, qualified line, consent, outcome_source; Settings screen) are the ones that count. Keep
+# the lines above the same as mktdata's so the file path agrees. references/mktdata-requests.md
 data:
   mktdata:
     live: false                         # true when the business's mktdata tool answers named requests
     base_path: /t/mktdata/
-  outcome_source: csv                   # crm | csv  (csv = tracking/revenue-attribution.csv via log-data)
+  outcome_source: csv                   # csv (default) | crm | notion. ONE source counts, never two.
+                                        # csv = tracking/revenue-attribution.csv via log-data (record_outcome)
+                                        # crm = the CRM's daily counts (record_outcome_daily, scheduled run)
+                                        # notion = mktdata pulls a Notion database itself
+                                        # With mktdata, the owner sets it on the Settings screen; match it here.
   fallback_dir: tracking/ads/           # exports and snapshots when mktdata is not live
 
 # Forms that carry capture.js hidden fields (ads-setup fills this list).
