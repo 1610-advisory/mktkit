@@ -28,7 +28,7 @@ Agent: `ads-engineer` (one business per run). Script: `scripts/capture.js`.
 
 - **Qualified leads are the measure.** Three steps from your own records: lead, qualified lead (one line you set), won. What the platforms claim shows beside them, labelled "platform claim".
 - **No verdict too early.** An ad gets no verdict before it spends about 2× your target cost per qualified lead, and never on data under 3 days old.
-- **One string joins everything.** Each ad name starts with its `content_id`, and `utm_content` is that `content_id` (`references/naming.md`).
+- **One string joins everything.** Each ad name starts with its content-note id (`AP-20261201-03`), and `utm_content` is that note id. mktdata maps it to its content UUID; the form's `content_id` field carries only that UUID (`references/naming.md`).
 - **Caps are law.** A monthly hard cap and a daily cap in config, never exceeded.
 - **Standing limit.** Inside it (pause, restart its own pause within 7 days, budget ±20 % a day under the cap, a new ad from an approved creative into an existing ad set) the tool acts and reports after. Everything else waits for a person. If limit actions lose money over the window, everything waits.
 

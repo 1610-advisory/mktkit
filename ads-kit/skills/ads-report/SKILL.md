@@ -22,7 +22,7 @@ One run = one markdown report (the source) and one branded HTML view of it. `<ki
 2. **Numbers.** mktdata live: `funnel`, `spend_by_campaign`, `spend_by_content`, plus CRM `opportunities_by_campaign`. Else: the period's review files, snapshots and `tracking/revenue-attribution.csv`. Use the same views the mktdata screens use, so numbers match everywhere.
 3. **The three steps.** Leads, qualified leads (per `conversions.qualified`), won (count + amount). Cost per lead, per qualified lead, per won job. Platform conversions in their own column, labelled "platform claim".
 4. **Funnel.** Views → paid vs organic → clicks → leads → qualified → won. One line per step with the number and its source.
-5. **By creative.** Top and bottom creatives by cost per qualified lead (content_id, hook, format), and the hook × format read from `ads-library`.
+5. **By creative.** Top and bottom creatives by cost per qualified lead (note id, hook, format), and the hook × format read from `ads-library`.
 6. **Changes made.** Every change in the period from the change log (or proposal files): what, who acted (person or standing limit), result. Proposals still waiting.
 7. **Caps.** Spend vs the monthly hard cap and the daily cap.
 8. **Next.** 3 actions at most, each tied to a number.

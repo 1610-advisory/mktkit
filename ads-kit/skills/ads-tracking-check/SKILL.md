@@ -22,7 +22,7 @@ Read first: `<kit>/references/conversion-tracking-rules.md` (evidence labels, ve
 
 | # | Link | How to check | Pass when |
 |---|---|---|---|
-| 1 | Ad URL carries the tags | Ad's final URL / URL parameters (MCP read, export or a person's screenshot) | Auto-tagging on (Google); UTMs per `naming.md`; `utm_content` = `content_id` |
+| 1 | Ad URL carries the tags | Ad's final URL / URL parameters (MCP read, export or a person's screenshot) | Auto-tagging on (Google); UTMs per `naming.md`; `utm_content` = the content-note id (not a UUID) |
 | 2 | Landing keeps them | Fetch the landing URL with a test `gclid=TEST-<date>` and the UTMs; follow redirects | Final URL still has every parameter |
 | 3 | capture.js runs | Page source has the script on every lead page; same domain | Script present; no CSP block |
 | 4 | Hidden fields filled | Open the page with the test parameters in a browser (or a person does); inspect the form | Every capture field present with the test values |

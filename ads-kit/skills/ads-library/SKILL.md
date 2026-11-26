@@ -16,7 +16,7 @@ metadata:
 
 One run = an up-to-date `tracking/ads/library.md` and a list of what to make next. `<kit>` = this plugin's root. `<biz>` = the business repo root.
 
-The files are the source. Content notes (`outputs/content/`) hold each creative; mktdata indexes them by `content_id` when it is live. Read `<kit>/references/naming.md` (ids, `ad:` block, asset names) and the "Creative volume, cadence and fatigue" part of `ads-judgment.md`.
+The files are the source. Content notes (`outputs/content/`) hold each creative under its note id (the note's `content_id` field, `AP-20261201-03`). When mktdata is live it indexes them: `content.note_ref` = the note id, mapped to its content UUID; unmatched note ids sit on its "to match" list. Read `<kit>/references/naming.md` (ids, `ad:` block, asset names) and the "Creative volume, cadence and fatigue" part of `ads-judgment.md`.
 
 ## Steps
 

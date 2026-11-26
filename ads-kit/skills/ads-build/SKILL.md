@@ -37,7 +37,7 @@ tracking/ads/campaigns/<slug>/
   ad-matrix.json, ad-matrix.md
   plan.md
   copy/google.md, copy/meta.md
-  briefs/<content_id>.md
+  briefs/<note id>.md
   policy-review.md
 ```
 
@@ -46,5 +46,5 @@ Plus proposals (mktdata or `tracking/ads/proposals/<date>.md`) and the agent rep
 ## Rules
 
 - No live API writes from this skill. Upload-ready files and proposals only.
-- Every ad has a `content_id`; no exceptions.
+- Every ad has a content-note id in its name and `utm_content`; no exceptions. If the landing page has a mktdata content UUID, put it in `<meta name="content-id">` (UUID only; see `naming.md`).
 - No invented numbers, prices or reviews in copy. A missing fact: ask.

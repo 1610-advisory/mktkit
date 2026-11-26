@@ -29,7 +29,7 @@ Copy these into the session checklist. Keep a skipped step listed with `skip: <r
 5. **Money lines, from a person only.** Ask for, and do not invent: `caps.monthly_hard_cap_cents`, `caps.daily_cap_cents`, `targets.cost_per_qualified_lead_cents`, `conversions.qualified` (one line), `hashed_data_consent` (default false), `standing_limit.enabled` and its `owner`. Write each answer with who said it and the date in `knowledge/_intake-log.md`. Unanswered: leave 0 / empty and list it.
 6. **Call source.** One per business, never two. Options: none, a call service that forwards and records calls and posts each call to the CRM intake as a lead (`source=call`), Google forwarding numbers (Google clicks only, calls over 15 s), or "how did you hear about us" in the CRM. Offer; do not push. Note the recording disclosure rule (some US states need all-party consent).
 7. **Sources to connect.** List for a person: Google Ads (official Google Ads MCP, read-only; or mktdata Sources screen), Meta Ads (official Meta Ads MCP, write tools off; or mktdata), the CRM. Never ask for a key or token in chat. No Google developer token is needed (sunset 2026-09-09).
-8. **Naming rule.** Read `<kit>/references/naming.md`. Check live ad names (if any) for a `content_id`. List every ad that breaks the rule, with its spend in the last 30 days.
+8. **Naming rule.** Read `<kit>/references/naming.md`. Check live ad names (if any) for a content-note id, and `utm_content` for the same note id. List every ad that breaks the rule, with its spend in the last 30 days.
 9. **Write and report.** Save config and `lead-paths.md`. Append one line to the business memory log. Return the agent's report with `needs_a_person` full.
 
 ## capture.js install note (for the site owner)

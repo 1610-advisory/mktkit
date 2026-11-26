@@ -4,7 +4,7 @@
 # Placeholders only. Account ids belong in the business's private repo, never in this public kit.
 
 business: Acme Plumbing                 # display name for reports
-content_id_prefix: AP                   # the business's content_id prefix (content notes: AP-YYYYMMDD-NN)
+content_id_prefix: AP                   # content-note id prefix (AP-YYYYMMDD-NN): ad names + utm_content; mktdata maps it to its UUID
 currency: USD                           # ISO 4217; every money line below is in minor units (cents)
 timezone: America/Chicago               # IANA name; match the ad accounts' time zone
 

@@ -31,7 +31,7 @@ Each proposal is `{request, input}` in the exact shape of the future risky reque
 | `pause_ad` | `{campaign_id, ad_id}` |
 | `restart_ad` | `{campaign_id, ad_id}` |
 | `set_budget` | `{campaign_id, daily_budget_cents}` |
-| `create_ad` | `{campaign_id, ...}` — the full field list is in mktdata's `tool.json`; read it before you propose. It always names the approved library creative by `content_id`. |
+| `create_ad` | `{campaign_id, ...}` — the full field list is in mktdata's `tool.json`; read it before you propose. It always names the approved library creative; use the id form `tool.json` asks for (mktdata content UUID or the note id it maps via `content.note_ref`). |
 
 - **No ad-set pause request in M1.** There is no `pause_adset` and you must not invent one. To stop a whole ad set, propose `pause_ad` for each ad in it, or write the ad-set pause as a human action in the proposal notes for a person to do in the platform. The standing limit's "pause an ad set" line therefore runs only as per-ad pauses until mktdata adds an ad-set request.
 - `campaign_id` (and `ad_id`) are **mktdata ids** from a mktdata read. Never a vendor id. If you only have a vendor id, look it up in mktdata first; if it is on the "to match" list, say so and do not propose.
