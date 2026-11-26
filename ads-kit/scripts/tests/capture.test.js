@@ -414,3 +414,45 @@ test('page global AdsCapture.attribution is exposed for the relay', () => {
   assert.equal(window.AdsCapture.attribution(form).msclkid, 'm1');
   assert.equal(window.AdsCapture.attribution().msclkid, 'm1');
 });
+
+test('organic first visit is provisional: a later tagged visit becomes first touch', () => {
+  const jar = fakeJar();
+  visit({ jar, url: `${SITE}/`, referrer: 'https://duckduckgo.com/', at: '2026-12-01T08:00:00.000Z' });
+  visit({ jar, url: `${SITE}/about`, referrer: `${SITE}/`, at: '2026-12-01T08:05:00.000Z' });
+  const form = fakeForm('f');
+  const { cap } = visit({ jar, url: `${SITE}/drains?gclid=X&utm_source=google&utm_medium=paid`, referrer: 'https://www.google.com/', forms: [form], at: '2026-12-03T09:00:00.000Z' });
+  cap.onSubmit({ target: form });
+  assert.equal(form.value('gclid'), 'X');
+  assert.equal(form.value('utm_source'), 'google');
+  assert.equal(form.value('landing_page'), `${SITE}/drains?gclid=X&utm_source=google&utm_medium=paid`);
+  assert.equal(form.value('referrer'), 'https://www.google.com/');
+  assert.equal(form.value('first_seen_at'), '2026-12-01T08:00:00.000Z', 'earliest first_seen kept');
+  const a = cap.attribution();
+  assert.equal(a.gclid, 'X');
+  assert.equal(a.first_seen_at, '2026-12-01T08:00:00.000Z');
+  assert.deepEqual(cap.attribution(form), a);
+});
+
+test('tagged first touch wins: tagged A then tagged B keeps A (B only in last_*)', () => {
+  const jar = fakeJar();
+  visit({ jar, url: `${SITE}/?gclid=A&utm_source=google`, at: '2026-12-01T08:00:00.000Z' });
+  visit({ jar, url: `${SITE}/`, at: '2026-12-02T08:00:00.000Z' });
+  const form = fakeForm('f');
+  const { cap } = visit({ jar, url: `${SITE}/?fbclid=B&utm_source=meta`, forms: [form], at: '2026-12-04T08:00:00.000Z', options: { lastTouch: true } });
+  assert.equal(form.value('gclid'), 'A');
+  assert.equal(form.value('fbclid'), '');
+  assert.equal(form.value('utm_source'), 'google');
+  assert.equal(form.value('first_seen_at'), '2026-12-01T08:00:00.000Z');
+  assert.equal(form.value('last_fbclid'), 'B');
+  assert.equal(cap.attribution().gclid, 'A');
+  assert.equal(cap.attribution().fbclid, undefined);
+});
+
+test('a UTM-only visit also replaces a provisional first touch', () => {
+  const jar = fakeJar();
+  visit({ jar, url: `${SITE}/`, at: '2026-12-01T08:00:00.000Z' });
+  const form = fakeForm('f');
+  visit({ jar, url: `${SITE}/?utm_source=newsletter&utm_medium=email`, forms: [form], at: '2026-12-02T08:00:00.000Z' });
+  assert.equal(form.value('utm_source'), 'newsletter');
+  assert.equal(form.value('first_seen_at'), '2026-12-01T08:00:00.000Z');
+});

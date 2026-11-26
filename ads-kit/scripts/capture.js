@@ -5,7 +5,8 @@
  * What it does:
  *   1. On each page view, reads click ids and UTM tags from the URL.
  *   2. Stores them in two first-party cookies on your own domain:
- *        first touch (written once, kept)  and  last touch (updated on each ad visit).
+ *        first touch (the first tagged visit, kept; an untagged visit holds the slot
+ *        only until a tagged one comes)  and  last touch (updated on each ad visit).
  *   3. Writes them into hidden fields on your forms, so the form post
  *      carries them to your CRM intake.
  *
@@ -217,9 +218,12 @@
       var ts = now().toISOString();
       var first = stored.first;
       var last = stored.last;
-      if (!first) {
+      // An untagged first touch (no click id, no UTM) is provisional: the first tagged
+      // visit replaces it, keeping the earliest first_seen. A tagged first touch is kept.
+      if (!first || (!isTagged(first) && page.hasSignal)) {
+        var seen = (first && first.first_seen) || ts;
         first = page.touch;
-        first.first_seen = ts;
+        first.first_seen = seen;
         writeCookie(FIRST_COOKIE, first);
       }
       if (page.hasSignal || !last) {
@@ -229,6 +233,11 @@
         writeCookie(LAST_COOKIE, last);
       }
       return { first: first, last: last };
+    }
+
+    function isTagged(touch) {
+      for (var i = 0; i < URL_KEYS.length; i++) if (touch[URL_KEYS[i]]) return true;
+      return false;
     }
 
     function copy(o) {

@@ -52,7 +52,8 @@ Plain browser JavaScript, no dependencies, no network calls. It saves click ids,
 
 Things to know:
 
-- **First touch may have no click id.** It is the first visit we saw, which can be organic: then it holds only `landing_page`, `referrer` and `first_seen_at`. A visitor who first came organically and later clicked an ad posts no click id while `lastTouch` is off. Ad attribution and the planned send-back need the newest ad click, so they will read the `last_*` click ids once the CRM accepts them.
+- **First touch = the first tagged visit.** A visit with no click id and no UTM only holds the first-touch slot until a tagged visit comes; that visit replaces it (the earliest `first_seen_at` is kept). Once a tagged touch is stored, it stays: the first tagged visit wins. So an organic visit followed by an ad click posts the ad's click id. A lead that never came through a tagged link has only `landing_page`, `referrer` and `first_seen_at`.
+- **What remains:** a second, different ad click (for example a Google click, then a week later a Meta click) is kept only in the `last_*` fields, which are off until the CRM accepts them. Send-back that needs the newest click will read `last_*` then.
 - **Consent withdrawn:** cookies already set stay until they expire. Call `AdsCapture.clear()` from your consent tool to delete them.
 - **Changing `cookieDomain`** can leave two cookies with the same name (one for the host, one for the domain). Call `AdsCapture.clear()` once after the change; it deletes both.
 - **Cookies blocked:** the fields filled on page load are kept on submit; nothing is remembered across pages.
