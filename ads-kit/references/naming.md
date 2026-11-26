@@ -22,7 +22,7 @@ Every ad creative is a content note with a note id. The note id goes in two plac
 
 Then the content note → the asset → the ad → its spend → the lead's `utm_content` all carry the same string, and mktdata turns it into its content UUID for joins. Unmapped spend (an ad name with no note id, or a note id on mktdata's "to match" list) is a naming bug: `ads-review` lists it with the dollar amount.
 
-**The form's `content_id` field is never the note id.** `capture.js` fills it only from `<meta name="content-id">` and only with a UUID; a page that has no mktdata UUID leaves it out. The CRM still gets the note id through `utm_content`.
+**The form's `content_id` field is never the note id.** `capture.js` fills it only from `<meta name="content-id">` and only with a UUID; a page that has no mktdata UUID leaves it out. The CRM still gets the note id through `utm_content`. Leads from such a page land in the CRM's null `content_id` group (`opportunities_by_campaign`), so per-creative reporting joins on `utm_content` (the note id), not on `content_id`.
 
 ## Ad name
 
