@@ -299,7 +299,7 @@
     }
 
     // The flat field map that goes into each form.
-    // The page's content_id, from <meta name="content-id" content="AP-20261201-03">.
+    // The page's content_id, from <meta name="content-id" content="<mktdata content UUID>">; only a 36-char UUID is used.
     function pageContentId() {
       var el = null;
       try { el = typeof doc.querySelector === 'function' ? doc.querySelector('meta[name="content-id"]') : null; } catch (e) { el = null; }
