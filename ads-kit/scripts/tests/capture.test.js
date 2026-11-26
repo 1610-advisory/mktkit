@@ -63,9 +63,13 @@ function fakeForm(id) {
   };
 }
 
-function fakeDocument({ jar, forms = [], referrer = '' }) {
+function fakeDocument({ jar, forms = [], referrer = '', contentId = null }) {
   return {
     referrer,
+    querySelector(sel) {
+      assert.equal(sel, 'meta[name="content-id"]');
+      return contentId === null ? null : { getAttribute: (a) => (a === 'content' ? contentId : null) };
+    },
     readyState: 'complete',
     get cookie() { return jar.cookie; },
     set cookie(v) { jar.cookie = v; },
@@ -86,8 +90,8 @@ function loc(url) {
   return { href: u.href, search: u.search, host: u.host, protocol: u.protocol };
 }
 
-function visit({ jar, url, referrer = '', forms = [], at = '2026-12-01T10:00:00.000Z', options = {} }) {
-  const document = fakeDocument({ jar, forms, referrer });
+function visit({ jar, url, referrer = '', forms = [], at = '2026-12-01T10:00:00.000Z', options = {}, contentId = null }) {
+  const document = fakeDocument({ jar, forms, referrer, contentId });
   const cap = AdsCapture.create({ document, location: loc(url), now: () => new Date(at) }, options);
   return { cap, result: cap.run(), document };
 }
@@ -100,7 +104,7 @@ test('captures click ids, UTMs, landing page, referrer and first-seen into hidde
   const jar = fakeJar();
   const form = fakeForm('quote');
   const url = `${SITE}/drain-cleaning?gclid=TeSt.gclid-123&utm_source=google&utm_medium=paid&utm_campaign=drains&utm_content=AP-20261201-03&utm_term=drain+cleaning#top`;
-  const { result } = visit({ jar, url, referrer: 'https://www.google.com/', forms: [form] });
+  const { result } = visit({ jar, url, referrer: 'https://www.google.com/', forms: [form], options: { lastTouch: true } });
 
   assert.equal(result.ran, true);
   assert.equal(result.forms, 1);
@@ -110,12 +114,12 @@ test('captures click ids, UTMs, landing page, referrer and first-seen into hidde
   assert.equal(form.value('utm_term'), 'drain cleaning');
   assert.equal(form.value('landing_page'), `${SITE}/drain-cleaning?gclid=TeSt.gclid-123&utm_source=google&utm_medium=paid&utm_campaign=drains&utm_content=AP-20261201-03&utm_term=drain+cleaning`);
   assert.equal(form.value('referrer'), 'https://www.google.com/');
-  assert.equal(form.value('first_seen'), '2026-12-01T10:00:00.000Z');
+  assert.equal(form.value('first_seen_at'), '2026-12-01T10:00:00.000Z');
   assert.equal(form.value('last_gclid'), 'TeSt.gclid-123');
   assert.equal(form.value('last_seen'), '2026-12-01T10:00:00.000Z');
   // every field is a hidden input
   assert.ok(form.inputs.every((i) => i.type === 'hidden'));
-  for (const k of ['gbraid', 'wbraid', 'fbclid', 'msclkid', 'ttclid', 'li_fat_id', 'fbc', 'fbp']) {
+  for (const k of ['gbraid', 'wbraid', 'fbclid', 'msclkid', 'ttclid', 'li_fat_id', '_fbc', '_fbp']) {
     assert.equal(form.value(k), '', `empty field present for ${k}`);
   }
 });
@@ -126,11 +130,11 @@ test('first touch is kept; last touch moves to the newest ad visit', () => {
   // internal page view without signals: nothing changes
   visit({ jar, url: `${SITE}/about`, referrer: `${SITE}/`, at: '2026-12-02T10:00:00.000Z' });
   const form = fakeForm('contact');
-  visit({ jar, url: `${SITE}/contact?fbclid=IwAR-meta-click&utm_source=meta&utm_medium=paid`, forms: [form], at: '2026-12-05T09:30:00.000Z' });
+  visit({ jar, url: `${SITE}/contact?fbclid=IwAR-meta-click&utm_source=meta&utm_medium=paid`, forms: [form], at: '2026-12-05T09:30:00.000Z', options: { lastTouch: true } });
 
   assert.equal(form.value('gclid'), 'first-click');
   assert.equal(form.value('utm_source'), 'google');
-  assert.equal(form.value('first_seen'), '2026-12-01T10:00:00.000Z');
+  assert.equal(form.value('first_seen_at'), '2026-12-01T10:00:00.000Z');
   assert.equal(form.value('last_gclid'), '');
   assert.equal(form.value('last_fbclid'), 'IwAR-meta-click');
   assert.equal(form.value('last_utm_source'), 'meta');
@@ -148,15 +152,15 @@ test('reads Meta _fbc/_fbp cookies; builds fbc from fbclid when the pixel has no
   const jar = fakeJar();
   const form = fakeForm('f');
   visit({ jar, url: `${SITE}/?fbclid=AbC123`, forms: [form], at: '2026-12-01T10:00:00.000Z' });
-  assert.equal(form.value('fbc'), `fb.1.${Date.parse('2026-12-01T10:00:00.000Z')}.AbC123`);
-  assert.equal(form.value('fbp'), '');
+  assert.equal(form.value('_fbc'), `fb.1.${Date.parse('2026-12-01T10:00:00.000Z')}.AbC123`);
+  assert.equal(form.value('_fbp'), '');
 
   jar.store.set('_fbc', 'fb.1.1700000000000.FromPixel');
   jar.store.set('_fbp', 'fb.1.1700000000000.123456789');
   const form2 = fakeForm('g');
   visit({ jar, url: `${SITE}/contact`, forms: [form2] });
-  assert.equal(form2.value('fbc'), 'fb.1.1700000000000.FromPixel');
-  assert.equal(form2.value('fbp'), 'fb.1.1700000000000.123456789');
+  assert.equal(form2.value('_fbc'), 'fb.1.1700000000000.FromPixel');
+  assert.equal(form2.value('_fbp'), 'fb.1.1700000000000.123456789');
 });
 
 test('reads li_fat_id from its cookie when it is not in the URL', () => {
@@ -263,7 +267,7 @@ test('very long URLs keep the cookie under the size cap', () => {
 test('custom last-touch prefix', () => {
   const jar = fakeJar();
   const form = fakeForm('f');
-  visit({ jar, url: `${SITE}/?gclid=p`, forms: [form], options: { lastPrefix: 'lt_' } });
+  visit({ jar, url: `${SITE}/?gclid=p`, forms: [form], options: { lastTouch: true, lastPrefix: 'lt_' } });
   assert.equal(form.value('lt_gclid'), 'p');
   assert.equal(form.value('lt_seen'), '2026-12-01T10:00:00.000Z');
 });
@@ -289,14 +293,14 @@ test('cookie writes blocked: submit keeps the values run() filled', () => {
   const blocked = { writes: [], get cookie() { return ''; }, set cookie(v) { this.writes.push(v); } };
   const form = fakeForm('f');
   const document = fakeDocument({ jar: blocked, forms: [form] });
-  const cap = AdsCapture.create({ document, location: loc(`${SITE}/?gclid=kept&utm_source=google`), now: () => new Date('2026-12-01T10:00:00.000Z') });
+  const cap = AdsCapture.create({ document, location: loc(`${SITE}/?gclid=kept&utm_source=google`), now: () => new Date('2026-12-01T10:00:00.000Z') }, { lastTouch: true });
   assert.equal(cap.run().ran, true);
   assert.equal(form.value('gclid'), 'kept');
   cap.onSubmit({ target: form });
   assert.equal(form.value('gclid'), 'kept');
   assert.equal(form.value('last_gclid'), 'kept');
   assert.equal(form.value('utm_source'), 'google');
-  assert.equal(form.value('first_seen'), '2026-12-01T10:00:00.000Z');
+  assert.equal(form.value('first_seen_at'), '2026-12-01T10:00:00.000Z');
 });
 
 test('tampered cookie: unknown keys, non-strings and control characters are dropped', () => {
@@ -334,4 +338,79 @@ test('clear() deletes host-only and cookieDomain cookies', () => {
   assert.equal(jar.writes.length, 4);
   assert.ok(jar.writes.every((w) => /max-age=0/.test(w)));
   assert.equal(jar.writes.filter((w) => /domain=\.acme-plumbing\.example/.test(w)).length, 2);
+});
+
+test('default output: only CRM keys as field names, no last_* fields', () => {
+  const jar = fakeJar();
+  const form = fakeForm('f');
+  visit({ jar, url: `${SITE}/?gclid=g1&fbclid=f1&utm_source=google`, forms: [form], contentId: 'AP-20261201-03' });
+  const names = form.inputs.map((i) => i.name).sort();
+  assert.deepEqual(names, [...AdsCapture.CRM_KEYS].sort());
+  assert.ok(!names.some((n) => n.startsWith('last_')));
+});
+
+test('content_id comes from <meta name="content-id">; no meta = no field', () => {
+  const form = fakeForm('f');
+  visit({ jar: fakeJar(), url: `${SITE}/?utm_source=meta`, forms: [form], contentId: ' AP-20261201-03 ' });
+  assert.equal(form.value('content_id'), 'AP-20261201-03');
+  const form2 = fakeForm('g');
+  visit({ jar: fakeJar(), url: `${SITE}/?utm_source=meta`, forms: [form2] });
+  assert.equal(form2.value('content_id'), undefined);
+});
+
+test('first_seen_at is ISO-8601 UTC with Z; a stored non-ISO time is dropped', () => {
+  const jar = fakeJar();
+  const form = fakeForm('f');
+  visit({ jar, url: `${SITE}/?gclid=x`, forms: [form], at: '2026-12-01T10:00:00.000Z' });
+  assert.match(form.value('first_seen_at'), /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+
+  const jar2 = fakeJar();
+  jar2.store.set('_adsc_ft', encodeURIComponent(JSON.stringify({ gclid: 'old', first_seen: '12/01/2026 10:00' })));
+  const document = fakeDocument({ jar: jar2 });
+  const cap = AdsCapture.create({ document, location: loc(`${SITE}/about`), now: () => new Date('2026-12-02T00:00:00Z') });
+  assert.equal(cap.attribution().first_seen_at, undefined);
+  assert.equal(cap.attribution().gclid, 'old');
+});
+
+test('attribution(): CRM keys only, non-empty only, from stored touch or from a form', () => {
+  const jar = fakeJar();
+  jar.store.set('_fbp', 'fb.1.1700000000000.42');
+  const form = fakeForm('f');
+  const { cap } = visit({
+    jar,
+    url: `${SITE}/drains?gclid=g9&utm_source=google&utm_medium=paid&utm_content=AP-20261201-03`,
+    referrer: 'https://www.google.com/',
+    forms: [form],
+    contentId: 'AP-20261201-03',
+    options: { lastTouch: true },
+  });
+  const a = cap.attribution();
+  assert.deepEqual(a, {
+    utm_source: 'google',
+    utm_medium: 'paid',
+    utm_content: 'AP-20261201-03',
+    gclid: 'g9',
+    _fbp: 'fb.1.1700000000000.42',
+    landing_page: `${SITE}/drains?gclid=g9&utm_source=google&utm_medium=paid&utm_content=AP-20261201-03`,
+    referrer: 'https://www.google.com/',
+    content_id: 'AP-20261201-03',
+    first_seen_at: '2026-12-01T10:00:00.000Z',
+  });
+  for (const k of Object.keys(a)) assert.ok(AdsCapture.CRM_KEYS.includes(k), `${k} is a CRM key`);
+  // last_* fields exist on the form (lastTouch on) but never reach attribution()
+  assert.equal(form.value('last_gclid'), 'g9');
+  form.appendChild({ type: 'hidden', name: 'unknown_key', value: 'zzz' });
+  assert.deepEqual(cap.attribution(form), a);
+});
+
+test('page global AdsCapture.attribution is exposed for the relay', () => {
+  const src = fs.readFileSync(SRC, 'utf8');
+  const jar = fakeJar();
+  const form = fakeForm('f');
+  const document = fakeDocument({ jar, forms: [form] });
+  const window = { document, location: loc(`${SITE}/?msclkid=m1`), adsCaptureOptions: {} };
+  window.window = window;
+  vm.runInNewContext(src, { window, Date, JSON, Object, String, Math, encodeURIComponent, decodeURIComponent });
+  assert.equal(window.AdsCapture.attribution(form).msclkid, 'm1');
+  assert.equal(window.AdsCapture.attribution().msclkid, 'm1');
 });

@@ -43,7 +43,7 @@ Copy these into the session checklist. Keep a skipped step listed with `skip: <r
 <script src="/capture.js" defer></script>
 ```
 
-Host `capture.js` on the site's own domain (first-party). It adds hidden fields to every `<form>`: first touch (`gclid`, `gbraid`, `wbraid`, `fbclid`, `msclkid`, `ttclid`, `li_fat_id`, `utm_*`, `landing_page`, `referrer`, `first_seen`), last touch (same names with `last_`), and `fbc` / `fbp`. The form handler must pass these fields to the CRM intake unchanged.
+Host `capture.js` on the site's own domain (first-party). It adds hidden fields to every `<form>`, named exactly as the CRM intake's attribution keys: `utm_*`, `gclid`, `gbraid`, `wbraid`, `fbclid`, `msclkid`, `ttclid`, `li_fat_id`, `_fbc`, `_fbp`, `landing_page`, `referrer`, `first_seen_at`, and `content_id` when the page has `<meta name="content-id" content="...">`. The site relay posts `{attribution: AdsCapture.attribution(form)}` to the CRM intake (flat fields are not read; unknown keys are refused). Keep `lastTouch` off until the CRM accepts `last_*` keys (see the plugin README).
 
 ## Rules
 

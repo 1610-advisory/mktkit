@@ -29,7 +29,7 @@ Docs: Data Manager "send events" guide (developers.google.com/data-manager), Goo
 ## Meta: Conversions API for CRM
 
 - One event per lead stage, `action_source=system_generated`, `event_source=crm`.
-- Best key: Meta `lead_id` (Lead Ads). Else `fbc` / `fbp` from the form's hidden fields (`capture.js`), plus hashed email/phone only with consent.
+- Best key: Meta `lead_id` (Lead Ads). Else `fbc` / `fbp` from the lead's attribution keys `_fbc` / `_fbp` (`capture.js`), plus hashed email/phone only with consent.
 - `event_time` at most 7 days back.
 - Needs Business Verification and App Review for the ads permissions.
 

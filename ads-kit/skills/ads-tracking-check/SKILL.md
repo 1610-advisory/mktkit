@@ -26,7 +26,7 @@ Read first: `<kit>/references/conversion-tracking-rules.md` (evidence labels, ve
 | 2 | Landing keeps them | Fetch the landing URL with a test `gclid=TEST-<date>` and the UTMs; follow redirects | Final URL still has every parameter |
 | 3 | capture.js runs | Page source has the script on every lead page; same domain | Script present; no CSP block |
 | 4 | Hidden fields filled | Open the page with the test parameters in a browser (or a person does); inspect the form | Every capture field present with the test values |
-| 5 | Form post carries them | Site code: the handler passes the fields to the CRM intake unchanged | Fields named in the post body |
+| 5 | Relay carries them | Site code: the server relay posts `{attribution: {...}}` with CRM keys only (`AdsCapture.attribution(form)`) to the CRM intake | Keys in the `attribution` object; no flat fields, no unknown keys |
 | 6 | Lead record has them | Submit ONE test lead (needs a yes, see below); read the CRM lead | `opportunity.attribution` shows the test values |
 | 7 | Tags fire on success | Google tag + Meta pixel fire on confirmed success, once, with one shared event id | One event per real submit; none on a failed submit |
 | 8 | Platform receives | A person checks Meta Test Events / Google conversion diagnostics | Reported arrival |
@@ -37,7 +37,7 @@ Read first: `<kit>/references/conversion-tracking-rules.md` (evidence labels, ve
 - **A test lead needs a yes in this run**, with the exact URL. It fires a real conversion into a real account. Use a marked test email (`test+ads-<date>@<business domain>` or what the business uses) and ask a person to delete the test lead after.
 - **Diagnose; do not change.** Name the cause and the exact fix, then stop. Site fixes go to a branch + PR in the site repo, never merged by you.
 - **Platform numbers never match ours exactly.** Use the verdict rules before calling a gap a bug.
-- **Send-back readiness** (parked in v1): note whether the lead record holds `gclid`/`gbraid`/`wbraid` and `fbc`/`fbp`, which send-back will need (`data-manager.md`).
+- **Send-back readiness** (parked in v1): note whether the lead record holds `gclid`/`gbraid`/`wbraid` and `_fbc`/`_fbp`, which send-back will need (`data-manager.md`).
 
 ## Output
 

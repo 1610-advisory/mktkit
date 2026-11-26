@@ -36,16 +36,23 @@ Detail: `references/change-queue.md`.
 
 ## Click capture: `scripts/capture.js`
 
-Plain browser JavaScript, no dependencies, no network calls. It saves `gclid`, `gbraid`, `wbraid`, `fbclid`, `msclkid`, `ttclid`, `li_fat_id`, `utm_*`, landing page, referrer and first-seen time in two first-party cookies on your domain (first touch kept, last touch updated), reads Meta's `_fbc` / `_fbp`, and writes all of it into hidden fields on your forms. It respects a consent hook.
+Plain browser JavaScript, no dependencies, no network calls. It saves click ids, UTM tags, landing page, referrer and first-seen time in two first-party cookies on your domain (first touch kept, last touch updated), reads Meta's `_fbc` / `_fbp`, and writes the first touch into hidden fields on your forms. It respects a consent hook.
 
 ```html
+<meta name="content-id" content="AP-20261201-03">  <!-- optional: the page's content_id -->
 <script>window.adsCaptureOptions = { consent: function () { return true; } };</script>
 <script src="/capture.js" defer></script>
 ```
 
+**Hidden field names = the CRM intake's attribution keys**, nothing else by default: `utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, `utm_term`, `gclid`, `gbraid`, `wbraid`, `fbclid`, `msclkid`, `ttclid`, `li_fat_id`, `_fbc`, `_fbp`, `landing_page`, `referrer`, `content_id` (only when the page has the `content-id` meta tag), `first_seen_at` (ISO-8601 UTC, ends in `Z`).
+
+**Server relay.** The CRM reads only `{attribution: {...}}`, not flat form fields, and refuses unknown keys. In the browser, `AdsCapture.attribution(form)` returns the CRM keys from that form, non-empty values only (without a form, from the stored touch). The relay posts that object as `attribution`. On the server, keep only the keys above.
+
+**Last touch (`lastTouch: true`).** Adds `last_*` fields (`last_gclid`, `last_utm_source`, ..., `last_seen`). Off by default: turn it on only after the CRM accepts `last_*` keys (pending os-arch). `attribution()` never includes them.
+
 Things to know:
 
-- **First touch may have no click id.** It is the first visit we saw, which can be organic: then it holds only `landing_page`, `referrer` and `first_seen`. Ad attribution and the planned send-back read the `last_*` click ids (`last_gclid`, `last_gbraid`, `last_wbraid`, `last_fbclid`, ...), the newest ad click before the form.
+- **First touch may have no click id.** It is the first visit we saw, which can be organic: then it holds only `landing_page`, `referrer` and `first_seen_at`. A visitor who first came organically and later clicked an ad posts no click id while `lastTouch` is off. Ad attribution and the planned send-back need the newest ad click, so they will read the `last_*` click ids once the CRM accepts them.
 - **Consent withdrawn:** cookies already set stay until they expire. Call `AdsCapture.clear()` from your consent tool to delete them.
 - **Changing `cookieDomain`** can leave two cookies with the same name (one for the host, one for the domain). Call `AdsCapture.clear()` once after the change; it deletes both.
 - **Cookies blocked:** the fields filled on page load are kept on submit; nothing is remembered across pages.

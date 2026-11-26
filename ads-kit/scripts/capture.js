@@ -20,11 +20,15 @@
  *     cookieDomain: '.example.com',          // share across subdomains (optional)
  *     days: 90,                               // cookie life (gclid lives 90 days)
  *     formSelector: 'form',                   // which forms get hidden fields
+ *     lastTouch: false,                       // true = also add last_* fields (only once your CRM accepts them)
  *     lastPrefix: 'last_',                    // prefix for last-touch field names
  *     autoStart: true                         // false = call AdsCapture.run() yourself
  *   };
  * If your consent tool grants consent later, call window.AdsCapture.run().
  * If consent is withdrawn, call window.AdsCapture.clear() to delete the cookies.
+ * Optional content_id: put <meta name="content-id" content="AP-20261201-03"> on the page.
+ * Server relay: window.AdsCapture.attribution(form) returns {key: value} with CRM keys only
+ * (non-empty); post it as {attribution: ...}.
  * Plain browser JavaScript (ES5), no dependencies.
  */
 (function (root, factory) {
@@ -44,6 +48,10 @@
   var URL_KEYS = CLICK_IDS.concat(UTMS);
   // Fields saved per touch (first and last).
   var TOUCH_FIELDS = URL_KEYS.concat(['landing_page', 'referrer']);
+  // Keys the CRM intake accepts in {attribution: {...}}. Unknown keys are refused there.
+  var CRM_KEYS = UTMS.concat(['gclid', 'gbraid', 'wbraid', 'fbclid', 'msclkid', 'ttclid', 'li_fat_id',
+    '_fbc', '_fbp', 'landing_page', 'referrer', 'content_id', 'first_seen_at']);
+  var ISO_Z = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
   var FIRST_COOKIE = '_adsc_ft';
   var LAST_COOKIE = '_adsc_lt';
   var MAX_LEN = 255;
@@ -113,6 +121,7 @@
       var k = STORED_KEYS[i];
       if (!Object.prototype.hasOwnProperty.call(obj, k) || typeof obj[k] !== 'string') continue;
       var v = clean(obj[k], k === 'landing_page' || k === 'referrer' ? MAX_URL_LEN : MAX_LEN);
+      if ((k === 'first_seen' || k === 'last_seen') && !ISO_Z.test(v)) continue; // ISO-8601 UTC only
       if (v) out[k] = v;
     }
     for (var key in out) if (Object.prototype.hasOwnProperty.call(out, key)) return out;
@@ -132,6 +141,7 @@
     var now = env.now || function () { return new Date(); };
     var days = typeof options.days === 'number' && options.days > 0 ? options.days : 90;
     var lastPrefix = typeof options.lastPrefix === 'string' ? options.lastPrefix : 'last_';
+    var lastTouch = options.lastTouch === true; // last_* fields: off until the CRM accepts them
     var formSelector = options.formSelector || 'form';
     var lastState = null; // what the last run() captured; used when cookies are blocked
 
@@ -240,21 +250,61 @@
     }
 
     // The flat field map that goes into each form.
+    // The page's content_id, from <meta name="content-id" content="AP-20261201-03">.
+    function pageContentId() {
+      var el = null;
+      try { el = typeof doc.querySelector === 'function' ? doc.querySelector('meta[name="content-id"]') : null; } catch (e) { el = null; }
+      if (!el) return '';
+      var v = typeof el.getAttribute === 'function' ? el.getAttribute('content') : el.content;
+      return clean(v, MAX_LEN);
+    }
+
+    // Cookies first; if the browser dropped our writes, what run() captured.
+    function current() {
+      var stored = read();
+      var keep = lastState || {};
+      return { first: stored.first || keep.first || null, last: stored.last || keep.last || null };
+    }
+
+    // The flat field map that goes into each form. Names match the CRM intake keys.
     function fields(state) {
-      state = state || read();
+      state = state || current();
       var out = {};
       var first = state.first || {};
       var last = state.last || {};
       for (var i = 0; i < TOUCH_FIELDS.length; i++) {
         var k = TOUCH_FIELDS[i];
         out[k] = first[k] || '';
-        out[lastPrefix + k] = last[k] || '';
+        if (lastTouch) out[lastPrefix + k] = last[k] || '';
       }
-      out.first_seen = first.first_seen || '';
-      out[lastPrefix + 'seen'] = last.last_seen || '';
+      out.first_seen_at = first.first_seen || '';
+      if (lastTouch) out[lastPrefix + 'seen'] = last.last_seen || '';
       var meta = metaIds(state);
-      out.fbc = meta.fbc;
-      out.fbp = meta.fbp;
+      out._fbc = meta.fbc;
+      out._fbp = meta.fbp;
+      var cid = pageContentId();
+      if (cid) out.content_id = cid; // optional: only when the page names one
+      return out;
+    }
+
+    // The CRM attribution object: CRM keys only, non-empty values only.
+    // With a form, read what is in its fields; without, read the stored touch.
+    function attribution(form) {
+      var out = {};
+      var map = null;
+      if (!form) map = fields();
+      for (var i = 0; i < CRM_KEYS.length; i++) {
+        var k = CRM_KEYS[i];
+        var v = '';
+        if (form) {
+          var input = typeof form.querySelector === 'function' ? form.querySelector('input[name="' + k + '"]') : null;
+          v = input ? clean(input.value, k === 'landing_page' || k === 'referrer' ? MAX_URL_LEN : MAX_LEN) : '';
+        } else {
+          v = map[k] || '';
+        }
+        if (k === 'first_seen_at' && v && !ISO_Z.test(v)) v = '';
+        if (v) out[k] = v;
+      }
       return out;
     }
 
@@ -298,10 +348,7 @@
       var form = event && event.target;
       if (!form || typeof form.querySelector !== 'function') return;
       if (typeof form.matches === 'function' && !form.matches(formSelector)) return;
-      // Cookies first; if the browser dropped our writes, use what run() captured.
-      var stored = read();
-      var keep = lastState || {};
-      fill(form, { first: stored.first || keep.first || null, last: stored.last || keep.last || null });
+      fill(form, current());
     }
 
     // Delete our cookies (for example when consent is withdrawn). Removes both the
@@ -318,7 +365,7 @@
       lastState = null;
     }
 
-    return { run: run, read: read, fields: fields, fill: fill, onSubmit: onSubmit, clear: clear, consentGiven: consentGiven };
+    return { run: run, read: read, fields: fields, attribution: attribution, fill: fill, onSubmit: onSubmit, clear: clear, consentGiven: consentGiven };
   }
 
   var instance = null;
@@ -343,6 +390,8 @@
     run: function () { return instance ? instance.run() : { ran: false }; },
     read: function () { return instance ? instance.read() : null; },
     clear: function () { if (instance) instance.clear(); },
+    attribution: function (form) { return instance ? instance.attribution(form) : {}; },
+    CRM_KEYS: CRM_KEYS,
     CLICK_IDS: CLICK_IDS,
     UTMS: UTMS,
     COOKIES: { first: FIRST_COOKIE, last: LAST_COOKIE },
