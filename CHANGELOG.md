@@ -2,6 +2,10 @@
 
 Plain-language history of the 1610 Marketing Toolkit. Newest first.
 
+## 2026-11-26
+- ads-kit 0.2: the paid-ads engineer now reads and writes the mktdata tool by its named requests (spend, funnel, outcomes, creatives, the change queue) when a business has it, and keeps working from files when it does not. It still only proposes money changes; a person approves them on the mktdata screen.
+- ads-kit: the daily review now checks which outcome source mktdata counts (CSV by default, or the CRM, or Notion) and tells you when CRM counts will not show until the owner switches it.
+
 ## 2026-11-25
 - ads-kit: the daily ads review now copies CRM sales results (leads, qualified, won) into mktdata first, so the screens and reports show the same numbers.
 - Added a paid-ads engineer (the new ads-kit plugin). It maps how leads reach you, proves ad clicks are saved on your forms, builds Google and Meta campaigns, judges ads by qualified leads from your own records, and proposes every money change for you or your set limit to approve.

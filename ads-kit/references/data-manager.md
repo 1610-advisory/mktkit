@@ -1,8 +1,8 @@
-# Sending CRM outcomes back to Google and Meta (parked in v1)
+# Sending CRM outcomes back to Google and Meta (off by default)
 
 ads-kit's own text (MIT). Facts checked 2026-11; vendor APIs change, so check the linked docs before any build.
 
-**Status: parked.** Send-back starts only after the vendor app reviews pass and `send_back.enabled` is true in `tracking/ads/config.yaml`. Until then, reports use all three steps (lead, qualified, won) from our own records, and the platforms learn from the site tag only.
+**Status: built in mktdata, off by default.** Send-back starts only after the vendor app reviews pass and the owner turns it on in mktdata Settings (mirrored as `send_back.enabled` in `tracking/ads/config.yaml`). Without mktdata there is no send-back. Until then, reports use all three steps (lead, qualified, won) from our own records, and the platforms learn from the site tag only.
 
 ## What we send, and why
 
@@ -16,7 +16,7 @@ Since 2026-06-15 the Google Ads API refuses **new** callers of offline click con
 
 - Endpoint: `datamanager.googleapis.com/v1/events:ingest`.
 - OAuth scope: `https://www.googleapis.com/auth/datamanager`. Ask for it on its own, apart from the read scopes, so reporting does not wait for its slower consent review.
-- **No developer token.** Google sunset developer tokens on 2026-09-09. Access level belongs to the Google Cloud project that issues the OAuth credentials.
+- **No token in the agent.** mktdata holds the Google Ads access; the agent never needs a developer token or any token.
 - Click ids `gclid`, `gbraid`, `wbraid` go in `adIdentifiers`. Hashed (SHA-256, normalized) email/phone go in user data for Enhanced Conversions for Leads, only with consent.
 - Consent per event: `ad_user_data` and `ad_personalization`.
 - Dedupe with `transactionId` (use the CRM's opportunity id plus the step, for example `<opportunity_id>:qualified`).
@@ -35,4 +35,4 @@ Docs: Data Manager "send events" guide (developers.google.com/data-manager), Goo
 
 ## Who sends
 
-The mktdata tool, on a timer or from the owner's screen. Never the ads-engineer, never from a chat. The agent's part is to check readiness (`ads-tracking-check`) and to report what send-back would add.
+The mktdata tool, on a timer or from the owner's screen. Never the ads-engineer, never from a chat. In mktdata, send-back is an owner setting (Settings screen, off by default), and the outbox and "send now" (`list_sendback`, `send_conversions`) are owner-only screen requests the agent must never call. The agent's part is to check readiness (`ads-tracking-check`), read whether send-back is on (`get_config`), and report what send-back would add.
