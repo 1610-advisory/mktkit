@@ -283,3 +283,55 @@ test('the script makes no network calls and loads in a plain browser-like global
   assert.equal(typeof window.AdsCapture.run, 'function');
   assert.equal(form.value('gclid'), 'global');
 });
+
+test('cookie writes blocked: submit keeps the values run() filled', () => {
+  // A jar that silently drops every write, like a browser with cookies blocked.
+  const blocked = { writes: [], get cookie() { return ''; }, set cookie(v) { this.writes.push(v); } };
+  const form = fakeForm('f');
+  const document = fakeDocument({ jar: blocked, forms: [form] });
+  const cap = AdsCapture.create({ document, location: loc(`${SITE}/?gclid=kept&utm_source=google`), now: () => new Date('2026-12-01T10:00:00.000Z') });
+  assert.equal(cap.run().ran, true);
+  assert.equal(form.value('gclid'), 'kept');
+  cap.onSubmit({ target: form });
+  assert.equal(form.value('gclid'), 'kept');
+  assert.equal(form.value('last_gclid'), 'kept');
+  assert.equal(form.value('utm_source'), 'google');
+  assert.equal(form.value('first_seen'), '2026-12-01T10:00:00.000Z');
+});
+
+test('tampered cookie: unknown keys, non-strings and control characters are dropped', () => {
+  const jar = fakeJar();
+  const evil = {
+    gclid: 'ok-id\u0000\n',
+    utm_source: { nested: true },
+    utm_medium: 42,
+    utm_campaign: 'x'.repeat(900),
+    __proto__evil: 'no',
+    onload: 'alert(1)',
+    first_seen: '2026-11-01T00:00:00.000Z',
+  };
+  jar.store.set('_adsc_ft', encodeURIComponent(JSON.stringify(evil)));
+  const document = fakeDocument({ jar });
+  const cap = AdsCapture.create({ document, location: loc(`${SITE}/about`), now: () => new Date('2026-12-01T10:00:00.000Z') });
+  const { first } = cap.read();
+  assert.deepEqual(Object.keys(first).sort(), ['first_seen', 'gclid', 'utm_campaign']);
+  assert.equal(first.gclid, 'ok-id');
+  assert.equal(first.utm_campaign.length, 255);
+
+  jar.store.set('_adsc_ft', encodeURIComponent(JSON.stringify(['gclid', 'x'])));
+  assert.equal(cap.read().first, null);
+  jar.store.set('_adsc_ft', encodeURIComponent(JSON.stringify({ junk: 'only' })));
+  assert.equal(cap.read().first, null);
+});
+
+test('clear() deletes host-only and cookieDomain cookies', () => {
+  const jar = fakeJar();
+  const { cap } = visit({ jar, url: `${SITE}/?gclid=x`, options: { cookieDomain: '.acme-plumbing.example' } });
+  assert.equal(jar.store.size, 2);
+  jar.writes.length = 0;
+  cap.clear();
+  assert.equal(jar.store.size, 0);
+  assert.equal(jar.writes.length, 4);
+  assert.ok(jar.writes.every((w) => /max-age=0/.test(w)));
+  assert.equal(jar.writes.filter((w) => /domain=\.acme-plumbing\.example/.test(w)).length, 2);
+});

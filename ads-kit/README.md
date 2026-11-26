@@ -43,6 +43,13 @@ Plain browser JavaScript, no dependencies, no network calls. It saves `gclid`, `
 <script src="/capture.js" defer></script>
 ```
 
+Things to know:
+
+- **First touch may have no click id.** It is the first visit we saw, which can be organic: then it holds only `landing_page`, `referrer` and `first_seen`. Ad attribution and the planned send-back read the `last_*` click ids (`last_gclid`, `last_gbraid`, `last_wbraid`, `last_fbclid`, ...), the newest ad click before the form.
+- **Consent withdrawn:** cookies already set stay until they expire. Call `AdsCapture.clear()` from your consent tool to delete them.
+- **Changing `cookieDomain`** can leave two cookies with the same name (one for the host, one for the domain). Call `AdsCapture.clear()` once after the change; it deletes both.
+- **Cookies blocked:** the fields filled on page load are kept on submit; nothing is remembered across pages.
+
 Tests: `node --test "ads-kit/scripts/tests/*.test.js"` (Node 18+).
 
 ## Where the data comes from

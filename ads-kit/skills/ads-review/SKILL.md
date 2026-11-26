@@ -25,7 +25,7 @@ Read first: `<kit>/references/results-review.md` (verdict method), `ads-judgment
 2. **Spend.** mktdata live: `spend_by_content` and `spend_by_campaign`. Else: Google Ads MCP and Meta Ads MCP reads (ad level: date, spend, impressions, clicks, platform conversions), saved to `tracking/ads/snapshots/<date>/<platform>.json`.
 3. **Outcomes from our records.** mktdata live: CRM `opportunities_by_campaign` and `parties_by_content` (leads, qualified, won + amount). Else: `tracking/revenue-attribution.csv`. Platform conversions go beside them as "platform claim".
 4. **Map spend to `content_id`.** By ad name, then `utm_content`. Unmapped spend: list each ad with its amount ("$220 went to ads with no content_id"). It is a naming bug.
-5. **Threshold before verdict.** Per ad (cell): spend ≥ about 2× `targets.cost_per_qualified_lead_cents` and data at least 3 days old, else "keep running". No target in config: no verdicts at all; say so.
+5. **Threshold before verdict.** The rule, exactly: no verdict before ~2× target cost per qualified lead (`targets.cost_per_qualified_lead_cents`, qualified = CRM-qualified per `conversions.qualified`), or on data < 3 days. Per ad (cell): below either line the status is "keep running", with the spend so far and the days of data shown. No target in config: no verdicts at all; say so.
 6. **Verdicts with math** (measure = cost per qualified lead):
    - **KILL**: ≥ 2× target spent and zero qualified leads, or cost per qualified lead > ~1.5× break-even with no better trend.
    - **SCALE**: at or under target, stable trend. Raise +20 % a day at most.

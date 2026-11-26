@@ -1,4 +1,4 @@
-<!-- Vendored from https://github.com/Midnight-Farmer/boring-marketing-skills (fork of https://github.com/boringmarketer/boring-marketing-skills, commit 7c6678c), skills/paid-ads/SKILL.md. MIT License, Copyright (c) 2026 Boring Marketing, LLC. See ../THIRD_PARTY_NOTICES.md. Excerpt: the section "Mode 2: POLICY CHECK" only; text unmodified. -->
+<!-- Vendored from https://github.com/boringmarketer/boring-marketing-skills (commit 7c6678c), skills/paid-ads/SKILL.md. MIT License, Copyright (c) 2026 Boring Marketing, LLC. See ../THIRD_PARTY_NOTICES.md. Excerpt: the section "Mode 2: POLICY CHECK" only; text unmodified. -->
 
 > **ads-kit note:** read this as a playbook. In ads-kit the measure is the CRM-qualified lead (cost per qualified lead from the business's own records), not the platform's conversion count.
 > The ads-engineer never writes to an ad account itself: money changes go only through the mktdata change queue (`propose_change`), see `change-queue.md`.

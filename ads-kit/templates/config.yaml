@@ -35,7 +35,7 @@ standing_limit:
   enabled: false                        # false = every change waits for a person
   owner: ""                             # the named person who owns the limit (not an agent)
   act_then_report:
-    pause_ad: true                      # pause an ad or ad set
+    pause_ad: true                      # pause an ad (an ad set = pause each of its ads; no ad-set request in M1)
     restart_own_pause_within_days: 7    # restart only a pause the limit made, within N days
     budget_change_pct_per_day: 20       # +/- per campaign per day; total daily spend stays <= caps.daily_cap_cents
     new_ad_from_approved_library: true  # only creatives with status approved, only into an existing ad set

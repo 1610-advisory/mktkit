@@ -24,6 +24,7 @@
  *     autoStart: true                         // false = call AdsCapture.run() yourself
  *   };
  * If your consent tool grants consent later, call window.AdsCapture.run().
+ * If consent is withdrawn, call window.AdsCapture.clear() to delete the cookies.
  * Plain browser JavaScript (ES5), no dependencies.
  */
 (function (root, factory) {
@@ -94,14 +95,28 @@
     return out;
   }
 
+  // Cookies can be edited by anyone with the browser: keep only known keys,
+  // only string values, each cleaned and capped like fresh input.
+  var STORED_KEYS = TOUCH_FIELDS.concat(['first_seen', 'last_seen']);
+
   function decodeTouch(raw) {
     if (!raw) return null;
+    var obj;
     try {
-      var obj = JSON.parse(decodeURIComponent(raw));
-      return obj && typeof obj === 'object' ? obj : null;
+      obj = JSON.parse(decodeURIComponent(raw));
     } catch (e) {
       return null;
     }
+    if (!obj || typeof obj !== 'object' || Object.prototype.toString.call(obj) !== '[object Object]') return null;
+    var out = {};
+    for (var i = 0; i < STORED_KEYS.length; i++) {
+      var k = STORED_KEYS[i];
+      if (!Object.prototype.hasOwnProperty.call(obj, k) || typeof obj[k] !== 'string') continue;
+      var v = clean(obj[k], k === 'landing_page' || k === 'referrer' ? MAX_URL_LEN : MAX_LEN);
+      if (v) out[k] = v;
+    }
+    for (var key in out) if (Object.prototype.hasOwnProperty.call(out, key)) return out;
+    return null; // nothing usable: capture again as if new
   }
 
   function hostOf(url) {
@@ -118,6 +133,7 @@
     var days = typeof options.days === 'number' && options.days > 0 ? options.days : 90;
     var lastPrefix = typeof options.lastPrefix === 'string' ? options.lastPrefix : 'last_';
     var formSelector = options.formSelector || 'form';
+    var lastState = null; // what the last run() captured; used when cookies are blocked
 
     function consentGiven() {
       var hook = options.consent;
@@ -271,6 +287,7 @@
     function run() {
       if (!doc || !consentGiven()) return { ran: false };
       var state = capture();
+      lastState = state;
       var filled = fillAll(state);
       return { ran: true, state: state, forms: filled };
     }
@@ -281,10 +298,27 @@
       var form = event && event.target;
       if (!form || typeof form.querySelector !== 'function') return;
       if (typeof form.matches === 'function' && !form.matches(formSelector)) return;
-      fill(form, read());
+      // Cookies first; if the browser dropped our writes, use what run() captured.
+      var stored = read();
+      var keep = lastState || {};
+      fill(form, { first: stored.first || keep.first || null, last: stored.last || keep.last || null });
     }
 
-    return { run: run, read: read, fields: fields, fill: fill, onSubmit: onSubmit, consentGiven: consentGiven };
+    // Delete our cookies (for example when consent is withdrawn). Removes both the
+    // host-only cookie and the cookieDomain one, so a changed cookieDomain leaves nothing behind.
+    function clear() {
+      var names = [FIRST_COOKIE, LAST_COOKIE];
+      for (var i = 0; i < names.length; i++) {
+        var base = names[i] + '=; path=/; max-age=0; SameSite=Lax';
+        try {
+          doc.cookie = base;
+          if (options.cookieDomain) doc.cookie = base + '; domain=' + options.cookieDomain;
+        } catch (e) { /* cookies blocked */ }
+      }
+      lastState = null;
+    }
+
+    return { run: run, read: read, fields: fields, fill: fill, onSubmit: onSubmit, clear: clear, consentGiven: consentGiven };
   }
 
   var instance = null;
@@ -308,6 +342,7 @@
     autoStart: autoStart,
     run: function () { return instance ? instance.run() : { ran: false }; },
     read: function () { return instance ? instance.read() : null; },
+    clear: function () { if (instance) instance.clear(); },
     CLICK_IDS: CLICK_IDS,
     UTMS: UTMS,
     COOKIES: { first: FIRST_COOKIE, last: LAST_COOKIE },

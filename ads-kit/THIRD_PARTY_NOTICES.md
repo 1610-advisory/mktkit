@@ -4,8 +4,7 @@ Each vendored file under `references/` starts with an HTML comment that names it
 
 ## boring-marketing-skills
 
-- Read from: https://github.com/Midnight-Farmer/boring-marketing-skills (a fork)
-- Upstream: https://github.com/boringmarketer/boring-marketing-skills
+- Repo: https://github.com/boringmarketer/boring-marketing-skills
 - Commit: `7c6678c857fe514f79396ea607aa2a56ea82e676`
 
 | ads-kit file | Source path | What changed |
